@@ -35,6 +35,10 @@ La reprise préserve les identifiants de **protocole** `pedagolab.*`, le header 
 - Sélections de test anonymisées : par défaut, pas de garde additionnelle (`guard_count=0`) en situation réelle tant que les captures `local-anchors/` de l'enseignant n'ont pas été fournies ; contrôle global du rendu néanmoins maintenu.
 - Reproductibilité **unitaire** sans ressource privée ; parcours utilisateur complet actuel **nécessite un accès autorisé séparé au dépôt pédagogique**. Une démonstration autonome publique reste à développer.
 
+## Décision de licence (19 octobre 2026)
+
+Le propriétaire a confirmé **AGPL-3.0-or-later**. `LICENSE` conserve le texte FSF original (AGPL v3) ; `LICENSE-NOTICE.md`, les notices SPDX dans le code et `README.md` précisent l'option « ou toute version ultérieure ». Les tests unitaires sur GitHub doivent être revérifiés après ce changement. L'intégration Firefox v0.4 n'est toujours pas qualifiée ; le prochain test utilisateur ne change pas.
+
 ## Première action après capitalisation
 
 1. Vérifier le commit/PR contenant cette reprise ; tests CI, statut licence et absence d'informations privées.

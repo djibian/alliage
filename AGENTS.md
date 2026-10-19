@@ -37,7 +37,7 @@ Le rendu réel exige `quarto` dans `PATH`. Le test interactif pilote exige une *
 - Ne pas committer de jeton de serveur ; jeton éphémère en mémoire uniquement. Ne pas ouvrir le pont local sur le réseau.
 - Les sources pédagogiques privées doivent rester hors du dépôt et hors des fixtures publiques. Les tests de sélection sont fictifs.
 - Une décision locale A/B n'est **pas** une acceptation de modification dans Git, ni une publication aux élèves.
-- Le fichier `LICENSE` AGPL v3 préexiste ; qualification `-only`/`-or-later` **à décider avec le propriétaire** avant validation de licence. Ne pas inventer d'accord.
+- La licence du code original d'Alliage est **AGPL-3.0-or-later**, confirmée explicitement par le titulaire des droits le 19 octobre 2026. Préserver le fichier `LICENSE` original sans altérer le texte de la FSF, et les notices dans `LICENSE-NOTICE.md` ainsi que les en-têtes SPDX. Vérifier séparément les droits des éventuelles contributions ou dépendances tierces.
 
 ## Branches, PR, preuves et reprise
 

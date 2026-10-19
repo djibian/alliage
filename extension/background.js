@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* Pont privilégié Firefox/Chrome MV3 : aucune requête locale depuis la page HTML. */
 const ext = typeof browser !== "undefined" ? browser : chrome;
 const PAGE = "https://djibian.github.io/pedagogie/enseignements/tim/4e-3e/activites/3e/02-nommer-classer/activite.html";

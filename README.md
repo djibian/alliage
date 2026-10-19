@@ -63,4 +63,4 @@ La commande `python3 serveur.py --repo /tmp/pedagolab-pedagogie` a échoué avec
 
 Ne jamais committer : sources pédagogiques privées, captures réelles non autorisées, jetons, clés, `.env`, données d'élèves ou résultats d'expérience. Toute version approuvée reste *expérimentale* tant qu'une publication séparée n'est pas autorisée. Le service reste local, sans exposition réseau.
 
-Le dépôt GitHub existant contient déjà un fichier `LICENSE` avec la **GNU AGPL v3**. Le choix exact `AGPL-3.0-only` ou `AGPL-3.0-or-later` et les notices de copyright doivent être **confirmés par le propriétaire** avant de qualifier une diffusion officielle. Ne pas supprimer ou modifier `LICENSE` automatiquement.
+**Licence confirmée le 19 octobre 2026 : GNU Affero General Public License v3 ou toute version ultérieure, `AGPL-3.0-or-later`.** Voir [LICENSE](LICENSE) pour le texte intégral de l'AGPL v3 et [LICENSE-NOTICE.md](LICENSE-NOTICE.md) pour la déclaration « or later » applicable au code original d'Alliage. Les sources privées externes ne font pas partie de cette licence ni de ce dépôt.

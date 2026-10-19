@@ -14,13 +14,15 @@
 
 **A006 — GitHub traçable.** Branche/PR pour changement substantiel ; tests Python et examen de confidentialité avant publication ; documenter les réussites réelles sans extrapoler.
 
+**A007 — Licence AGPL-3.0-or-later (adoptée le 19 octobre 2026).** Le propriétaire a confirmé explicitement « AGPL 3 or later » pour Alliage. Les fichiers sources d'Alliage utilisent l'identifiant SPDX `AGPL-3.0-or-later`, et la déclaration complémentaire `LICENSE-NOTICE.md` accompagne le texte intégral inchangé de l'AGPL v3 dans `LICENSE`. Ce choix n'étend pas la licence aux dépôts pédagogiques privés ou aux ressources externes.
+
 ## Hypothèses à éprouver
 
 **H001 — Extension de navigateur + adaptateurs légers + connecteurs.** Viser une expérience unifiée, mais adapter les mécanismes de modification réelle à Quarto/Grist/etc. Aucun framework multiapplication imposé.
 
 **H002 — IA interchangeable.** Aucun moteur (OpenCode, OpenHands, autre) ni mode d'accès aux modèles choisi ; privilégier les connecteurs existants, tester avec cas concrets.
 
-**H003 — Licence.** Le dépôt **préexistant** contient la GNU AGPL **v3** intégrale. `AGPL-3.0-only` et `AGPL-3.0-or-later` ne sont **pas interchangeables** : mention « ou toute version ultérieure » exige une intention explicite du titulaire des droits dans les notices de licence. Le propriétaire doit arrêter le choix et les notices avant annonce d'une licence définitive du projet. Fichier initial préservé.
+**H003 — Licence : levée, voir A007.** L'hypothèse a été résolue par la confirmation explicite du propriétaire le 19 octobre 2026.
 
 ## Abandonnés ou différés
 

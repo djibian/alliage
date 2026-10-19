@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Alliage v0.4: interface locale étroitement limitée au pilote Quarto.
 
 Pas d'API IA, pas de modification du dépôt, pas de publication.

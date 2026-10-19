@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Create isolated Quarto proposal variants from a strictly resolved HTML selection."""
 from __future__ import annotations
 import argparse, difflib, hashlib, html, json, os, re, shutil, subprocess, sys, tempfile

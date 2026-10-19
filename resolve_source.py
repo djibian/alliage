@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Alliage P2a — localise une sélection DOM dans une source Quarto, sans écriture.
 
 Périmètre volontairement réduit : paragraphes/listes sur une seule ligne QMD,
