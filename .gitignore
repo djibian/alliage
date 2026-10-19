@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.venv/
+venv/
+# Secrets et configurations locales
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.token
+.local/
+local-anchors/
+# Résultats expérimentaux et rendus
+alliage-experiences/
+pedagolab-experiences/
+experiences/
+dist/
+.quarto/
+*_cache/
+# OS/IDE
+.DS_Store
+.idea/
+.vscode/
+# Répertoires locaux de sources pédagogiques
+pedagogie/
+webeeblocks/
+infrastructure/

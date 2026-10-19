@@ -1,0 +1,23 @@
+{
+  "schema": "pedagolab.selection.v0",
+  "page": {
+    "url": "https://djibian.github.io/pedagogie/enseignements/tim/4e-3e/activites/3e/02-nommer-classer/activite.html",
+    "title": "Exemple fictif — démonstration des ancres"
+  },
+  "dom": {
+    "cssPath": "#validation > ul > li:nth-of-type(1)",
+    "startUtf16": 4,
+    "endUtf16": 17,
+    "blockText": "Les cinq fichiers sont rangés dans AtelierDemo > docs.",
+    "exactMatchesBlockSlice": true
+  },
+  "quote": {
+    "exact": "cinq fichiers",
+    "prefix": "Les ",
+    "suffix": " sont rangés dans"
+  },
+  "source": {
+    "status": "UNRESOLVED",
+    "message": "Correspondance .qmd non établie"
+  }
+}

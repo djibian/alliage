@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Alliage — Atelier Quarto expérimental",
+  "version": "0.4.0",
+  "description": "Sélection contextualisée et expérimentation Quarto locale, sans publication.",
+  "background": {
+    "scripts": ["background.js"],
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "https://djibian.github.io/pedagogie/*"
+  ],
+  "content_scripts": [{
+    "matches": ["https://djibian.github.io/pedagogie/enseignements/tim/4e-3e/activites/3e/02-nommer-classer/activite.html"],
+    "js": ["atelier.js"],
+    "run_at": "document_idle"
+  }]
+}

@@ -1,0 +1,18 @@
+{
+  "archive": "pedagolab-atelier-quarto-v0.4.zip",
+  "archive_sha256": "f9f275dabee8fefbabf8809273e1d0d7e8b8153b20088ee30c2aa60ae3df419f",
+  "original_files_sha256": {
+    "resolve_source.py": "885adbd19fb4195675e9209cfaf725f6098306776b43724db91b7e093f50e675",
+    "experiment.py": "b3c802ebda00176e0dbf7d42a2c779dc5b1449d15fc1d519b68ee767f640e72b",
+    "serveur.py": "8a927fafef691adef78625557aed69d68e189f8a18072e0e5146d6f318f77667",
+    "README.md": "40e222d1b5db86c38d44941dd3c2d6c25befc58b4bcc3b787bcdb37e516c49c0",
+    "tests/test_resolve_source.py": "5189d9e3e8f13911cdf188814e7420f420c5ed0c36380b5bda9abf0ab6d2dba9",
+    "tests/test_serveur.py": "2e192336bcdf77550e23795eb8b9148c5bff77d67144450c0e2e5c05d0ef30bd",
+    "tests/test_experiment.py": "68df837ebd94e30c852ec5939694ae20df5f0060b51c340489a75d1c8884d110",
+    "exemples/selection-1.json": "72b897b8e826068540d441f45b124273a9aec3087687f6866c39552ca5ae7e5a",
+    "exemples/selection-2.json": "74b1ecd807e9f7c2d1a6e668f06cb429a279eff55c1ea945440ff5f70e1789a1",
+    "extension/manifest.json": "f310f7ec868c1fbc9df4d296412c2dd0fd5196415da00d95221b0c207fe0323c",
+    "extension/background.js": "faa9305211f920f2eb7971efddb911541a1b06d3c6cd92d6a398f6b5a7b85148",
+    "extension/atelier.js": "7698c1e67e2a4fcf10076a803eab8f615dc403e2882d7a5f960df21df85c6622"
+  }
+}
