@@ -21,7 +21,7 @@ class VersionError(ValueError):
 
 
 def _git(repo: Path, *args: str) -> bytes:
-    result = subprocess.run(["git", "-C", str(repo), *args], capture_output=True)
+    result = subprocess.run(["git", "--no-replace-objects", "-C", str(repo), *args], capture_output=True)
     if result.returncode:
         raise VersionError("Git a refusé l'inspection : " + result.stderr.decode("utf-8", "replace").strip()[:250])
     return result.stdout
@@ -50,11 +50,16 @@ def _safe_ref(ref: str) -> str:
 
 
 def _snapshot(repo: Path, revision: str, source: str) -> dict:
-    result = _git(repo, "ls-tree", revision, "--", source).decode("utf-8", "replace").strip()
-    match = re.fullmatch(r"(100644|100755) blob ([0-9a-f]{40})\t(.+)", result)
-    if not match or match.group(3) != source:
+    # Sortie NUL : les chemins UTF-8 et les guillemets ne sont pas échappés.
+    raw = _git(repo, "ls-tree", "-z", revision, "--", source)
+    entries = raw.split(b"\x00")
+    if len(entries) != 2 or entries[1] or b"\t" not in entries[0]:
+        raise VersionError("Source absente ou chemin ambigu à cette révision.")
+    header, path = entries[0].split(b"\t", 1)
+    match = re.fullmatch(rb"(100644|100755) blob ([0-9a-f]{40})", header)
+    if not match or path != source.encode("utf-8"):
         raise VersionError("Source absente, non régulière ou lien symbolique à cette révision.")
-    blob = match.group(2)
+    blob = match.group(2).decode("ascii")
     data = _git(repo, "cat-file", "blob", blob)
     return {"commit": revision, "git_blob": blob, "sha256": hashlib.sha256(data).hexdigest()}
 
@@ -84,18 +89,24 @@ def inspect(repo: Path, repository_id: str, source: str, working_ref: str,
             raise VersionError("La déclaration publiée doit être un SHA Git complet.")
         published_revision = _sha(repo, published_sha)
         published_source = _snapshot(repo, published_revision, source)
-        ancestor = subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor",
+        ancestor = subprocess.run(["git", "--no-replace-objects", "-C", str(repo), "merge-base", "--is-ancestor",
                                    published_revision, working], capture_output=True)
         if ancestor.returncode not in (0, 1):
             raise VersionError("Comparaison d'ascendance Git impossible.")
         published = {**published_source, "is_ancestor_of_working": ancestor.returncode == 0,
                      "deployment_verified": False, "status": "DECLARED_NOT_VERIFIED"}
-    raw = _git(repo, "log", "-n", str(limit), "--format=%H%x00%s", working, "--", source)
+    # -z préserve les caractères de contrôle d'un sujet sans casser la lecture.
+    raw = _git(repo, "log", "-z", "-n", str(limit), "--format=%H%x00%s",
+               working, "--", source)
+    fields = raw.split(b"\x00")
+    if not fields or fields[-1] != b"" or len(fields) % 2 != 1:
+        raise VersionError("Journal Git illisible.")
     history = []
-    for line in raw.decode("utf-8", "replace").splitlines():
-        if "\x00" not in line:
-            raise VersionError("Journal Git illisible.")
-        sha, title = line.split("\x00", 1)
+    for i in range(0, len(fields) - 1, 2):
+        sha = fields[i].decode("ascii", "strict")
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise VersionError("Identifiant Git invalide dans l'historique.")
+        title = fields[i + 1].decode("utf-8", "replace")
         history.append({"commit": sha, "label_unverified": title})
     return {
         "schema": "alliage.quarto-versions.v0",
