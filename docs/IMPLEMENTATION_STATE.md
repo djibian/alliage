@@ -72,3 +72,13 @@ La v0.4 est conservée sans modification de `extension/`, `serveur.py`, `resolve
 **Vérifications au moment de la préparation de la branche :** 5 nouveaux tests unitaires réussis sur des dépôts Git temporaires fictifs ; compilation Python réussie. Les 18 tests historiques et les 5 nouveaux tests font partie de la suite exécutée par GitHub Actions : succès du job `unittest` sur `5a78f63b70e588be134445f69744b5b65307ed2f` ([exécution 39383644923](https://github.com/djibian/alliage/actions/runs/39383644923)). La CI simule Quarto et ne vaut pas validation Firefox. Pas de qualification Firefox ni de Quarto réel pour cette extension.
 
 **Prochaine étape après revue et fusion humaine :** démonstration sur un projet Quarto fictif et construction d'aperçus historiques isolés, puis navigation Firefox. La modification Git externe et son rapatriement ne sont pas encore implémentés.
+
+## Corrections demandées par la revue indépendante de P3.0 (20 octobre 2026)
+
+L'[audit indépendant de la PR #3](https://github.com/djibian/alliage/pull/3#issuecomment-6285689245) a démontré trois défauts. La branche candidate a reçu une correction ciblée sans modifier la v0.4 :
+
+- Désactivation de la substitution locale d'objets `git replace` pour les opérations de lecture et de comparaison d'ascendance : le SHA annoncé ne doit pas être associé au contenu d'un objet de remplacement.
+- Utilisation de `git ls-tree -z` et analyse en octets pour accepter les noms de fichiers `.qmd` UTF-8, notamment les accents et guillemets, sans interpolation ni interprétation de chemin échappé.
+- Utilisation de `git log -z` et découpage sur NUL pour préserver des sujets de commit contenant un retour chariot.
+
+Trois tests fictifs de non-régression complètent les cinq tests P3.0 : la suite passe à 26 tests (18 historiques + 8 P3.0). L'intégration Firefox, le rendu historique Quarto et une publication réelle restent hors périmètre. Les tests et la CI sur le HEAD définitif doivent être revalidés avant fusion humaine, ainsi qu'une relecture indépendante des corrections.
