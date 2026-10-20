@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 from pathlib import Path
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -83,6 +84,47 @@ class QuartoVersionsTests(unittest.TestCase):
         git(self.repo, "update-ref", "refs/heads/alliage/test", "HEAD")
         with self.assertRaises(VersionError):
             inspect(self.repo, "demo/cours", SOURCE, "refs/heads/alliage/test")
+
+
+    def test_replace_objects_cannot_falsify_commit_provenance(self):
+        git(self.repo, "update-ref", "refs/heads/alliage/test", self.v1)
+        original_blob = git(self.repo, "--no-replace-objects", "rev-parse", self.v1 + ":" + SOURCE)
+        original_bytes = (self.repo / SOURCE).read_bytes().replace(b"V2", b"V1")
+        git(self.repo, "replace", self.v1, self.v2)
+        result = inspect(self.repo, "demo/cours", SOURCE, "refs/heads/alliage/test", self.v1)
+        self.assertEqual(result["working"]["commit"], self.v1)
+        self.assertEqual(result["working"]["git_blob"], original_blob)
+        self.assertEqual(result["working"]["sha256"], hashlib.sha256(original_bytes).hexdigest())
+        self.assertEqual([h["commit"] for h in result["history"]], [self.v1])
+        self.assertEqual(result["published"]["git_blob"], original_blob)
+
+    def test_non_ascii_and_quoted_source_path(self):
+        names = ("cours/activité.qmd", 'cours/act"ivite.qmd')
+        for name in names:
+            (self.repo / name).write_text("---\ntitle: Demo\n---\nContenu\n", encoding="utf-8")
+        git(self.repo, "add", ".")
+        self.commit("création de ressources")
+        git(self.repo, "update-ref", "refs/heads/alliage/test", "HEAD")
+        expected_sha = git(self.repo, "rev-parse", "HEAD")
+        for name in names:
+            with self.subTest(name=name):
+                result = inspect(self.repo, "demo/cours", name, "refs/heads/alliage/test")
+                self.assertEqual(result["working"]["commit"], expected_sha)
+                self.assertEqual(result["working"]["git_blob"],
+                                 git(self.repo, "--no-replace-objects", "rev-parse", expected_sha + ":" + name))
+                self.assertEqual([h["commit"] for h in result["history"]], [expected_sha])
+
+    def test_commit_subject_with_carriage_return(self):
+        (self.repo / SOURCE).write_text("---\ntitle: Demo\n---\nV4\n", encoding="utf-8")
+        git(self.repo, "add", ".")
+        self.commit("reformulation\rmoins directive")
+        git(self.repo, "update-ref", "refs/heads/alliage/test", "HEAD")
+        new_head = git(self.repo, "rev-parse", "HEAD")
+        result = inspect(self.repo, "demo/cours", SOURCE, "refs/heads/alliage/test")
+        self.assertEqual(result["working"]["commit"], new_head)
+        self.assertEqual(result["history"][0]["commit"], new_head)
+        self.assertEqual(result["history"][0]["label_unverified"], "reformulation\rmoins directive")
+        self.assertEqual([h["commit"] for h in result["history"]][1:], [self.v2, self.v1])
 
     def test_local_dirty_source_is_not_confused_with_commit(self):
         path = self.repo / SOURCE
