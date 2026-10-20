@@ -1,0 +1,32 @@
+name: Aperçus historiques Quarto — essai réel
+
+on:
+  push:
+    branches:
+      - feat/quarto-historical-preview
+  pull_request:
+    paths:
+      - 'quarto_historical_preview.py'
+      - 'tests/test_quarto_historical_preview.py'
+      - '.github/workflows/quarto-historical-real.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  quarto-real:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Installer Quarto (sans publication)
+        uses: quarto-dev/quarto-actions/setup@v2
+      - name: Version Quarto
+        run: quarto --version
+      - name: Rendre trois révisions fictives dans des dossiers isolés
+        env:
+          ALLIAGE_TEST_REAL_QUARTO: '1'
+        run: python3 -m unittest discover -s tests -p 'test_quarto_historical_preview.py' -v
