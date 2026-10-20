@@ -68,3 +68,17 @@ La commande `python3 serveur.py --repo /tmp/pedagolab-pedagogie` a échoué avec
 Ne jamais committer : sources pédagogiques privées, captures réelles non autorisées, jetons, clés, `.env`, données d'élèves ou résultats d'expérience. Toute version approuvée reste *expérimentale* tant qu'une publication séparée n'est pas autorisée. Le service reste local, sans exposition réseau.
 
 **Licence confirmée le 19 octobre 2026 : GNU Affero General Public License v3 ou toute version ultérieure, `AGPL-3.0-or-later`.** Voir [LICENSE](LICENSE) pour le texte intégral de l'AGPL v3 et [LICENSE-NOTICE.md](LICENSE-NOTICE.md) pour la déclaration « or later » applicable au code original d'Alliage. Les sources privées externes ne font pas partie de cette licence ni de ce dépôt.
+
+## Candidat expérimental : lecture des révisions Quarto (branche de développement)
+
+Le fichier `quarto_versions.py` est une première primitive **non intégrée à Firefox** : elle lit une branche Git locale ou distante *déjà récupérée*, extrait les identifiants de versions et distingue un SHA prétendu publié d'un déploiement attesté. Aucune modification ni publication, aucune API IA ni nouvel accès réseau.
+
+Exemple **fictif** dans un dépôt de test séparé ayant une branche `refs/heads/alliage/test` :
+
+```bash
+python3 quarto_versions.py --repo /chemin/vers/mon-depot-test \
+  --repository-id demo/cours --source cours/activite.qmd \
+  --working-ref refs/heads/alliage/test
+```
+
+Pour une branche GitHub récupérée séparément, utiliser sa ref `refs/remotes/origin/alliage/test`. `--published-sha` accepte un SHA complet explicite **mais ne vérifie pas le déploiement**. Le journal concerne les commits ayant changé le `.qmd` et non toutes ses dépendances Quarto. Tester avec `python3 -m unittest discover -s tests -v`. La validation Firefox reste à faire dans une étape distincte.
