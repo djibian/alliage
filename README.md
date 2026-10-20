@@ -82,3 +82,26 @@ python3 quarto_versions.py --repo /chemin/vers/mon-depot-test \
 ```
 
 Pour une branche GitHub récupérée séparément, utiliser sa ref `refs/remotes/origin/alliage/test`. `--published-sha` accepte un SHA complet explicite **mais ne vérifie pas le déploiement**. Le journal concerne les commits ayant changé le `.qmd` et non toutes ses dépendances Quarto. Tester avec `python3 -m unittest discover -s tests -v`. La validation Firefox reste à faire dans une étape distincte.
+
+
+## Aperçus historiques Quarto P3.1 — candidat en revue
+
+`quarto_historical_preview.py` reconstruit **l'ensemble des fichiers Git suivis** d'un commit SHA complet, y compris configuration, feuilles CSS et illustrations, dans un dossier externe au dépôt source. L'extraction n'effectue ni `checkout`, ni `fetch`, ni modification du dépôt. Le fichier `manifest.json` liste SHA du commit, blobs, SHA-256 des fichiers et état du rendu.
+
+Sur un **dépôt fictif local autorisé**, avec un SHA de commit entier déjà présent dans les objets Git :
+
+```bash
+mkdir -p "$HOME/alliage-experiences/historique"
+python3 quarto_historical_preview.py \
+  --repo "$HOME/projets/mon-depot-de-test" \
+  --revision "<SHA_COMMIT_40_CARACTERES>" \
+  --source activite.qmd \
+  --out "$HOME/alliage-experiences/historique/V1" \
+  --render
+```
+
+Le rendu HTML, s'il réussit, est dans `V1/project/_site/activite.html`. Ouvrir ce **fichier local** dans Firefox pour le vérifier. Répéter avec un autre SHA et un autre dossier neuf. La branche source et les modifications locales non committées restent inchangées ; l'aperçu ne constitue **ni validation pédagogique ni publication**.
+
+Sans `--render`, seule la restitution Git est exécutée (Quarto non requis), et le résultat reste `NOT_RENDERED`. Avec `--render`, Quarto est nécessaire : le programme emploie `--no-execute`, mais **ne constitue pas une sandbox** (scripts avant/après rendu, extensions et filtres peuvent encore exécuter des commandes). Ne jamais rendre un projet Git non fiable ni une ressource privée non autorisée.
+
+Limites P3.1 : sous-modules, liens symboliques et pointeurs Git LFS non matérialisés refusés ; dépendances distantes non prouvées ; taille bornée ; Git SHA-1 uniquement ; sortie HTML `_site` du pilote. La fidélité concerne les **fichiers Git suivis** et leur rendu dans cet environnement, pas l'identité avec une page web déjà déployée, ni une attestation de publication. Navigation Firefox intégrée prévue seulement en P3.2.
