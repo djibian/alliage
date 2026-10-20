@@ -100,7 +100,7 @@ python3 quarto_historical_preview.py \
   --render
 ```
 
-Le rendu HTML, s'il réussit, est dans `V1/project/_site/activite.html`. Ouvrir ce **fichier local** dans Firefox pour le vérifier. Répéter avec un autre SHA et un autre dossier neuf. La branche source et les modifications locales non committées restent inchangées ; l'aperçu ne constitue **ni validation pédagogique ni publication**.
+Le chemin HTML réellement produit (à côté du `.qmd` ou dans `_site` selon le mode de rendu) figure dans le champ `rendered_html.path` de `V1/manifest.json`, relatif au dossier `V1`. Ouvrir ce **fichier local** dans Firefox pour le vérifier. Répéter avec un autre SHA et un autre dossier neuf. La branche source et les modifications locales non committées restent inchangées ; l'aperçu ne constitue **ni validation pédagogique ni publication**.
 
 Sans `--render`, seule la restitution Git est exécutée (Quarto non requis), et le résultat reste `NOT_RENDERED`. Avec `--render`, Quarto est nécessaire : le programme emploie `--no-execute`, mais **ne constitue pas une sandbox** (scripts avant/après rendu, extensions et filtres peuvent encore exécuter des commandes). Ne jamais rendre un projet Git non fiable ni une ressource privée non autorisée.
 
