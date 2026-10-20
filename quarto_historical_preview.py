@@ -143,8 +143,9 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
                 if ver.returncode:
                     raise PreviewError("Version Quarto impossible à déterminer.")
                 quarto_version = ver.stdout.strip()
-                cmd = ["quarto", "render", source, "--to", "html", "--no-execute",
-                       "--output-dir", "_site"]
+                # Le projet déclare output-dir: _site ; Quarto interdit
+                # --output-dir lors du rendu d'un seul document.
+                cmd = ["quarto", "render", source, "--to", "html", "--no-execute"]
                 res = subprocess.run(cmd, capture_output=True, text=True, cwd=project, timeout=180)
             except (OSError, subprocess.TimeoutExpired) as exc:
                 raise PreviewError("Rendu Quarto impossible ou expiré.") from exc
