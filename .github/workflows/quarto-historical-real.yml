@@ -3,6 +3,7 @@ name: Aperçus historiques Quarto — essai réel
 on:
   push:
     branches:
+      - main
       - feat/quarto-historical-preview
   pull_request:
     paths:
