@@ -151,9 +151,16 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
                 raise PreviewError("Rendu Quarto impossible ou expiré.") from exc
             if res.returncode:
                 raise PreviewError("Échec Quarto : " + (res.stdout + res.stderr)[-1000:])
-            html = project / "_site" / _path(str(PurePosixPath(source).with_suffix(".html")))
-            if not html.is_file() or html.is_symlink():
-                raise PreviewError("HTML Quarto attendu absent du répertoire de sortie.")
+            relative_html = _path(str(PurePosixPath(source).with_suffix(".html")))
+            # Un rendu de document peut écrire à côté du .qmd, tandis qu'un
+            # projet peut le placer dans son output-dir. Ne jamais deviner.
+            candidates = [project / relative_html, project / "_site" / relative_html]
+            found = [p for p in candidates if p.is_file() and not p.is_symlink()]
+            if len(found) != 1:
+                raise PreviewError("HTML Quarto non identifiable dans le dossier isolé.")
+            html = found[0]
+            if project.resolve() not in html.resolve().parents:
+                raise PreviewError("HTML Quarto hors de l'instantané isolé.")
             rendered = {"path": str(html.relative_to(stage)), "sha256": _file_hash(html)}
             for entry in tracked:
                 if _file_hash(project / _path(entry["path"])) != entry["sha256"]:
