@@ -45,3 +45,13 @@ Le rendu réel exige `quarto` dans `PATH`. Le test interactif pilote exige une *
 - Tester avant push, vérifier `git diff --check`, relire le diff et les fichiers suivis, vérifier CI puis tester le résultat après fusion. Une CI verte ne remplace pas les tests humains.
 - Conserver dans `docs/IMPLEMENTATION_STATE.md` : SHA, tests réellement exécutés, blocages, limitations et prochaine action. Noter toute décision stable dans `docs/DECISIONS.md` et ajuster `docs/ROADMAP.md` seulement si utile.
 - Reprise après interruption : repartir des **faits GitHub** (main, branches, PR, checks), relire les fichiers, refaire les tests, puis poursuivre la plus petite action éligible. Ne pas déduire une réussite d'une archive ou d'une précédente conversation.
+
+## Contrat complémentaire — Quarto versionné (20 octobre 2026)
+
+- Le parcours A/B v0.4 reste un acquis de compatibilité ; la cible produit est désormais **la ressource versionnée avec une révision de conception et une publication volontaire distinctes**.
+- Priorité exclusive Quarto pour les premières expériences. Ne pas introduire de stockage, base de données, orchestrateur IA, API IA ni couche multiapplication sans preuve de nécessité.
+- Un agent (ChatGPT ou autre) n'obtient aucun privilège implicite : toute modification de ressources externes exige une branche explicitement autorisée et les règles du dépôt cible. Un contenu ou un commit IA reste non fiable jusqu'aux vérifications.
+- Pour la lecture Git, imposer des refs explicites et des SHA complets ; ne pas assimiler un nom de branche, un message de commit ou une déclaration de publication à une preuve de déploiement.
+- La lecture historique ne doit pas faire basculer le checkout courant ; le rendu d'une révision doit utiliser un instantané isolé fidèle à cette révision et à ses dépendances.
+- Jamais d'actualisation implicite de la version élève, ni de restauration destructrice. À terme, chaque classe/groupe doit conserver la cohérence de son instance et des travaux élèves.
+- Vérifications supplémentaires : `python3 -m py_compile quarto_versions.py` et nouveaux tests dans `tests/test_quarto_versions.py`. Un résultat unitaire vert ne qualifie pas encore Firefox, Quarto réel ni le connecteur du panneau latéral.

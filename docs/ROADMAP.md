@@ -7,9 +7,19 @@
 - **P2b** : deux variantes `.qmd` expérimentales rendues par le vrai Quarto (`RENDER_VERIFIED_LOCAL`), comparaison vérifiée par l'enseignant, source intacte.
 - **v0.4 qualifiée pour le pilote Firefox (19/10/2026)** : extension + pont local et vrai Quarto 1.10.19 ; sélection, deux variantes A/B, comparaison et choix local fonctionnent d'après l'essai utilisateur. L'endpoint de santé confirme le commit source, les fichiers de rapport et décision existent, le dépôt pédagogique reste propre. Les 18 tests automatisés et la CI restent verts. La qualification se limite à la Mission 02.
 
-## Prochaine expérimentation — priorité absolue
+## Priorité actuelle — Quarto avec révisions Git (décision du 20 octobre 2026)
 
-**Expérimenter un premier dialogue contextualisé avec l'IA directement depuis la sélection dans Firefox**, sans remplacer la v0.4 qualifiée : une demande de l'enseignant sur un passage identifié doit pouvoir produire des formulations proposées par l'IA, clairement distinguées de modifications réelles ; celles retenues doivent suivre le cycle Quarto A/B déjà vérifié. Comparer les possibilités existantes de connexion à un modèle, documenter la confidentialité et ne choisir ni plateforme ni framework générique avant ce test. La provenance exacte de la page HTML publique reste `revision_verified=false`.
+La priorité historique « dialogue direct → variantes A/B » est remplacée : l'IA pourra modifier **une révision de travail autorisée**, Alliage détectera les nouveaux commits et montrera les versions sans publier. Le parcours A/B qualifié reste disponible ; il n'est plus l'interface cible.
+
+Expériences courtes, séquentielles et non destructives :
+
+1. **P3.0 — lecture du modèle Git** : identifier une ressource fictive publiable, le SHA de sa branche de travail, son historique et un SHA publié *déclaré non vérifié* ; aucune écriture et aucun changement de checkout. Implémentation initiale : `quarto_versions.py` et tests autonomes.
+2. **P3.1 — aperçus isolés** : créer deux vraies révisions Quarto fictives, restituer l'ensemble des dépendances de chacune et vérifier le rendu HTML obtenu avec Quarto réel, sans toucher aux sources ni aux données élèves.
+3. **P3.2 — navigation Firefox** : afficher le navigateur d'historique sur les seuls aperçus locaux identifiés, retour à la révision de travail ; vérification manuelle et régression v0.4.
+4. **P3.3 — modification externe** : tester un commit sur une branche de test autorisée via connecteur GitHub de la conversation ordinaire, puis récupération Git explicite et détection de l'écart de SHA. Vérifier séparément les capacités du panneau Firefox ; aucun accès Work/API présumé.
+5. **P3.4 — préparation de publication** : distinguer validation, SHA source, rendu élève et attestation de déploiement, sans déployer. Tester la non-divulgation des sections enseignantes avant toute étape de publication effective.
+
+**Hors phase :** restauration réelle, publication effective, Grist et toutes les autres applications.
 
 ## Puis, progressivement
 

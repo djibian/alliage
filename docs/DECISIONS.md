@@ -30,3 +30,17 @@
 - **Copie volatile sous `/tmp`** : remplacée dans les consignes par un clone Git persistant sous `~/projets/pedagogie` ; possibilité de chemin explicite `--repo` conservée.
 - **Rendus DOM comme preuves suffisantes** : exclus ; rendu réel Quarto requis.
 - **Serveur IA générique / fork des applications / publication automatique** : différés faute de nécessité démontrée.
+
+## Nouvelle orientation adoptée — 20 octobre 2026
+
+**A008 — La ressource versionnée devient l'objet central.** Le cycle A/B v0.4 est conservé comme expérience qualifiée, mais **ne constitue plus l'interaction cible**. L'enseignant travaille sur une unique ressource de conception dont une révision est publiée explicitement, sans double édition des contenus.
+
+**A009 — Git est l'autorité Quarto.** Une identité logique explicite désigne le dépôt et le `.qmd` ; un SHA complet désigne l'état du projet. Une branche de travail désigne un pointeur mutable, pas une révision. Les labels pédagogiques et messages de commit ne remplacent ni le SHA ni les vérifications de rendu. Les renommages de chemins demanderont ultérieurement une migration contrôlée d'identité.
+
+**A010 — Publication séparée et prouvée.** Une révision déclarée comme publiée sans attestation vérifiable reste `DECLARED_NOT_VERIFIED` ; ne jamais conclure du seul commit qu'un élève reçoit effectivement cette version. La conception, la validation, le rendu élève, le déploiement et les instances déjà commencées doivent rester distincts. Aucune publication automatique.
+
+**A011 — Agents externes et IA interchangeable.** Les agents modifient les branches autorisées par les moyens dont ils disposent (par exemple GitHub), sans extraction des conversations web ni création d'un chatbot/API IA. Les accès ChatGPT sont à qualifier **dans le mode exact utilisé** ; la présence d'un connecteur dans une conversation ne garantit pas son fonctionnement dans la barre latérale Firefox.
+
+**A012 — Prototype incrémental Quarto d'abord.** Premier incrément strictement en lecture seule, sans nouvelle base, serveur, moteur de rendu ou modification du prototype v0.4 ; tests sur Git temporaire et ressources fictives. L'aperçu historique, la détection de commits distants, la navigation Firefox et la publication seront des étapes ultérieures et distinctes.
+
+**Arbitrage ouvert :** la future topologie des branches par ressource et le registre d'attestations de publication ne sont pas imposés par P3.0. Expérimenter une branche dédiée sur un dépôt de test, puis décider à partir du parcours réel.
