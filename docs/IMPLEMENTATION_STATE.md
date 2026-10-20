@@ -82,3 +82,16 @@ L'[audit indépendant de la PR #3](https://github.com/djibian/alliage/pull/3#iss
 - Utilisation de `git log -z` et découpage sur NUL pour préserver des sujets de commit contenant un retour chariot.
 
 Trois tests fictifs de non-régression complètent les cinq tests P3.0 : la suite passe à 26 tests (18 historiques + 8 P3.0). L'intégration Firefox, le rendu historique Quarto et une publication réelle restent hors périmètre. Les tests et la CI sur le HEAD définitif doivent être revalidés avant fusion humaine, ainsi qu'une relecture indépendante des corrections.
+
+
+## P3.1 — candidat d'aperçu historique isolé (20 octobre 2026)
+
+**Base contrôlée** : PR #3 fusionnée sur `main` au SHA `6213db0ca3aa9927eab0b5a5ce9d9162b08c9185` ; les 26 tests (18 historiques + 8 P3.0) sont verts. Développement P3.1 sur `feat/quarto-historical-preview`, sans modifier les composants Firefox et le pont local.
+
+Un laboratoire **privé** séparé a été initialisé avec une activité Quarto fictive (aucune ressource `pedagogie` transférée) : V1 conserve l'état initial, V2 modifie consigne et `_quarto.yml`, V3 modifie uniquement le CSS et l'illustration SVG, sans changer le blob du `.qmd`. Aucune page n'a été publiée.
+
+Le candidat `quarto_historical_preview.py` extrait tous les fichiers **suivis par Git** d'un commit SHA-1 complet vers un dossier neuf à l'extérieur du dépôt source, avec `git --no-replace-objects`, analyse des chemins NUL, contrôles de taille, mode et SHA-256, refus des liens, gitlinks/sous-modules et pointeurs Git LFS. Il conserve un `manifest.json` et peut lancer un rendu Quarto local **uniquement sur demande explicite** avec `--render` et `--no-execute`. Les dépendances distantes restent non vérifiées, ainsi que l'équivalence avec un déploiement externe ; le rendu Quarto ne constitue pas une sandbox contre les scripts de projet ou filtres. Le format Git SHA-256 n'est pas pris en charge.
+
+**Preuves** : tests unitaires sur dépôts Git temporaires fictifs, y compris commits à dépendances différentes et blob `.qmd` inchangé V2→V3 ; tests adversariaux `git replace`, sorties interdites, symlinks et LFS. Le workflow `quarto-historical-real.yml` installe Quarto 1.10.19 et rend réellement V1/V2/V3 du fixture fictif généré dans les tests. Le premier essai CI a détecté que `quarto render document.qmd --output-dir` est invalide ; le candidat a retiré cette option et s'appuie sur l'`output-dir` déclaré par le projet. Les résultats CI du HEAD final restent à contrôler et n'autorisent pas une fusion sans revue.
+
+**Étape suivante** : vérifier les tests GitHub exacts, obtenir une revue indépendante, fusion humaine, puis essai manuel de deux HTML de révisions différentes dans Firefox. Le navigateur de versions intégré est réservé à P3.2.
