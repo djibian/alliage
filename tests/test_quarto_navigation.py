@@ -156,6 +156,59 @@ class NavigationTests(unittest.TestCase):
                     build_navigation(self.session, ["V1", "V2", "V3"], "V3")
                 self.assertFalse((self.session / "navigation.html").exists())
 
+    def test_reject_noncanonical_aliases_for_both_tracked_html_candidates(self):
+        """Even a correct SHA-256 must not bypass the P3.1 preexisting-HTML guard."""
+        aliases = {
+            "activite.html": (
+                "./activite.html", ".//activite.html", "activite.html//",
+            ),
+            "_site/activite.html": (
+                "./_site/activite.html", "_site//activite.html",
+                "_site/./activite.html",
+            ),
+        }
+        for canonical, variants in aliases.items():
+            for spelling in variants:
+                with self.subTest(canonical=canonical, spelling=spelling):
+                    # Rebuild the affected fixture, keeping output absent.
+                    self.make_revision(2)
+                    project = self.session / "V2/project"
+                    html_data = (project / "_site/activite.html").read_bytes()
+                    candidate_file = project / canonical
+                    if canonical == "activite.html":
+                        candidate_file.write_bytes(html_data)
+                    self.assertEqual(candidate_file.read_bytes(), html_data)
+                    self.assertEqual(Path(spelling), Path(canonical))
+
+                    def insert_alias(manifest):
+                        manifest["tracked_files"].append({
+                            "path": spelling, "sha256": digest(html_data),
+                            "git_blob": "a" * 40, "bytes": len(html_data),
+                        })
+                        self.assertIs(manifest["rendered_html"]["existed_before_render"], False)
+
+                    self.mutate_manifest("V2", insert_alias)
+                    with self.assertRaisesRegex(NavigationError, "non canonique"):
+                        build_navigation(self.session, ["V1", "V2", "V3"], "V3")
+                    self.assertFalse((self.session / "navigation.html").exists())
+
+    def test_reject_aliases_on_non_html_tracked_files_and_source(self):
+        # The canonical-path contract applies to *all* manifest file names,
+        # not only the two HTML paths that motivated the audit.
+        for spelling in ("./styles.css", ".//styles.css", "styles.css//"):
+            with self.subTest(file=spelling):
+                self.make_revision(2)
+                self.mutate_manifest("V2", lambda m: m["tracked_files"][1].update(path=spelling))
+                with self.assertRaisesRegex(NavigationError, "non canonique"):
+                    build_navigation(self.session, ["V1", "V2", "V3"], "V3")
+                self.assertFalse((self.session / "navigation.html").exists())
+
+        self.make_revision(2)
+        self.mutate_manifest("V2", lambda m: m.update(source_path="./activite.qmd"))
+        with self.assertRaisesRegex(NavigationError, "non canonique"):
+            build_navigation(self.session, ["V1", "V2", "V3"], "V3")
+        self.assertFalse((self.session / "navigation.html").exists())
+
     def test_fallback_does_not_assert_no_external_publication(self):
         page = build_navigation(self.session, ["V1", "V2", "V3"], "V3")
         markup = page.read_text(encoding="utf-8")
