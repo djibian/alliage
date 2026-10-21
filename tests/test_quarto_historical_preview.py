@@ -185,6 +185,69 @@ class HistoricalPreviewTests(unittest.TestCase):
             self.preview(git(self.repo, "rev-parse", "HEAD"), "missing", render=True)
         self.assertFalse((self.root / "missing").exists())
 
+
+    def test_project_render_selection_fail_closed_for_nontrivial_yaml(self):
+        """The guard must not infer the render set from filename suffixes only."""
+        variants = [
+            ("multiline", "project:\n  type: default\n  output-dir: _site\n"
+                          "  render:\n    - activite.qmd\n    - README.md\n"),
+            ("inline", "project: {type: default, output-dir: _site, "
+                       "render: [activite.qmd, README.md]}\n"),
+            ("duplicate", "project:\n  type: default\n  output-dir: _site\n"
+                          "project:\n  render: [activite.qmd, README.md]\n"),
+            ("unknown", "project:\n  type: default\n  output-dir: _site\n"
+                        "  pre-render: echo unexpected\n"),
+            ("alias", "project: &project_settings\n"
+                      "  type: default\n  output-dir: _site\n"),
+        ]
+        for name, config in variants:
+            with self.subTest(name=name):
+                self.write("_quarto.yml", config)
+                self.commit("configuration suspecte " + name)
+                revision = git(self.repo, "rev-parse", "HEAD")
+                snapshot = self.preview(revision, "raw-" + name)
+                self.assertEqual(snapshot["render_status"], "NOT_RENDERED")
+                with self.assertRaises(PreviewError):
+                    self.preview(revision, "refused-" + name, render=True)
+                self.assertFalse((self.root / ("refused-" + name)).exists())
+
+    def test_reject_profile_configuration_before_render(self):
+        self.write("_quarto-special.yml", "project:\n  render:\n    - README.md\n")
+        self.commit("profil de rendu supplémentaire")
+        revision = git(self.repo, "rev-parse", "HEAD")
+        self.assertEqual(self.preview(revision, "plain")["render_status"], "NOT_RENDERED")
+        with self.assertRaisesRegex(PreviewError, "Configuration Quarto supplémentaire"):
+            self.preview(revision, "profile", render=True)
+        self.assertFalse((self.root / "profile").exists())
+
+    def test_real_quarto_explicit_readme_target_rejected(self):
+        """Quarto must actually render a README that default source scans ignore."""
+        if os.environ.get("ALLIAGE_TEST_REAL_QUARTO") != "1":
+            self.skipTest("Real Quarto validation requires ALLIAGE_TEST_REAL_QUARTO=1")
+        if not shutil.which("quarto"):
+            self.fail("Quarto executable is mandatory")
+        self.write("README.md", "---\ntitle: Page supplémentaire\n---\n\n# Documentation fictive\n")
+        self.write("_quarto.yml", "project:\n  type: default\n  output-dir: _site\n"
+                                "  render:\n    - activite.qmd\n    - README.md\n"
+                                "format:\n  html:\n    toc: true\n    css: styles.css\n"
+                                "execute:\n  enabled: false\n")
+        self.commit("projet avec README inclus explicitement")
+        revision = git(self.repo, "rev-parse", "HEAD")
+        # Empirically demonstrate the exact Quarto behavior the guard must block.
+        control = self.root / "render-explicit-control"
+        shutil.copytree(self.repo, control, ignore=shutil.ignore_patterns(".git"))
+        completed = subprocess.run(["quarto", "render", "--to", "html", "--no-execute"],
+                                   cwd=control, text=True, capture_output=True, timeout=90)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertTrue((control / "_site" / "activite.html").is_file())
+        self.assertTrue((control / "_site" / "README.html").is_file(),
+                        "Quarto should render the explicitly targeted README.md")
+        plain = self.preview(revision, "raw-only", render=False)
+        self.assertEqual(plain["render_status"], "NOT_RENDERED")
+        with self.assertRaisesRegex(PreviewError, "project.render"):
+            self.preview(revision, "no-extra-render", render=True)
+        self.assertFalse((self.root / "no-extra-render").exists())
+
     def test_real_quarto_render_of_two_versions(self):
         if os.environ.get("ALLIAGE_TEST_REAL_QUARTO") != "1":
             self.skipTest("Real Quarto validation requires ALLIAGE_TEST_REAL_QUARTO=1")
