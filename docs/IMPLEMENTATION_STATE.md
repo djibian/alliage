@@ -106,3 +106,36 @@ Correctifs minimaux appliqués sur `feat/quarto-historical-preview` : refus **av
 Le manifeste indique désormais `publication_status=NOT_INITIATED_BY_ALLIAGE`, `deployment_verified=false`, `source_repository_modified=null`, `source_repository_modification_verified=false` et `external_render_effects=NOT_VERIFIED` pour un rendu. Ces champs distinguent les **opérations demandées par Alliage** des effets potentiels du moteur Quarto, non confinés par une sandbox. Un test avec moteur simulé modifiant le dépôt original vérifie cette absence de fausse attestation. Le test avec `--render` continue d'exiger un projet **explicitement fiable**.
 
 Conserver la distinction : la restitution des blobs Git est démontrable ; le lien exact entre rendu local et dépendances externes, les effets des hooks, les déploiements réels et la navigation Firefox restent hors des garanties P3.1. CI sur HEAD final puis revue indépendante du diff correctif requises avant fusion humaine.
+
+
+## P3.1 — découverte au contrôle Firefox humain du 21 octobre 2026
+
+L'enseignant a exécuté P3.1 avec Quarto 1.10.19 sur Ubuntu : V1, V2 et V3 sont reconstruits avec SHA et empreintes cohérents ; les trois HTML existent et sont visibles dans Firefox ; V2/V3 conservent le même blob `.qmd` mais illustrent des SVG différents ; le dépôt source reste intact selon la procédure de contrôle locale.
+
+**Une anomalie visuelle a été observée dans les captures :** la configuration `_quarto.yml` de V2/V3 demande CSS et sommaire, mais les pages affichées ne présentent pas ces effets. Un diagnostic GitHub Actions sur le **laboratoire privé fictif** a confirmé l'absence de `styles.css` et d'indicateurs de sommaire dans les trois HTML produits par `quarto render activite.qmd --to html --no-execute` ([exécution de diagnostic](https://github.com/djibian/alliage-test/actions/runs/39567170016)). Un second essai en mode **projet Quarto** (`quarto render --to html --no-execute`) restitue les références CSS et le sommaire attendu en V2/V3 ([exécution comparative](https://github.com/djibian/alliage-test/actions/runs/39567325769)). Cette exécution de diagnostic termine sur un échec à l'étape suivante car le second rendu dans le même dossier modifie l'environnement déjà contrôlé ; **les observations CSS/sommaire ont été enregistrées avant cet échec**, mais ce job ne constitue pas une preuve de CI verte.
+
+**Conséquence :** la qualification manuelle de P3.1 est seulement **partielle** : historique Git, contenu textuel et SVG validés ; prise en compte des paramètres de projet non qualifiée et désormais identifiée comme un défaut à corriger avant P3.2.
+
+**Candidat correctif** sur `fix/quarto-project-context` : rendre en mode projet pour appliquer `_quarto.yml`, mais refuser par prudence les instantanés multi-documents et sans `_quarto.yml` ; la restitution sans `--render` reste disponible. Ajouter un test Quarto 1.10.19 vérifiant explicitement `styles.css`, la présence du sommaire en V2/V3 et son absence en V1. La validation complète, l'audit indépendant et une éventuelle fusion humaine sont encore à obtenir ; la PR #4 fusionnée n'est pas modifiée.
+
+
+## P3.1 — résultat de la correction du contexte Quarto (21 octobre 2026)
+
+La CI réelle de la PR #5 démontre qu'un instantané reconstruit dans un dossier temporaire **non caché** et rendu en **mode projet** applique la configuration `_quarto.yml`. L'essai intermédiaire dans un dossier caché `.alliage-preview-*` réussissait la commande Quarto mais ne produisait aucun HTML (l'énumération des sources à rendre n'aboutissait pas). Le correctif utilise désormais `alliage-preview-*` (sans point initial) et conserve l'extraction hors du dépôt source.
+
+**Preuve P3.1 renforcée** : le test Quarto réel exige maintenant non seulement un HTML au SHA voulu, mais également une référence à `styles.css` sur V1/V2/V3 et la présence du sommaire attendu sur V2/V3. Il vérifie un répertoire de sortie `_site`, et le pilote refuse explicitement les rendus multi-documents ou sans `_quarto.yml`. Le scénario de sortie personnalisée avec ancien HTML et les attestations de non-publication précédemment corrigés restent testés.
+
+**CI initiale du correctif** : [Quarto réel sur PR #5 : 8 tests réussis](https://github.com/djibian/alliage/actions/runs/39568121963) ; [CI Python du même HEAD](https://github.com/djibian/alliage/actions/runs/39568121759) réussie. Confirmation ultérieure sur le HEAD final et sur le laboratoire privé à effectuer avant revue indépendante et fusion éventuelle.
+
+
+## P3.1 — correction après revue indépendante PR #5 (21 octobre 2026)
+
+L'[audit indépendant de PR #5](https://github.com/djibian/alliage/pull/5#issuecomment-6311595394) a conclu **CORRECTIONS REQUISES** sur le nouveau garde-fou du rendu Quarto en mode projet : Quarto peut rendre un `README.md` que le scan des fichiers ignore si `project.render` l'inclut explicitement. L'auditeur a validé les acquis CSS/sommaire, les protections de la PR #4 et les CI avant cette correction.
+
+**Correction ciblée sur la même branche `fix/quarto-project-context` :** le rendu `--render` est désormais conditionné à une configuration Quarto **simple et explicitement acceptée**. Un unique `_quarto.yml` racine doit définir en tête un bloc `project` dont les seules clés sont `type: default` et `output-dir: _site`. Les sélections `project.render`, paramètres de projet supplémentaires, profils, clés YAML ambiguës, fusions, ancres et alias sont refusés, sans prétendre prendre en charge la sémantique générale de YAML. En lecture seule sans `--render`, un instantané Git à configuration complexe reste extractible.
+
+Un contrôle post-rendu compare aussi les nouveaux fichiers `.html` du projet aux attentes : un HTML supplémentaire interdit une attestation de rendu unique. Cela ne garantit **pas** l'absence de sorties externes ou des effets des hooks Quarto ; le manifeste continue de signaler ces limites non vérifiées.
+
+**Tests ajoutés :** (1) scénario **Quarto 1.10.19 réel**, `project.render: [activite.qmd, README.md]`, démonstration préalable de la génération des deux HTML puis refus d'Alliage sans exécuter le projet litigieux ; (2) configurations inline, doublons, alias, profils et paramètres non reconnus refusés ; (3) faux moteur créant un second HTML, refus et absence de dossier final ; (4) extraction `NOT_RENDERED` autorisée malgré une configuration non prise en charge. Les tests de fidélité CSS/sommaire des V1/V2/V3 et les contrôles de provenance antérieurs restent applicables.
+
+**Statut** : correction candidate en PR #5, non fusionnée. Contrôler les deux workflows GitHub sur le **HEAD exact** final et obtenir une seconde revue indépendante avant toute fusion ou qualification Firefox.

@@ -81,6 +81,75 @@ def _file_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+
+def _check_project_render_scope(project: Path, objects: list[tuple[str, str, str, int]]) -> None:
+    """Accept only a narrow, unambiguous Quarto project config for P3.1.
+
+    No generic YAML parser: complex mappings, profiles, aliases and any
+    project.render override are unsupported and rejected, not guessed at.
+    This is not an isolation mechanism for Quarto hooks/extensions.
+    """
+    names = [name for name, _, _, _ in objects]
+    if "_quarto.yml" not in names:
+        raise PreviewError("Rendu historique limité aux projets contenant _quarto.yml.")
+    configs = [name for name in names if (
+        (PurePosixPath(name).name.lower().startswith("_quarto") and
+         PurePosixPath(name).suffix.lower() in (".yml", ".yaml", ".lua"))
+        or PurePosixPath(name).name.lower() in ("quarto.yml", "quarto.yaml")
+    )]
+    if configs != ["_quarto.yml"]:
+        raise PreviewError("Configuration Quarto supplémentaire ou profil non pris en charge.")
+    try:
+        value = (project / "_quarto.yml").read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise PreviewError("Configuration Quarto illisible.") from exc
+    if any(char in value for char in ("\t", "\r", "\x00", "\ufeff")):
+        raise PreviewError("Syntaxe de configuration Quarto non prise en charge.")
+    # Anchors, aliases, merge keys, tags and document boundaries can change
+    # the effective project mapping without a visible project.render line.
+    for line in value.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("#") or not stripped:
+            continue
+        if (re.search(r"(?:^|\s)<<\s*:|[&*!]", line)
+                or stripped.startswith(("---", "...", "%"))):
+            raise PreviewError("Configuration Quarto YAML complexe non prise en charge.")
+    lines = value.splitlines()
+    starts = [index for index, line in enumerate(lines)
+              if re.fullmatch(r"project:\s*(?:#.*)?", line)]
+    if len(starts) != 1:
+        raise PreviewError("Bloc project Quarto unique et explicite requis.")
+    start = starts[0]
+    if any(line.strip() and not line.lstrip().startswith("#")
+           for line in lines[:start]):
+        raise PreviewError("Le bloc project doit précéder les autres paramètres.")
+    values = {}
+    for line in lines[start + 1:]:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if not line.startswith(" "):
+            break
+        match = re.fullmatch(r"  (type|output-dir):\s*([A-Za-z0-9_-]+)\s*(?:#.*)?", line)
+        if not match or match.group(1) in values:
+            raise PreviewError("Sélection project.render ou configuration projet non prise en charge.")
+        values[match.group(1)] = match.group(2)
+    if values != {"type": "default", "output-dir": "_site"}:
+        raise PreviewError("Projet P3.1 attendu : type default et output-dir _site uniquement.")
+    # Reject duplicate, quoted, or reintroduced project declarations elsewhere.
+    remainder = "\n".join(lines[start + 1:])
+    if re.search(r"(?m)^(?:['\"]?project['\"]?\s*:|\s*<<\s*:)", remainder):
+        raise PreviewError("Bloc project supplémentaire ou fusion YAML interdite.")
+    # Root keys must be plain: complex YAML mapping keys can introduce a
+    # second project declaration through the explicit-key mapping syntax.
+    for line in lines[start + 1:]:
+        if not line or line[0].isspace() or line.startswith("#"):
+            continue
+        match = re.fullmatch(r"([A-Za-z][A-Za-z0-9_-]*):(?:\s*.*)?", line)
+        if not match or match.group(1) == "project":
+            raise PreviewError("Clé YAML racine complexe ou projet dupliqué interdit.")
+
+
 def create_preview(repo: Path, revision: str, source: str, out: Path,
                    render: bool = False) -> dict:
     """Return a durable manifest; project files are read from one Git commit only.
@@ -114,7 +183,7 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
     objects = _objects(repo, commit)
     if source not in [entry[0] for entry in objects]:
         raise PreviewError("Fichier source absent à cette révision.")
-    stage = Path(tempfile.mkdtemp(prefix=".alliage-preview-", dir=dest.parent))
+    stage = Path(tempfile.mkdtemp(prefix="alliage-preview-", dir=dest.parent))
     try:
         project = stage / "project"
         project.mkdir()
@@ -135,6 +204,22 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
         rendered = None
         quarto_version = None
         if render:
+            _check_project_render_scope(project, objects)
+            # Le rendu d'un document isolé ignore des options du projet
+            # (_quarto.yml : CSS, sommaire). Ne rendre le projet que si
+            # une seule ressource ordinaire peut être rendue.
+            targets = []
+            for name, _, _, _ in objects:
+                parts = PurePosixPath(name).parts
+                if any(part.startswith((".", "_")) for part in parts[:-1]):
+                    continue
+                filename = parts[-1]
+                if filename.startswith((".", "_")) or filename in ("README.md", "AGENTS.md"):
+                    continue
+                if PurePosixPath(name).suffix.lower() in (".qmd", ".md", ".rmd", ".ipynb"):
+                    targets.append(name)
+            if targets != [source]:
+                raise PreviewError("Rendu de projet refusé : ressource Quarto unique exigée.")
             # Exiger des sorties par défaut absentes AVANT le rendu :
             # un ancien HTML suivi par Git ne prouve jamais la production.
             relative_html = _path(str(PurePosixPath(source).with_suffix(".html")))
@@ -149,9 +234,8 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
                 if ver.returncode:
                     raise PreviewError("Version Quarto impossible à déterminer.")
                 quarto_version = ver.stdout.strip()
-                # Le projet déclare output-dir: _site ; Quarto interdit
-                # --output-dir lors du rendu d'un seul document.
-                cmd = ["quarto", "render", source, "--to", "html", "--no-execute"]
+                # Le rendu en mode projet applique CSS, toc et configuration.
+                cmd = ["quarto", "render", "--to", "html", "--no-execute"]
                 res = subprocess.run(cmd, capture_output=True, text=True, cwd=project, timeout=180)
             except (OSError, subprocess.TimeoutExpired) as exc:
                 raise PreviewError("Rendu Quarto impossible ou expiré.") from exc
@@ -162,10 +246,25 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
             # est admissible. Le HTML généré n'est pas un déploiement attesté.
             found = [p for p in candidates if p.is_file() and not p.is_symlink()]
             if len(found) != 1:
-                raise PreviewError("HTML Quarto non identifiable dans le dossier isolé.")
+                # Fournir un diagnostic borné des artefacts HTML du seul
+                # instantané local ; ne jamais déclarer de rendu par défaut.
+                observed = sorted(str(p.relative_to(project))
+                                  for p in project.rglob("*.html"))[:10]
+                raise PreviewError("HTML Quarto non identifiable dans le dossier isolé "
+                                   "(sorties HTML observées : " + repr(observed) + ").")
             html = found[0]
             if project.resolve() not in html.resolve().parents:
                 raise PreviewError("HTML Quarto hors de l'instantané isolé.")
+            # Defense in depth: refuse any extra HTML newly generated inside
+            # the isolated project, including targets omitted by the preflight
+            # source-file scan. Tracked HTML inputs are verified separately.
+            tracked_names = {name for name, _, _, _ in objects}
+            new_html = sorted(p.relative_to(project)
+                              for p in project.rglob("*.html")
+                              if p.is_file()
+                              and str(p.relative_to(project)) not in tracked_names)
+            if new_html != [html.relative_to(project)]:
+                raise PreviewError("Rendu de projet ambigu : HTML supplémentaires générés.")
             rendered = {"path": str(html.relative_to(stage)), "sha256": _file_hash(html),
                         "existed_before_render": False}
             for entry in tracked:

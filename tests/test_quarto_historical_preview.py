@@ -170,6 +170,107 @@ class HistoricalPreviewTests(unittest.TestCase):
             self.preview(version, "stale", render=True)
         self.assertFalse((self.root / "stale").exists())
 
+    def test_reject_project_rendering_multiple_documents_or_missing_project_file(self):
+        self.write("autre.qmd", "---\ntitle: Autre essai\n---\n\n# Autre\n")
+        self.commit("projet à deux documents")
+        version = git(self.repo, "rev-parse", "HEAD")
+        # L'extraction reste possible en lecture seule ; le rendu est refusé.
+        self.assertEqual(self.preview(version, "snapshot-only")["render_status"], "NOT_RENDERED")
+        with self.assertRaisesRegex(PreviewError, "unique exigée"):
+            self.preview(version, "multiple", render=True)
+        self.assertFalse((self.root / "multiple").exists())
+        (self.repo / "_quarto.yml").unlink()
+        self.commit("projet sans configuration")
+        with self.assertRaisesRegex(PreviewError, "_quarto.yml"):
+            self.preview(git(self.repo, "rev-parse", "HEAD"), "missing", render=True)
+        self.assertFalse((self.root / "missing").exists())
+
+
+    def test_project_render_selection_fail_closed_for_nontrivial_yaml(self):
+        """The guard must not infer the render set from filename suffixes only."""
+        variants = [
+            ("multiline", "project:\n  type: default\n  output-dir: _site\n"
+                          "  render:\n    - activite.qmd\n    - README.md\n"),
+            ("inline", "project: {type: default, output-dir: _site, "
+                       "render: [activite.qmd, README.md]}\n"),
+            ("duplicate", "project:\n  type: default\n  output-dir: _site\n"
+                          "project:\n  render: [activite.qmd, README.md]\n"),
+            ("unknown", "project:\n  type: default\n  output-dir: _site\n"
+                        "  pre-render: echo unexpected\n"),
+            ("alias", "project: &project_settings\n"
+                      "  type: default\n  output-dir: _site\n"),
+        ]
+        for name, config in variants:
+            with self.subTest(name=name):
+                self.write("_quarto.yml", config)
+                self.commit("configuration suspecte " + name)
+                revision = git(self.repo, "rev-parse", "HEAD")
+                snapshot = self.preview(revision, "raw-" + name)
+                self.assertEqual(snapshot["render_status"], "NOT_RENDERED")
+                with self.assertRaises(PreviewError):
+                    self.preview(revision, "refused-" + name, render=True)
+                self.assertFalse((self.root / ("refused-" + name)).exists())
+
+    def test_reject_profile_configuration_before_render(self):
+        self.write("_quarto-special.yml", "project:\n  render:\n    - README.md\n")
+        self.commit("profil de rendu supplémentaire")
+        revision = git(self.repo, "rev-parse", "HEAD")
+        self.assertEqual(self.preview(revision, "plain")["render_status"], "NOT_RENDERED")
+        with self.assertRaisesRegex(PreviewError, "Configuration Quarto supplémentaire"):
+            self.preview(revision, "profile", render=True)
+        self.assertFalse((self.root / "profile").exists())
+
+
+    def test_multiple_generated_html_never_claim_single_historical_preview(self):
+        """Defence if a renderer creates extra pages beyond the sole declared QMD."""
+        real_run = subprocess.run
+
+        def fake_run(args, **kwargs):
+            if args[:2] == ["quarto", "--version"]:
+                return subprocess.CompletedProcess(args, 0, stdout="test-quarto\n", stderr="")
+            if args[:2] == ["quarto", "render"]:
+                output = Path(kwargs["cwd"]) / "_site"
+                output.mkdir(exist_ok=True)
+                (output / "activite.html").write_text("<p>One</p>", encoding="utf-8")
+                (output / "autre.html").write_text("<p>Unexpected second page</p>",
+                                                   encoding="utf-8")
+                return subprocess.CompletedProcess(args, 0, stdout="ok\n", stderr="")
+            return real_run(args, **kwargs)
+
+        with mock.patch("quarto_historical_preview.shutil.which", return_value="/fake/quarto"), \
+                mock.patch("quarto_historical_preview.subprocess.run", side_effect=fake_run):
+            with self.assertRaisesRegex(PreviewError, "HTML supplémentaires"):
+                self.preview(self.v1, "extra-output", render=True)
+        self.assertFalse((self.root / "extra-output").exists())
+
+    def test_real_quarto_explicit_readme_target_rejected(self):
+        """Quarto must actually render a README that default source scans ignore."""
+        if os.environ.get("ALLIAGE_TEST_REAL_QUARTO") != "1":
+            self.skipTest("Real Quarto validation requires ALLIAGE_TEST_REAL_QUARTO=1")
+        if not shutil.which("quarto"):
+            self.fail("Quarto executable is mandatory")
+        self.write("README.md", "---\ntitle: Page supplémentaire\n---\n\n# Documentation fictive\n")
+        self.write("_quarto.yml", "project:\n  type: default\n  output-dir: _site\n"
+                                "  render:\n    - activite.qmd\n    - README.md\n"
+                                "format:\n  html:\n    toc: true\n    css: styles.css\n"
+                                "execute:\n  enabled: false\n")
+        self.commit("projet avec README inclus explicitement")
+        revision = git(self.repo, "rev-parse", "HEAD")
+        # Empirically demonstrate the exact Quarto behavior the guard must block.
+        control = self.root / "render-explicit-control"
+        shutil.copytree(self.repo, control, ignore=shutil.ignore_patterns(".git"))
+        completed = subprocess.run(["quarto", "render", "--to", "html", "--no-execute"],
+                                   cwd=control, text=True, capture_output=True, timeout=90)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertTrue((control / "_site" / "activite.html").is_file())
+        self.assertTrue((control / "_site" / "README.html").is_file(),
+                        "Quarto should render the explicitly targeted README.md")
+        plain = self.preview(revision, "raw-only", render=False)
+        self.assertEqual(plain["render_status"], "NOT_RENDERED")
+        with self.assertRaisesRegex(PreviewError, "project.render"):
+            self.preview(revision, "no-extra-render", render=True)
+        self.assertFalse((self.root / "no-extra-render").exists())
+
     def test_real_quarto_render_of_two_versions(self):
         if os.environ.get("ALLIAGE_TEST_REAL_QUARTO") != "1":
             self.skipTest("Real Quarto validation requires ALLIAGE_TEST_REAL_QUARTO=1")
@@ -186,8 +287,18 @@ class HistoricalPreviewTests(unittest.TestCase):
             self.assertEqual(x["external_render_effects"], "NOT_VERIFIED")
         html1 = (self.root / "first" / first["rendered_html"]["path"]).read_text(encoding="utf-8")
         html2 = (self.root / "second" / second["rendered_html"]["path"]).read_text(encoding="utf-8")
+        html3 = (self.root / "third" / third["rendered_html"]["path"]).read_text(encoding="utf-8")
         self.assertIn("Texte V1", html1)
         self.assertIn("Texte V2", html2)
+        # Avant le rendu de projet, ces options _quarto.yml étaient IGNORÉES.
+        for html in (html1, html2, html3):
+            self.assertIn("styles.css", html)
+        self.assertNotIn('id="TOC"', html1)
+        for html in (html2, html3):
+            self.assertTrue('id="TOC"' in html or "Sommaire" in html)
+        for version, manifest in (("first", first), ("second", second), ("third", third)):
+            self.assertIn("/_site/", "/" + manifest["rendered_html"]["path"])
+            self.assertTrue((self.root / version / "project/_site/styles.css").is_file())
         self.assertEqual(second["source_sha256"], third["source_sha256"])
         self.assertNotEqual((self.root / "second/project/styles.css").read_text(),
                             (self.root / "third/project/styles.css").read_text())
