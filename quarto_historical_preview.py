@@ -255,6 +255,16 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
             html = found[0]
             if project.resolve() not in html.resolve().parents:
                 raise PreviewError("HTML Quarto hors de l'instantané isolé.")
+            # Defense in depth: refuse any extra HTML newly generated inside
+            # the isolated project, including targets omitted by the preflight
+            # source-file scan. Tracked HTML inputs are verified separately.
+            tracked_names = {name for name, _, _, _ in objects}
+            new_html = sorted(p.relative_to(project)
+                              for p in project.rglob("*.html")
+                              if p.is_file()
+                              and str(p.relative_to(project)) not in tracked_names)
+            if new_html != [html.relative_to(project)]:
+                raise PreviewError("Rendu de projet ambigu : HTML supplémentaires générés.")
             rendered = {"path": str(html.relative_to(stage)), "sha256": _file_hash(html),
                         "existed_before_render": False}
             for entry in tracked:
