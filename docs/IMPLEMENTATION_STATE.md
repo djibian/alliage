@@ -143,7 +143,7 @@ Un contrôle post-rendu compare aussi les nouveaux fichiers `.html` du projet au
 
 ## P3.2 — candidat de navigation historique Firefox locale (21 octobre 2026)
 
-**Origine contrôlée :** `main=ec8d800bc6f5e163578899310b10250f948ae518` après fusion de PR #5 ; Python et Quarto réel post-fusion verts, qualification humaine P3.1 réussie sur `p31-final-tnCJZ7` : V1 sans sommaire, V2 avec sommaire bleu, V3 avec sommaire et titres rouges, QMD V2/V3 identique et dépendances CSS/SVG distinctes. Les captures de l'enseignant ne sont pas publiées dans ce dépôt.
+**Origine contrôlée :** `main=ec8d800bc6f5e163578899310b10250f948ae518` après fusion de PR #5 ; Python et Quarto réel post-fusion verts, qualification humaine P3.1 réussie sur `p31-final-*` : V1 sans sommaire, V2 avec sommaire bleu, V3 avec sommaire et titres rouges, QMD V2/V3 identique et dépendances CSS/SVG distinctes. Les captures de l'enseignant ne sont pas publiées dans ce dépôt.
 
 **Expérimentation P3.2 dans `feat/p32-local-history-navigation` :** `quarto_navigation.py` vérifie ponctuellement trois manifestes historiques P3.1 et les empreintes de HTML/fichiers Git suivis, puis crée une page locale de navigation **sans modifier les instantanés**. `extension/historique.js` ajoute à cette page dans Firefox les contrôles précédent/suivant, choix de SHA et retour à une **référence explicitement désignée**. L'aperçu est affiché dans un `iframe` de la même page. Une seconde entrée `content_scripts` du manifeste cible uniquement les pages `file:///*/alliage-experiences/historique/p31-final-*/navigation.html` ; la page Mission 02, le pont loopback et le comportement A/B v0.4 ne sont pas modifiés.
 
