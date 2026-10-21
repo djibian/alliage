@@ -178,7 +178,12 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
             # est admissible. Le HTML généré n'est pas un déploiement attesté.
             found = [p for p in candidates if p.is_file() and not p.is_symlink()]
             if len(found) != 1:
-                raise PreviewError("HTML Quarto non identifiable dans le dossier isolé.")
+                # Fournir un diagnostic borné des artefacts HTML du seul
+                # instantané local ; ne jamais déclarer de rendu par défaut.
+                observed = sorted(str(p.relative_to(project))
+                                  for p in project.rglob("*.html"))[:10]
+                raise PreviewError("HTML Quarto non identifiable dans le dossier isolé "
+                                   "(sorties HTML observées : " + repr(observed) + ").")
             html = found[0]
             if project.resolve() not in html.resolve().parents:
                 raise PreviewError("HTML Quarto hors de l'instantané isolé.")
