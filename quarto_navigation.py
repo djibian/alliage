@@ -34,6 +34,10 @@ def _relative(name: object) -> Path:
     if (not parts or any(p in ("", ".", "..", ".git") for p in parts)
             or any("\x00" in p or ":" in p for p in parts)):
         raise NavigationError("Chemin d'aperçu non autorisé.")
+    # pathlib folds ./, duplicate slashes and inner /./ segments.
+    # Manifest paths must be canonical BEFORE hashing or comparing them.
+    if name != str(PurePosixPath(name)):
+        raise NavigationError("Chemin d'aperçu non canonique.")
     return Path(*parts)
 
 
@@ -101,12 +105,15 @@ def _load_version(session: Path, version: str) -> dict:
         if not isinstance(item, dict) or "path" not in item:
             raise NavigationError("Entrée Git invalide.")
         p = item["path"]
-        if p in present:
+        canonical = str(_relative(p))
+        if p != canonical:
+            raise NavigationError("Chemin Git non canonique.")
+        if canonical in present:
             raise NavigationError("Fichier Git dupliqué dans le manifeste.")
-        path = _regular_within(folder, "project/" + str(_relative(p)))
+        path = _regular_within(folder, "project/" + canonical)
         if not _matches(path, item.get("sha256")):
             raise NavigationError("Dépendance Git modifiée depuis le rendu.")
-        present[p] = item["sha256"]
+        present[canonical] = item["sha256"]
     # P3.1 refuses rendering whenever either candidate HTML already exists
     # before Quarto runs. A tracked candidate therefore contradicts the
     # manifest's existed_before_render=false, even with correct SHA-256.
