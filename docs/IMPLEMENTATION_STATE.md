@@ -126,3 +126,16 @@ La CI réelle de la PR #5 démontre qu'un instantané reconstruit dans un dossie
 **Preuve P3.1 renforcée** : le test Quarto réel exige maintenant non seulement un HTML au SHA voulu, mais également une référence à `styles.css` sur V1/V2/V3 et la présence du sommaire attendu sur V2/V3. Il vérifie un répertoire de sortie `_site`, et le pilote refuse explicitement les rendus multi-documents ou sans `_quarto.yml`. Le scénario de sortie personnalisée avec ancien HTML et les attestations de non-publication précédemment corrigés restent testés.
 
 **CI initiale du correctif** : [Quarto réel sur PR #5 : 8 tests réussis](https://github.com/djibian/alliage/actions/runs/39568121963) ; [CI Python du même HEAD](https://github.com/djibian/alliage/actions/runs/39568121759) réussie. Confirmation ultérieure sur le HEAD final et sur le laboratoire privé à effectuer avant revue indépendante et fusion éventuelle.
+
+
+## P3.1 — correction après revue indépendante PR #5 (21 octobre 2026)
+
+L'[audit indépendant de PR #5](https://github.com/djibian/alliage/pull/5#issuecomment-6311595394) a conclu **CORRECTIONS REQUISES** sur le nouveau garde-fou du rendu Quarto en mode projet : Quarto peut rendre un `README.md` que le scan des fichiers ignore si `project.render` l'inclut explicitement. L'auditeur a validé les acquis CSS/sommaire, les protections de la PR #4 et les CI avant cette correction.
+
+**Correction ciblée sur la même branche `fix/quarto-project-context` :** le rendu `--render` est désormais conditionné à une configuration Quarto **simple et explicitement acceptée**. Un unique `_quarto.yml` racine doit définir en tête un bloc `project` dont les seules clés sont `type: default` et `output-dir: _site`. Les sélections `project.render`, paramètres de projet supplémentaires, profils, clés YAML ambiguës, fusions, ancres et alias sont refusés, sans prétendre prendre en charge la sémantique générale de YAML. En lecture seule sans `--render`, un instantané Git à configuration complexe reste extractible.
+
+Un contrôle post-rendu compare aussi les nouveaux fichiers `.html` du projet aux attentes : un HTML supplémentaire interdit une attestation de rendu unique. Cela ne garantit **pas** l'absence de sorties externes ou des effets des hooks Quarto ; le manifeste continue de signaler ces limites non vérifiées.
+
+**Tests ajoutés :** (1) scénario **Quarto 1.10.19 réel**, `project.render: [activite.qmd, README.md]`, démonstration préalable de la génération des deux HTML puis refus d'Alliage sans exécuter le projet litigieux ; (2) configurations inline, doublons, alias, profils et paramètres non reconnus refusés ; (3) faux moteur créant un second HTML, refus et absence de dossier final ; (4) extraction `NOT_RENDERED` autorisée malgré une configuration non prise en charge. Les tests de fidélité CSS/sommaire des V1/V2/V3 et les contrôles de provenance antérieurs restent applicables.
+
+**Statut** : correction candidate en PR #5, non fusionnée. Contrôler les deux workflows GitHub sur le **HEAD exact** final et obtenir une seconde revue indépendante avant toute fusion ou qualification Firefox.
