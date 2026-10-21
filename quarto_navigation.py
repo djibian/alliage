@@ -31,7 +31,7 @@ def _relative(name: object) -> Path:
     if not isinstance(name, str) or not name or name.startswith("/") or "\\" in name:
         raise NavigationError("Chemin d'aperçu invalide.")
     parts = PurePosixPath(name).parts
-    if (not parts or any(p in ("", ".", "..", ".git") or p.startswith(".") for p in parts)
+    if (not parts or any(p in ("", ".", "..", ".git") for p in parts)
             or any("\x00" in p or ":" in p for p in parts)):
         raise NavigationError("Chemin d'aperçu non autorisé.")
     return Path(*parts)
@@ -45,7 +45,7 @@ def _regular_within(base: Path, name: object) -> Path:
         current = current / part
         if current.is_symlink():
             raise NavigationError("Lien symbolique interdit dans l'aperçu.")
-    if not result.is_file() or base.resolve() not in result.resolve().parents:
+    if not result.is_file() or result.stat().st_size > 20 * 1024 * 1024 or base.resolve() not in result.resolve().parents:
         raise NavigationError("Fichier d'aperçu absent ou hors session.")
     return result
 
@@ -86,9 +86,9 @@ def _load_version(session: Path, version: str) -> dict:
     _relative(source)
     expected_html = str(PurePosixPath(source).with_suffix(".html"))
     allowed_html = {"project/" + expected_html, "project/_site/" + expected_html}
-    if rendered.get("path") not in allowed_html:
+    if not isinstance(rendered.get("path"), str) or rendered["path"] not in allowed_html:
         raise NavigationError("HTML différent de la source Quarto attestée.")
-    if not report.get("quarto_version"):
+    if not isinstance(report.get("quarto_version"), str) or not report["quarto_version"]:
         raise NavigationError("Version du moteur Quarto non attestée.")
     html_file = _regular_within(folder, rendered["path"])
     if not _matches(html_file, rendered.get("sha256")):
