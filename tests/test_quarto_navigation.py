@@ -90,6 +90,8 @@ class NavigationTests(unittest.TestCase):
         self.assertNotIn("http://", html)
         self.assertNotIn("https://", html)
         self.assertNotIn("published_verified", html)
+        self.assertNotIn("Aucun contenu élève publié", html)
+        self.assertIn("Alliage n'a déclenché aucune publication. Aucun déploiement vérifié.", html)
         record = re.search(r'<script type="application/json" id="alliage-history-data">(.*?)</script>', html)
         self.assertIsNotNone(record)
         payload = json.loads(record.group(1))
@@ -127,6 +129,39 @@ class NavigationTests(unittest.TestCase):
         self.mutate_manifest("V2", lambda x: x["tracked_files"][0].update(path="../activite.qmd"))
         with self.assertRaisesRegex(NavigationError, "Chemin"):
             build_navigation(self.session, ["V1", "V2", "V3"], "V3")
+
+    def test_refuse_tracked_html_candidates_even_when_hashes_match(self):
+        """P3.1 would reject either preexisting HTML candidate before rendering."""
+        for candidate in ("activite.html", "_site/activite.html"):
+            with self.subTest(tracked_html=candidate):
+                self.make_revision(2)
+                project = self.session / "V2/project"
+                html_data = (project / "_site/activite.html").read_bytes()
+                old_html = project / candidate
+                if candidate != "_site/activite.html":
+                    old_html.write_bytes(html_data)
+                # Deliberately make the contradictory tracked item internally
+                # coherent: it exists, has the right size and SHA-256.
+                self.assertEqual(old_html.read_bytes(), html_data)
+                def contradiction(manifest):
+                    manifest["tracked_files"].append({
+                        "path": candidate,
+                        "sha256": digest(html_data),
+                        "git_blob": "a" * 40,
+                        "bytes": len(html_data),
+                    })
+                    self.assertIs(manifest["rendered_html"]["existed_before_render"], False)
+                self.mutate_manifest("V2", contradiction)
+                with self.assertRaisesRegex(NavigationError, "Manifeste contradictoire"):
+                    build_navigation(self.session, ["V1", "V2", "V3"], "V3")
+                self.assertFalse((self.session / "navigation.html").exists())
+
+    def test_fallback_does_not_assert_no_external_publication(self):
+        page = build_navigation(self.session, ["V1", "V2", "V3"], "V3")
+        markup = page.read_text(encoding="utf-8")
+        self.assertIn("Alliage n'a déclenché aucune publication.", markup)
+        self.assertIn("Aucun déploiement vérifié.", markup)
+        self.assertNotIn("Aucun contenu élève publié", markup)
 
     def test_reject_symlinked_html_and_wrong_or_duplicate_reference(self):
         target = self.session / "V3/project/_site/activite.html"
