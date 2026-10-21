@@ -185,3 +185,14 @@ L'[audit indépendant de PR #6](https://github.com/djibian/alliage/pull/6#issuec
 **Limites non bloquantes retenues de l'audit :** le pilote ne confronte pas encore tous les `source_path` des manifestes de révisions entre eux ; le JavaScript est explicitement limité aux URL `activite.html` alors que Python peut reconstruire un autre nom de source. Ne pas présenter cette version comme navigateur Quarto générique ; analyser ces divergences avant d'élargir le périmètre ou de créer automatiquement des sessions.
 
 **Suivi :** contrôler les CI Python, Quarto réel et JavaScript sur le HEAD correctif exact, puis solliciter une **seconde revue indépendante** avant toute fusion humaine. Aucune nouvelle qualification Firefox interactive n'est revendiquée par les tests de correction seuls.
+
+
+## P3.2 — correction du contournement par chemins non canoniques (21 octobre 2026)
+
+La [seconde revue indépendante PR #6](https://github.com/djibian/alliage/pull/6#issuecomment-6313894013) conclut encore **CORRECTIONS REQUISES** : `_relative()` normalisait silencieusement `./`, `//` ou `/./` avant l'accès au fichier, mais l'inventaire `tracked_files` conservait la chaîne originale pour vérifier l'absence de HTML déjà suivi par Git. Une entrée telle que `./_site/activite.html` pouvait donc conserver une empreinte correcte tout en contournant la comparaison exacte avec `_site/activite.html`.
+
+**Correction candidate ciblée :** `_relative()` refuse maintenant les chemins dont la représentation initiale diffère de `str(PurePosixPath(name))`. La boucle des fichiers Git suivis calcule et emploie systématiquement le chemin canonique pour le contrôle des doublons, le contrôle de l'empreinte et le contrôle de la provenance. Ce refus vaut également pour un `source_path` non canonique. Il ne modifie ni les fichiers Git, ni l'extension Firefox, ni les composants A/B v0.4.
+
+**Tests adversariaux :** pour les deux chemins candidats `activite.html` et `_site/activite.html`, des variantes `./`, `//` et `/./` ou leurs équivalents sont insérées dans les manifestes avec fichiers existants, SHA-256 et tailles corrects. L'absence de `navigation.html` après refus est vérifiée. Une seconde série couvre les fichiers Git ordinaires et le `source_path` non canonique. Les cas canoniques et le rendu Quarto réel restent soumis à la CI.
+
+**Statut :** le premier verdict favorable n'est pas présumé ; attendre CI sur HEAD exact et **troisième revue indépendante**. Aucune fusion ni publication. Le contrôle des empreintes reste ponctuel et le rendu iframe reste limité à des documents Quarto de confiance.
