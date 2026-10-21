@@ -107,3 +107,27 @@ En mode `--render`, le pilote exécute **le rendu du projet Quarto** pour appliq
 Sans `--render`, seule la restitution Git est exécutée (Quarto non requis), et le résultat reste `NOT_RENDERED`. Avec `--render`, Quarto est nécessaire : le programme emploie `--no-execute`, mais **ne constitue pas une sandbox** (scripts avant/après rendu, extensions et filtres peuvent encore exécuter des commandes). Le manifeste ne certifie donc **ni l'absence de changement du dépôt source par les scripts**, ni l'absence de déploiement extérieur : `source_repository_modified=null`, `source_repository_modification_verified=false`, `deployment_verified=false`, `external_render_effects=NOT_VERIFIED`. `publication_status=NOT_INITIATED_BY_ALLIAGE` signifie uniquement qu'Alliage n'a pas ordonné de publication. Ne jamais rendre un projet Git non fiable ni une ressource privée non autorisée.
 
 Limites P3.1 : sous-modules, liens symboliques et pointeurs Git LFS non matérialisés refusés ; dépendances distantes non prouvées ; taille bornée ; Git SHA-1 uniquement ; sortie HTML `_site` du pilote. La fidélité concerne les **fichiers Git suivis** et leur rendu dans cet environnement, pas l'identité avec une page web déjà déployée, ni une attestation de publication. Navigation Firefox intégrée prévue seulement en P3.2.
+
+
+## P3.2 — navigateur local de versions Firefox (candidat expérimental)
+
+Ce premier incrément fait évoluer **l'extension Firefox existante**, sans altérer son parcours A/B v0.4 : `extension/historique.js` n'est injecté que sur les pages `file:///*/alliage-experiences/historique/p31-final-*/navigation.html`. Le fichier `extension/atelier.js` et le pont local `serveur.py` restent inchangés.
+
+Après la qualification P3.1, le dossier de session local `~/alliage-experiences/historique/p31-final-…` doit contenir `V1`, `V2`, `V3`, chacun avec `manifest.json` et `project/_site/activite.html`.
+
+Préparer **une seule fois** la page de navigation, depuis une copie du code P3.2 :
+
+```bash
+python3 quarto_navigation.py \
+  --session "$HOME/alliage-experiences/historique/p31-final-XXXXX" \
+  --versions V1 V2 V3 --reference V3
+# Ouvrir l'URL file:///.../navigation.html affichée, dans Firefox.
+```
+
+Le programme refuse tout écrasement de `navigation.html`, les sorties manquantes ou altérées, les chemins/symlinks dangereux et les manifestes sans provenance P3.1. Il **n'exécute ni Git ni Quarto** et ne déclenche aucune publication. Les dossiers V1/V2/V3 restent intacts.
+
+Dans Firefox, charger/recharger l'extension temporaire depuis `extension/manifest.json` via `about:debugging#/runtime/this-firefox`. Ouvrir **`navigation.html`**, pas directement `V3/project/_site/activite.html` : un petit panneau Alliage en bas doit présenter « Précédente », le choix V1/V2/V3, « Suivante » et « Retour à la référence (V3) ». L'aperçu Quarto s'affiche dans un cadre au sein **du même onglet**. Vérifier visuellement V1 sans sommaire, V2 avec sommaire bleu, V3 avec sommaire et CSS rouge, et le retour à V3. Il n'est pas nécessaire de démarrer le pont local v0.4 pour cet essai.
+
+**Portée de la preuve et limites :** le générateur recalcule les SHA-256 de **l'HTML rendu et des fichiers Git suivis extraits** au moment de la création de la page, pas les ressources non suivies générées sous `_site` ; Firefox ne recalcule pas ces empreintes lors de chaque navigation. Les aperçus Quarto sont des documents locaux issus d'un **projet de confiance** ; le navigateur n'est pas une sandbox contre leurs scripts. La révision de référence V3 est **choisie manuellement pour cette session** : ce n'est ni une attestation du HEAD de travail Git, ni une version élève publiée. Le libellé « Aucun déploiement vérifié » doit toujours rester visible. Ce pilote dépend de l'autorisation d'accès aux fichiers locaux de Firefox ; son comportement réel dans le navigateur reste à qualifier humainement avant fusion.
+
+P3.2 n'introduit **aucune** intégration GitHub, IA, serveur supplémentaire, modification de branche, restauration ou publication. La future association explicite à une branche de travail pourra être étudiée après qualification du navigateur.
