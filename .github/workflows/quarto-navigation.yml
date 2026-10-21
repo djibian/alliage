@@ -1,0 +1,46 @@
+name: Navigation historique Firefox — P3.2
+
+on:
+  push:
+    branches:
+      - main
+      - feat/p32-local-history-navigation
+    paths:
+      - 'quarto_navigation.py'
+      - 'extension/historique.js'
+      - 'extension/manifest.json'
+      - 'tests/test_quarto_navigation.py'
+      - 'tests/test_historique.js'
+      - '.github/workflows/quarto-navigation.yml'
+  pull_request:
+    paths:
+      - 'quarto_navigation.py'
+      - 'extension/historique.js'
+      - 'extension/manifest.json'
+      - 'tests/test_quarto_navigation.py'
+      - 'tests/test_historique.js'
+      - '.github/workflows/quarto-navigation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  navigateur:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compiler la primitive et vérifier les manifestes fictifs
+        run: |
+          python3 -m py_compile quarto_navigation.py
+          python3 -m unittest discover -s tests -p 'test_quarto_navigation.py' -v
+      - name: Vérifier la syntaxe et la navigation DOM sans navigateur
+        run: |
+          node --check extension/historique.js
+          node --test tests/test_historique.js
