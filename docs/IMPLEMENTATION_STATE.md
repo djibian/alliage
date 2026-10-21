@@ -139,3 +139,60 @@ Un contrôle post-rendu compare aussi les nouveaux fichiers `.html` du projet au
 **Tests ajoutés :** (1) scénario **Quarto 1.10.19 réel**, `project.render: [activite.qmd, README.md]`, démonstration préalable de la génération des deux HTML puis refus d'Alliage sans exécuter le projet litigieux ; (2) configurations inline, doublons, alias, profils et paramètres non reconnus refusés ; (3) faux moteur créant un second HTML, refus et absence de dossier final ; (4) extraction `NOT_RENDERED` autorisée malgré une configuration non prise en charge. Les tests de fidélité CSS/sommaire des V1/V2/V3 et les contrôles de provenance antérieurs restent applicables.
 
 **Statut** : correction candidate en PR #5, non fusionnée. Contrôler les deux workflows GitHub sur le **HEAD exact** final et obtenir une seconde revue indépendante avant toute fusion ou qualification Firefox.
+
+
+## P3.2 — candidat de navigation historique Firefox locale (21 octobre 2026)
+
+**Origine contrôlée :** `main=ec8d800bc6f5e163578899310b10250f948ae518` après fusion de PR #5 ; Python et Quarto réel post-fusion verts, qualification humaine P3.1 réussie sur `p31-final-*` : V1 sans sommaire, V2 avec sommaire bleu, V3 avec sommaire et titres rouges, QMD V2/V3 identique et dépendances CSS/SVG distinctes. Les captures de l'enseignant ne sont pas publiées dans ce dépôt.
+
+**Expérimentation P3.2 dans `feat/p32-local-history-navigation` :** `quarto_navigation.py` vérifie ponctuellement trois manifestes historiques P3.1 et les empreintes de HTML/fichiers Git suivis, puis crée une page locale de navigation **sans modifier les instantanés**. `extension/historique.js` ajoute à cette page dans Firefox les contrôles précédent/suivant, choix de SHA et retour à une **référence explicitement désignée**. L'aperçu est affiché dans un `iframe` de la même page. Une seconde entrée `content_scripts` du manifeste cible uniquement les pages `file:///*/alliage-experiences/historique/p31-final-*/navigation.html` ; la page Mission 02, le pont loopback et le comportement A/B v0.4 ne sont pas modifiés.
+
+**Frontières de provenance :** le SHA est issu du manifeste P3.1 ; les fichiers locaux ne sont vérifiés **qu'au moment de la génération**, pas à chaque changement de version. Les assets de sortie Quarto non suivis ne sont pas rehashés. L'extension ne prétend pas détecter un HEAD Git réel, ne connaît aucune version publiée et n'exécute aucun rendu, aucune modification ou publication. L'absence de sandbox Quarto et l'accès aux pages `file://` exigent une qualification Firefox réelle. V3 représente seulement la **référence choisie pour la démonstration**, pas une branche de travail attestée.
+
+**Tests publics fictifs :** vérification des manifestes, des empreintes, de l'absence d'écriture sur les snapshots, refus des chemins dangereux et liens symboliques, distinction ref/travail ; tests JavaScript Node du comportement du panneau et des URL refusées, plus syntaxe JS via `node --check`. L'injection effective et le bon rendu du cadre dans Firefox restent **non qualifiés** avant test humain. Maintenir la PR en revue, sans fusion automatique ; après CI, expérimenter l'extension temporaire et la page sur les ressources fictives locales, puis audit indépendant avant décision humaine.
+
+
+## P3.2 — blocage humain d'injection Firefox `file://` (21 octobre 2026)
+
+La première exécution Ubuntu du candidat P3.2 a réussi à cloner la branche et à créer le fichier local `navigation.html` depuis la session P3.1, mais **le panneau Alliage n'apparaît pas dans Firefox**. Aucun succès d'injection ou de navigation réelle n'est revendiqué. Le testeur n'a pas encore confirmé l'état des permissions de son extension.
+
+**Diagnostic externe fiable :** Mozilla a introduit en [Firefox 153](https://blog.mozilla.org/addons/2026/07/23/firefox-153-webextensions-api-updates/) un consentement **séparé et désactivé par défaut** pour permettre aux extensions d'accéder aux documents `file://`, même lorsqu'elles déclarent un motif correspondant. Sur Firefox 157, il faut vérifier dans `about:addons` → Alliage → Permissions l'option d'accès aux fichiers locaux, l'activer volontairement, puis recharger `navigation.html`. L'absence de ce consentement expliquerait le symptôme, **sans que ce soit encore une cause confirmée par l'utilisateur**.
+
+Ne jamais supprimer le contrôle d'URL strict de `extension/historique.js` ni contourner ce consentement en élargissant les permissions. Si le panneau reste absent après octroi de la permission, poursuivre par un diagnostic de l'extension chargée, du motif `matches`, de l'iframe et de la console Firefox. En attendant, PR #6 reste **Draft et non qualifiée Firefox**, sans fusion.
+
+
+## P3.2 — qualification Firefox interactive réussie (21 octobre 2026)
+
+**Preuve humaine :** après activation volontaire de la permission Firefox « accès aux fichiers locaux » dans `about:addons`, l'enseignant confirme explicitement « Oui cela fonctionne après avoir ajouté la permission » et fournit **trois captures** de la page `navigation.html` à V3, V2 et V1. Ces captures restent dans la conversation de qualification et **ne sont pas ajoutées au dépôt public**.
+
+**Constats observables :** le panneau « Alliage · Historique » est affiché en bas de Firefox 157 sur l'URL `file://.../p31-final-*/navigation.html` ; le sélecteur indique successivement V3 (`b95a4f66`), V2 (`71b1319d`) et V1 (`9048bddb`) ; les commandes précédent/suivant changent de disponibilité suivant la position. La barre d'adresse conserve la même page `navigation.html` ; le rendu Quarto change dans son cadre : V1 affiche la consigne initiale et aucun sommaire, V2 présente la reformulation, le sommaire et le style bleu, V3 le même contenu pédagogique, le sommaire, la bordure rouge pointillée et les titres rouges, avec illustration aux couleurs modifiées. L'utilisateur confirme le fonctionnement après l'octroi de la permission. La capture atteste l'affichage et la navigation, **pas** une vérification d'empreinte continue ni un état Git publié.
+
+**Cause du blocage initial confirmée par l'essai utilisateur :** sans la permission `file://` de Firefox 157, aucun panneau n'était injecté ; avec la permission accordée et la page rechargée, la navigation fonctionne. Le consentement reste manuel et explicite. Aucun contournement ni élargissement des permissions n'a été ajouté au code.
+
+**Statut P3.2 du périmètre pilote :** qualification interactive Firefox **PASS** pour la navigation locale en lecture seule sur V1/V2/V3 ; génération P3.1 préalable nécessaire. Référence V3 choisie pour le scénario et **non assimilable à HEAD réel ni à une publication**. La branche `feat/p32-local-history-navigation` reste soumise à une **revue indépendante** et à une décision humaine de fusion. Aucune publication, modification Git ou intégration IA n'est impliquée.
+
+
+## P3.2 — correction de deux défauts bloquants après audit indépendant (21 octobre 2026)
+
+L'[audit indépendant de PR #6](https://github.com/djibian/alliage/pull/6#issuecomment-6313544781) conclut **CORRECTIONS REQUISES** sur deux problèmes ciblés ; il confirme par ailleurs la qualification réelle Firefox 157, la préservation du parcours A/B de v0.4 et la réussite des CI initiales. Le pilote reste non fusionné.
+
+**1. Cohérence de provenance :** le chargement d'un manifeste refuse désormais tout candidat HTML de P3.1 (`<source>.html` et `_site/<source>.html`) présent dans `tracked_files` alors que `rendered_html.existed_before_render=false`. P3.1 aurait refusé un tel HTML déjà suivi par Git avant le rendu. Des tests adversariaux reconstituent **les deux** scénarios, avec fichiers réellement présents, empreintes SHA-256 et tailles cohérentes : la navigation doit échouer sans créer `navigation.html`.
+
+**2. Déclaration de publication :** le texte de secours visible sans injection de l'extension devient « Alliage n'a déclenché aucune publication. Aucun déploiement vérifié. ». Il ne prétend plus attester l'absence d'une éventuelle publication extérieure à l'outil. Un test couvre explicitement la nouvelle formulation et l'absence de l'ancienne affirmation absolue.
+
+**Garanties inchangées :** seuls les manifestes P3.1 et fichiers locaux sont lus, seuls les nouveaux `navigation.html` sont créés, et leurs empreintes sont vérifiées **ponctuellement** ; aucun Git, Quarto, serveur ou mécanisme de publication n'est invoqué par P3.2. Les fichiers et pages Quarto de confiance restent des documents actifs, et l'iframe ne fournit aucune isolation sécuritaire.
+
+**Limites non bloquantes retenues de l'audit :** le pilote ne confronte pas encore tous les `source_path` des manifestes de révisions entre eux ; le JavaScript est explicitement limité aux URL `activite.html` alors que Python peut reconstruire un autre nom de source. Ne pas présenter cette version comme navigateur Quarto générique ; analyser ces divergences avant d'élargir le périmètre ou de créer automatiquement des sessions.
+
+**Suivi :** contrôler les CI Python, Quarto réel et JavaScript sur le HEAD correctif exact, puis solliciter une **seconde revue indépendante** avant toute fusion humaine. Aucune nouvelle qualification Firefox interactive n'est revendiquée par les tests de correction seuls.
+
+
+## P3.2 — correction du contournement par chemins non canoniques (21 octobre 2026)
+
+La [seconde revue indépendante PR #6](https://github.com/djibian/alliage/pull/6#issuecomment-6313894013) conclut encore **CORRECTIONS REQUISES** : `_relative()` normalisait silencieusement `./`, `//` ou `/./` avant l'accès au fichier, mais l'inventaire `tracked_files` conservait la chaîne originale pour vérifier l'absence de HTML déjà suivi par Git. Une entrée telle que `./_site/activite.html` pouvait donc conserver une empreinte correcte tout en contournant la comparaison exacte avec `_site/activite.html`.
+
+**Correction candidate ciblée :** `_relative()` refuse maintenant les chemins dont la représentation initiale diffère de `str(PurePosixPath(name))`. La boucle des fichiers Git suivis calcule et emploie systématiquement le chemin canonique pour le contrôle des doublons, le contrôle de l'empreinte et le contrôle de la provenance. Ce refus vaut également pour un `source_path` non canonique. Il ne modifie ni les fichiers Git, ni l'extension Firefox, ni les composants A/B v0.4.
+
+**Tests adversariaux :** pour les deux chemins candidats `activite.html` et `_site/activite.html`, des variantes `./`, `//` et `/./` ou leurs équivalents sont insérées dans les manifestes avec fichiers existants, SHA-256 et tailles corrects. L'absence de `navigation.html` après refus est vérifiée. Une seconde série couvre les fichiers Git ordinaires et le `source_path` non canonique. Les cas canoniques et le rendu Quarto réel restent soumis à la CI.
+
+**Statut :** le premier verdict favorable n'est pas présumé ; attendre CI sur HEAD exact et **troisième revue indépendante**. Aucune fusion ni publication. Le contrôle des empreintes reste ponctuel et le rendu iframe reste limité à des documents Quarto de confiance.
