@@ -131,3 +131,35 @@ Dans Firefox, charger/recharger l'extension temporaire depuis `extension/manifes
 **Portée de la preuve et limites :** le générateur recalcule les SHA-256 de **l'HTML rendu et des fichiers Git suivis extraits** au moment de la création de la page, pas les ressources non suivies générées sous `_site` ; Firefox ne recalcule pas ces empreintes lors de chaque navigation. Les aperçus Quarto sont des documents locaux issus d'un **projet de confiance** ; le navigateur n'est pas une sandbox contre leurs scripts. La révision de référence V3 est **choisie manuellement pour cette session** : ce n'est ni une attestation du HEAD de travail Git, ni une version élève publiée. Le libellé « Aucun déploiement vérifié » doit toujours rester visible. Ce pilote dépend de l'autorisation d'accès aux fichiers locaux de Firefox ; son comportement réel dans le navigateur reste à qualifier humainement avant fusion.
 
 P3.2 n'introduit **aucune** intégration GitHub, IA, serveur supplémentaire, modification de branche, restauration ou publication. La future association explicite à une branche de travail pourra être étudiée après qualification du navigateur.
+
+
+## P3.3 — comparaison Git après récupération explicite (candidat en revue)
+
+Le pilote `quarto_branch_delta.py` compare **un SHA Git connu** à la valeur **locale** d'une branche de suivi `refs/remotes/origin/experiment/...`. Il ne lit pas directement GitHub, n'exécute pas `git fetch`, ne change pas de branche et ne modifie aucun document. Le dépôt local et la branche expérimentale doivent être **explicitement autorisés**.
+
+Exemple avec une ressource Quarto **entièrement fictive** dans une copie Git de test :
+
+```bash
+LAB="$HOME/projets/alliage-p31/alliage-test"
+REF="refs/remotes/origin/experiment/historique-quarto"
+
+# Photographier le SHA observé AVANT le futur commit expérimental :
+KNOWN="$(git -C "$LAB" rev-parse --verify "${REF}^{commit}")"
+printf 'SHA initial : %s\n' "$KNOWN"
+
+# Après création AUTORISÉE d'un nouveau commit sur cette branche
+# (opération distincte, éventuellement réalisée dans GitHub) :
+git -C "$LAB" fetch --no-tags origin \
+  "refs/heads/experiment/historique-quarto:${REF}"
+
+python3 quarto_branch_delta.py \
+  --repo "$LAB" \
+  --repository-id djibian/alliage-test \
+  --source activite.qmd \
+  --tracking-ref "$REF" \
+  --baseline-sha "$KNOWN"
+```
+
+Le résultat JSON distingue `UNCHANGED`, `FAST_FORWARD`, `REWOUND` et `DIVERGED` ; il compare le **SHA du commit**, l'**arbre Git de tout le projet**, ainsi que le **blob du `.qmd`**. Un nouveau commit CSS ou SVG peut donc être détecté même sans modification du `.qmd`. Une branche distante non encore récupérée **reste invisible à cette observation**. Le nom `origin` ou l'identité de dépôt déclarée ne prouve pas l'authenticité d'un serveur GitHub. `remote_freshness_verified=false`, `deployment_verified=false` et `fetch_performed_by_alliage=false` ne doivent pas être interprétés autrement.
+
+Limites P3.3 initiales : branche distante de test `experiment/*` uniquement ; Git SHA-1 ; source `.qmd` présente et régulière aux deux commits ; pas de surveillance continue, pas de publication ni d'interaction IA, pas encore de synchronisation avec le navigateur Firefox. Une vérification du vrai fonctionnement du connecteur GitHub dans la conversation n'établit **aucune** disponibilité automatique du même connecteur dans la barre latérale Firefox.
