@@ -220,6 +220,29 @@ class HistoricalPreviewTests(unittest.TestCase):
             self.preview(revision, "profile", render=True)
         self.assertFalse((self.root / "profile").exists())
 
+
+    def test_multiple_generated_html_never_claim_single_historical_preview(self):
+        """Defence if a renderer creates extra pages beyond the sole declared QMD."""
+        real_run = subprocess.run
+
+        def fake_run(args, **kwargs):
+            if args[:2] == ["quarto", "--version"]:
+                return subprocess.CompletedProcess(args, 0, stdout="test-quarto\n", stderr="")
+            if args[:2] == ["quarto", "render"]:
+                output = Path(kwargs["cwd"]) / "_site"
+                output.mkdir(exist_ok=True)
+                (output / "activite.html").write_text("<p>One</p>", encoding="utf-8")
+                (output / "autre.html").write_text("<p>Unexpected second page</p>",
+                                                   encoding="utf-8")
+                return subprocess.CompletedProcess(args, 0, stdout="ok\n", stderr="")
+            return real_run(args, **kwargs)
+
+        with mock.patch("quarto_historical_preview.shutil.which", return_value="/fake/quarto"), \
+                mock.patch("quarto_historical_preview.subprocess.run", side_effect=fake_run):
+            with self.assertRaisesRegex(PreviewError, "HTML supplémentaires"):
+                self.preview(self.v1, "extra-output", render=True)
+        self.assertFalse((self.root / "extra-output").exists())
+
     def test_real_quarto_explicit_readme_target_rejected(self):
         """Quarto must actually render a README that default source scans ignore."""
         if os.environ.get("ALLIAGE_TEST_REAL_QUARTO") != "1":
