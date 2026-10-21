@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -20,8 +21,22 @@ class VersionError(ValueError):
     """Référence ou source Git incompatible avec l'inspection sûre."""
 
 
+def _git_environment() -> dict[str, str]:
+    """Never let Git implicitly download missing objects from promisor remotes.
+
+    This protection must be inherited by *every* Git subprocess, including
+    shared P3.0 functions reused by the P3.3 observer.
+    """
+    env = os.environ.copy()
+    env["GIT_NO_LAZY_FETCH"] = "1"
+    return env
+
+
 def _git(repo: Path, *args: str) -> bytes:
-    result = subprocess.run(["git", "--no-replace-objects", "-C", str(repo), *args], capture_output=True)
+    result = subprocess.run(
+        ["git", "--no-replace-objects", "-C", str(repo), *args],
+        capture_output=True, env=_git_environment(),
+    )
     if result.returncode:
         raise VersionError("Git a refusé l'inspection : " + result.stderr.decode("utf-8", "replace").strip()[:250])
     return result.stdout
@@ -90,7 +105,8 @@ def inspect(repo: Path, repository_id: str, source: str, working_ref: str,
         published_revision = _sha(repo, published_sha)
         published_source = _snapshot(repo, published_revision, source)
         ancestor = subprocess.run(["git", "--no-replace-objects", "-C", str(repo), "merge-base", "--is-ancestor",
-                                   published_revision, working], capture_output=True)
+                                   published_revision, working],
+                                  capture_output=True, env=_git_environment())
         if ancestor.returncode not in (0, 1):
             raise VersionError("Comparaison d'ascendance Git impossible.")
         published = {**published_source, "is_ancestor_of_working": ancestor.returncode == 0,
