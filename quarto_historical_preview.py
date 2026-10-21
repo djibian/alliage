@@ -135,6 +135,23 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
         rendered = None
         quarto_version = None
         if render:
+            if not (project / "_quarto.yml").is_file():
+                raise PreviewError("Rendu historique limité aux projets contenant _quarto.yml.")
+            # Le rendu d'un document isolé ignore des options du projet
+            # (_quarto.yml : CSS, sommaire). Ne rendre le projet que si
+            # une seule ressource ordinaire peut être rendue.
+            targets = []
+            for name, _, _, _ in objects:
+                parts = PurePosixPath(name).parts
+                if any(part.startswith((".", "_")) for part in parts[:-1]):
+                    continue
+                filename = parts[-1]
+                if filename.startswith((".", "_")) or filename in ("README.md", "AGENTS.md"):
+                    continue
+                if PurePosixPath(name).suffix.lower() in (".qmd", ".md", ".rmd", ".ipynb"):
+                    targets.append(name)
+            if targets != [source]:
+                raise PreviewError("Rendu de projet refusé : ressource Quarto unique exigée.")
             # Exiger des sorties par défaut absentes AVANT le rendu :
             # un ancien HTML suivi par Git ne prouve jamais la production.
             relative_html = _path(str(PurePosixPath(source).with_suffix(".html")))
@@ -149,9 +166,8 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
                 if ver.returncode:
                     raise PreviewError("Version Quarto impossible à déterminer.")
                 quarto_version = ver.stdout.strip()
-                # Le projet déclare output-dir: _site ; Quarto interdit
-                # --output-dir lors du rendu d'un seul document.
-                cmd = ["quarto", "render", source, "--to", "html", "--no-execute"]
+                # Le rendu en mode projet applique CSS, toc et configuration.
+                cmd = ["quarto", "render", "--to", "html", "--no-execute"]
                 res = subprocess.run(cmd, capture_output=True, text=True, cwd=project, timeout=180)
             except (OSError, subprocess.TimeoutExpired) as exc:
                 raise PreviewError("Rendu Quarto impossible ou expiré.") from exc
