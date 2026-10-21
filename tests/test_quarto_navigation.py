@@ -2,7 +2,10 @@
 """P3.2: local Firefox history page; synthetic data only, no private fixture."""
 import hashlib
 import json
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -12,6 +15,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from quarto_navigation import NavigationError, build_navigation
+from quarto_historical_preview import create_preview
 
 
 def digest(value: bytes) -> str:
@@ -143,6 +147,42 @@ class NavigationTests(unittest.TestCase):
         invalid.mkdir()
         with self.assertRaisesRegex(NavigationError, "p31-final"):
             build_navigation(invalid, ["V1", "V2"], "V2")
+
+
+    def test_real_quarto_snapshots_feed_same_tab_navigator(self):
+        if os.environ.get("ALLIAGE_TEST_REAL_QUARTO") != "1":
+            self.skipTest("Test Quarto réel réservé au workflow dédié")
+        if not shutil.which("quarto"):
+            self.fail("Quarto réel obligatoire")
+        # Single source, two commits and the complete P3.1 manifest, not mocks.
+        repo = self.home / "fiction-git"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        (repo / "_quarto.yml").write_text(
+            "project:\n  type: default\n  output-dir: _site\n"
+            "format:\n  html:\n    toc: true\n    css: styles.css\n", encoding="utf-8")
+        (repo / "styles.css").write_text("h2{color:blue}", encoding="utf-8")
+        commits = []
+        for number in (1, 2):
+            (repo / "activite.qmd").write_text(
+                f"---\ntitle: Activité fictive {number}\n---\n\n## Consigne\nVersion {number}.\n",
+                encoding="utf-8")
+            subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(repo), "-c", "user.name=Fiction",
+                            "-c", "user.email=fiction@example.test", "commit", "-qm",
+                            f"V{number}"], check=True)
+            commit = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"],
+                                             text=True).strip()
+            commits.append(commit)
+            snapshot = create_preview(repo, commit, "activite.qmd",
+                                      self.session / f"V{number}", True)
+            self.assertEqual(snapshot["render_status"], "RENDERED_FROM_GIT_SNAPSHOT")
+        page = build_navigation(self.session, ["V1", "V2"], "V2")
+        self.assertTrue(page.is_file())
+        self.assertIn(commits[0], page.read_text())
+        self.assertIn(commits[1], page.read_text())
+        self.assertEqual(subprocess.check_output(
+            ["git", "-C", str(repo), "status", "--porcelain"], text=True), "")
 
     def test_existing_extension_v04_remains_scoped(self):
         config = json.loads((ROOT / "extension/manifest.json").read_text(encoding="utf-8"))
