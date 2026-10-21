@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """P3.3 branch-delta tests: all fixtures fictitious, no real external remote."""
 import hashlib
+import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from quarto_branch_delta import DeltaError, compare
@@ -94,6 +97,7 @@ class BranchDeltaTests(unittest.TestCase):
         git(self.repo, "update-ref", REF, self.initial)
         rewound = self.observe(a)
         self.assertEqual(rewound["relation"], "REWOUND")
+        self.assertTrue(rewound["ref_changed"])
         git(self.repo, "reset", "--hard", self.initial)
         (self.repo / SOURCE).write_text("Branche alternative B\n")
         self.commit("branche B")
@@ -101,6 +105,7 @@ class BranchDeltaTests(unittest.TestCase):
         git(self.repo, "update-ref", REF, b)
         divergent = self.observe(a)
         self.assertEqual(divergent["relation"], "DIVERGED")
+        self.assertTrue(divergent["ref_changed"])
         self.assertNotEqual(divergent["observed_commit"], a)
 
     def test_fail_closed_on_nonexistent_refs_sha_and_sources(self):
@@ -126,6 +131,93 @@ class BranchDeltaTests(unittest.TestCase):
         self.assertEqual(report["observed_commit"], self.initial)
         self.assertEqual(report["baseline_commit"], self.initial)
         self.assertFalse(report["source_blob_changed"])
+
+    def _bare_fixture(self):
+        """A file:// Git server, entirely within a disposable temp directory."""
+        remote = self.root / "remote-for-security.git"
+        subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+        git(self.repo, "remote", "add", "origin", str(remote))
+        git(self.repo, "push", "origin", "HEAD:refs/heads/experiment/historique-quarto")
+        git(remote, "symbolic-ref", "HEAD", "refs/heads/experiment/historique-quarto")
+        return remote
+
+    def test_partial_clone_refuses_missing_blob_without_lazy_fetch(self):
+        remote = self._bare_fixture()
+        # A genuine filtered clone: the commit and tree exist but the QMD
+        # blob is absent. file:// is needed for --filter to take effect.
+        git(remote, "config", "uploadpack.allowFilter", "true")
+        partial = self.root / "partial"
+        subprocess.run(
+            ["git", "clone", "-q", "--filter=blob:none", "--no-checkout",
+             remote.as_uri(), str(partial)],
+            check=True, capture_output=True,
+        )
+        sha = git(partial, "rev-parse", REF)
+        self.assertEqual(sha, self.initial)
+        blob = git(partial, "rev-parse", self.initial + ":" + SOURCE)
+        env = os.environ.copy()
+        env["GIT_NO_LAZY_FETCH"] = "1"
+        absent = subprocess.run(
+            ["git", "--no-replace-objects", "-C", str(partial),
+             "cat-file", "-e", blob],
+            capture_output=True, env=env,
+        )
+        self.assertNotEqual(absent.returncode, 0, "Fixture must omit the source blob")
+        before = git(partial, "count-objects", "-v")
+        trace = self.root / "trace-no-network.json"
+        # Even an inherited explicitly permissive setting must be overridden
+        # by the shared P3.0 and P3.3 Git helpers.
+        with patch.dict(os.environ, {"GIT_NO_LAZY_FETCH": "0",
+                                     "GIT_TRACE2_EVENT": str(trace)}):
+            with self.assertRaisesRegex(DeltaError, "Git|objet|inspection"):
+                compare(partial, "fiction/laboratoire", SOURCE, REF, self.initial)
+        self.assertEqual(git(partial, "count-objects", "-v"), before)
+        self.assertNotEqual(subprocess.run(
+            ["git", "-C", str(partial), "cat-file", "-e", blob],
+            capture_output=True, env=env,
+        ).returncode, 0, "Missing object must stay missing after observation")
+        events = [json.loads(line) for line in trace.read_text().splitlines()]
+        children = [e for e in events if e.get("event") == "child_start"]
+        self.assertEqual(children, [], "No child Git process may contact the remote")
+
+    def test_local_grafts_are_refused_even_with_no_replace_objects(self):
+        (self.repo / SOURCE).write_text("Chemin A\n")
+        self.commit("fictitious A")
+        a = git(self.repo, "rev-parse", "HEAD")
+        git(self.repo, "reset", "--hard", self.initial)
+        (self.repo / SOURCE).write_text("Chemin B\n")
+        self.commit("fictitious B")
+        b = git(self.repo, "rev-parse", "HEAD")
+        git(self.repo, "update-ref", REF, b)
+        self.assertEqual(self.observe(a)["relation"], "DIVERGED")
+        grafts = Path(git(self.repo, "rev-parse", "--path-format=absolute",
+                          "--git-path", "info/grafts"))
+        # Forge B's first parent as A without changing either commit SHA.
+        grafts.write_text(f"{b} {a}\n", encoding="ascii")
+        faked = subprocess.run(["git", "--no-replace-objects", "-C", str(self.repo),
+                                "merge-base", "--is-ancestor", a, b],
+                               capture_output=True)
+        self.assertEqual(faked.returncode, 0, "Fixture must actually forge ancestry")
+        with self.assertRaisesRegex(DeltaError, "Greffes Git"):
+            self.observe(a)
+        # A linked worktree has a .git FILE and must consult the common
+        # info/grafts, not its own administrative worktree directory.
+        wt = self.root / "linked-worktree"
+        git(self.repo, "worktree", "add", "--detach", str(wt), b)
+        with self.assertRaisesRegex(DeltaError, "Greffes Git"):
+            compare(wt, "fiction/laboratoire", SOURCE, REF, a)
+
+    def test_shallow_clone_is_refused_instead_of_claiming_divergence(self):
+        remote = self._bare_fixture()
+        shallow = self.root / "shallow"
+        subprocess.run(
+            ["git", "clone", "-q", "--depth=1", "--no-checkout",
+             remote.as_uri(), str(shallow)],
+            check=True, capture_output=True,
+        )
+        self.assertEqual(git(shallow, "rev-parse", "--is-shallow-repository"), "true")
+        with self.assertRaisesRegex(DeltaError, "superficiel"):
+            compare(shallow, "fiction/laboratoire", SOURCE, REF, self.initial)
 
     def test_explicit_local_fetch_required_to_advance_observation(self):
         # A real local bare remote and two separate clones: only the test
