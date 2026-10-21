@@ -170,3 +170,18 @@ Ne jamais supprimer le contrôle d'URL strict de `extension/historique.js` ni co
 **Cause du blocage initial confirmée par l'essai utilisateur :** sans la permission `file://` de Firefox 157, aucun panneau n'était injecté ; avec la permission accordée et la page rechargée, la navigation fonctionne. Le consentement reste manuel et explicite. Aucun contournement ni élargissement des permissions n'a été ajouté au code.
 
 **Statut P3.2 du périmètre pilote :** qualification interactive Firefox **PASS** pour la navigation locale en lecture seule sur V1/V2/V3 ; génération P3.1 préalable nécessaire. Référence V3 choisie pour le scénario et **non assimilable à HEAD réel ni à une publication**. La branche `feat/p32-local-history-navigation` reste soumise à une **revue indépendante** et à une décision humaine de fusion. Aucune publication, modification Git ou intégration IA n'est impliquée.
+
+
+## P3.2 — correction de deux défauts bloquants après audit indépendant (21 octobre 2026)
+
+L'[audit indépendant de PR #6](https://github.com/djibian/alliage/pull/6#issuecomment-6313544781) conclut **CORRECTIONS REQUISES** sur deux problèmes ciblés ; il confirme par ailleurs la qualification réelle Firefox 157, la préservation du parcours A/B de v0.4 et la réussite des CI initiales. Le pilote reste non fusionné.
+
+**1. Cohérence de provenance :** le chargement d'un manifeste refuse désormais tout candidat HTML de P3.1 (`<source>.html` et `_site/<source>.html`) présent dans `tracked_files` alors que `rendered_html.existed_before_render=false`. P3.1 aurait refusé un tel HTML déjà suivi par Git avant le rendu. Des tests adversariaux reconstituent **les deux** scénarios, avec fichiers réellement présents, empreintes SHA-256 et tailles cohérentes : la navigation doit échouer sans créer `navigation.html`.
+
+**2. Déclaration de publication :** le texte de secours visible sans injection de l'extension devient « Alliage n'a déclenché aucune publication. Aucun déploiement vérifié. ». Il ne prétend plus attester l'absence d'une éventuelle publication extérieure à l'outil. Un test couvre explicitement la nouvelle formulation et l'absence de l'ancienne affirmation absolue.
+
+**Garanties inchangées :** seuls les manifestes P3.1 et fichiers locaux sont lus, seuls les nouveaux `navigation.html` sont créés, et leurs empreintes sont vérifiées **ponctuellement** ; aucun Git, Quarto, serveur ou mécanisme de publication n'est invoqué par P3.2. Les fichiers et pages Quarto de confiance restent des documents actifs, et l'iframe ne fournit aucune isolation sécuritaire.
+
+**Limites non bloquantes retenues de l'audit :** le pilote ne confronte pas encore tous les `source_path` des manifestes de révisions entre eux ; le JavaScript est explicitement limité aux URL `activite.html` alors que Python peut reconstruire un autre nom de source. Ne pas présenter cette version comme navigateur Quarto générique ; analyser ces divergences avant d'élargir le périmètre ou de créer automatiquement des sessions.
+
+**Suivi :** contrôler les CI Python, Quarto réel et JavaScript sur le HEAD correctif exact, puis solliciter une **seconde revue indépendante** avant toute fusion humaine. Aucune nouvelle qualification Firefox interactive n'est revendiquée par les tests de correction seuls.
