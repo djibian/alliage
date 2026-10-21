@@ -114,7 +114,7 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
     objects = _objects(repo, commit)
     if source not in [entry[0] for entry in objects]:
         raise PreviewError("Fichier source absent à cette révision.")
-    stage = Path(tempfile.mkdtemp(prefix=".alliage-preview-", dir=dest.parent))
+    stage = Path(tempfile.mkdtemp(prefix="alliage-preview-", dir=dest.parent))
     try:
         project = stage / "project"
         project.mkdir()
