@@ -36,7 +36,7 @@ class NavigationTests(unittest.TestCase):
         folder = self.session / f"V{i}"
         project = folder / "project"
         site = project / "_site"
-        site.mkdir(parents=True)
+        site.mkdir(parents=True, exist_ok=True)
         qmd = f"---\ntitle: Test {i}\n---\n\n## Consigne\nTexte {i}.\n".encode()
         css = f"h2{{color:rgb({i},0,0)}}".encode()
         html = f"<!doctype html><h1>Test {i}</h1>".encode()
