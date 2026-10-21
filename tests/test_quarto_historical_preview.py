@@ -171,7 +171,7 @@ class HistoricalPreviewTests(unittest.TestCase):
         self.assertFalse((self.root / "stale").exists())
 
     def test_reject_project_rendering_multiple_documents_or_missing_project_file(self):
-        self.write("autre.qmd", "---\\ntitle: Autre essai\\n---\\n\\n# Autre\\n")
+        self.write("autre.qmd", "---\ntitle: Autre essai\n---\n\n# Autre\n")
         self.commit("projet à deux documents")
         version = git(self.repo, "rev-parse", "HEAD")
         # L'extraction reste possible en lecture seule ; le rendu est refusé.
@@ -207,7 +207,7 @@ class HistoricalPreviewTests(unittest.TestCase):
         # Avant le rendu de projet, ces options _quarto.yml étaient IGNORÉES.
         for html in (html1, html2, html3):
             self.assertIn("styles.css", html)
-        self.assertNotIn("id=\\\"TOC\\\"", html1)
+        self.assertNotIn('id="TOC"', html1)
         for html in (html2, html3):
             self.assertTrue('id="TOC"' in html or "Sommaire" in html)
         for version, manifest in (("first", first), ("second", second), ("third", third)):
