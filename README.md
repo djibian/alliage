@@ -109,7 +109,7 @@ Sans `--render`, seule la restitution Git est exécutée (Quarto non requis), et
 Limites P3.1 : sous-modules, liens symboliques et pointeurs Git LFS non matérialisés refusés ; dépendances distantes non prouvées ; taille bornée ; Git SHA-1 uniquement ; sortie HTML `_site` du pilote. La fidélité concerne les **fichiers Git suivis** et leur rendu dans cet environnement, pas l'identité avec une page web déjà déployée, ni une attestation de publication. Navigation Firefox intégrée prévue seulement en P3.2.
 
 
-## P3.2 — navigateur local de versions Firefox (candidat expérimental)
+## P3.2 — navigateur local de versions Firefox (pilote intégré)
 
 Ce premier incrément fait évoluer **l'extension Firefox existante**, sans altérer son parcours A/B v0.4 : `extension/historique.js` n'est injecté que sur les pages `file:///*/alliage-experiences/historique/p31-final-*/navigation.html`. Le fichier `extension/atelier.js` et le pont local `serveur.py` restent inchangés.
 
@@ -128,6 +128,42 @@ Le programme refuse tout écrasement de `navigation.html`, les sorties manquante
 
 Dans Firefox, charger/recharger l'extension temporaire depuis `extension/manifest.json` via `about:debugging#/runtime/this-firefox`. **Depuis Firefox 153, l'accès aux URL `file://` est une permission distincte, désactivée par défaut** : ouvrir `about:addons`, choisir l'extension Alliage → **Permissions**, puis activer « Accéder aux fichiers locaux sur votre ordinateur » (libellé variable selon la langue). Cette autorisation est attribuée **par l'utilisateur**, jamais contournée par Alliage. Recharger ensuite **`navigation.html`**, pas directement `V3/project/_site/activite.html` : un petit panneau Alliage en bas doit présenter « Précédente », le choix V1/V2/V3, « Suivante » et « Retour à la référence (V3) ». L'aperçu Quarto s'affiche dans un cadre au sein **du même onglet**. Vérifier visuellement V1 sans sommaire, V2 avec sommaire bleu, V3 avec sommaire et CSS rouge, et le retour à V3. Il n'est pas nécessaire de démarrer le pont local v0.4 pour cet essai.
 
-**Portée de la preuve et limites :** le générateur recalcule les SHA-256 de **l'HTML rendu et des fichiers Git suivis extraits** au moment de la création de la page, pas les ressources non suivies générées sous `_site` ; Firefox ne recalcule pas ces empreintes lors de chaque navigation. Les aperçus Quarto sont des documents locaux issus d'un **projet de confiance** ; le navigateur n'est pas une sandbox contre leurs scripts. La révision de référence V3 est **choisie manuellement pour cette session** : ce n'est ni une attestation du HEAD de travail Git, ni une version élève publiée. Le libellé « Aucun déploiement vérifié » doit toujours rester visible. Ce pilote dépend de l'autorisation d'accès aux fichiers locaux de Firefox ; son comportement réel dans le navigateur reste à qualifier humainement avant fusion.
+**Portée de la preuve et limites :** le générateur recalcule les SHA-256 de **l'HTML rendu et des fichiers Git suivis extraits** au moment de la création de la page, pas les ressources non suivies générées sous `_site` ; Firefox ne recalcule pas ces empreintes lors de chaque navigation. Les aperçus Quarto sont des documents locaux issus d'un **projet de confiance** ; le navigateur n'est pas une sandbox contre leurs scripts. La révision de référence V3 est **choisie manuellement pour cette session** : ce n'est ni une attestation du HEAD de travail Git, ni une version élève publiée. Le libellé « Aucun déploiement vérifié » doit toujours rester visible. Ce pilote exige le consentement d'accès aux fichiers locaux de Firefox ; le scénario V1/V2/V3 a été qualifié humainement dans Firefox 157, puis intégré via la PR #6 avec trois CI post-fusion réussies. Cela ne prouve pas une compatibilité universelle avec tous les projets Quarto.
 
 P3.2 n'introduit **aucune** intégration GitHub, IA, serveur supplémentaire, modification de branche, restauration ou publication. La future association explicite à une branche de travail pourra être étudiée après qualification du navigateur.
+
+
+## P3.3 — comparaison Git après récupération explicite (candidat en revue)
+
+Le pilote `quarto_branch_delta.py` compare **un SHA Git connu** à la valeur **locale** d'une branche de suivi `refs/remotes/origin/experiment/...`. Il ne lit pas directement GitHub, n'exécute pas `git fetch`, ne change pas de branche et ne modifie aucun document. Le dépôt local et la branche expérimentale doivent être **explicitement autorisés**.
+
+Exemple avec une ressource Quarto **entièrement fictive** dans une copie Git de test :
+
+```bash
+LAB="$HOME/projets/alliage-p31/alliage-test"
+REF="refs/remotes/origin/experiment/historique-quarto"
+
+# Photographier le SHA observé AVANT le futur commit expérimental :
+KNOWN="$(git -C "$LAB" rev-parse --verify "${REF}^{commit}")"
+printf 'SHA initial : %s\n' "$KNOWN"
+
+# Après création AUTORISÉE d'un nouveau commit sur cette branche
+# (opération distincte, éventuellement réalisée dans GitHub) :
+git -C "$LAB" fetch --no-tags origin \
+  "refs/heads/experiment/historique-quarto:${REF}"
+
+python3 quarto_branch_delta.py \
+  --repo "$LAB" \
+  --repository-id djibian/alliage-test \
+  --source activite.qmd \
+  --tracking-ref "$REF" \
+  --baseline-sha "$KNOWN"
+```
+
+Le résultat JSON distingue `UNCHANGED`, `FAST_FORWARD`, `REWOUND` et `DIVERGED` ; il compare le **SHA du commit**, l'**arbre Git de tout le projet**, ainsi que le **blob du `.qmd`**. Un nouveau commit CSS ou SVG peut donc être détecté même sans modification du `.qmd`. Une branche distante non encore récupérée **reste invisible à cette observation**. Le nom `origin` ou l'identité de dépôt déclarée ne prouve pas l'authenticité d'un serveur GitHub. `remote_freshness_verified=false`, `deployment_verified=false` et `fetch_performed_by_alliage=false` ne doivent pas être interprétés autrement.
+
+**Garde-fous de lecture Git P3.3 :** chaque sous-processus Git lancé par les primitives partagées (`quarto_versions.py`) et le comparateur reçoit `GIT_NO_LAZY_FETCH=1`. Dans un clone partiel, si le blob ou l'arbre nécessaire est absent, l'observation **échoue** au lieu de le télécharger automatiquement ; la récupération préalable explicite demeure une opération externe autorisée. La classification d'ascendance **refuse** les dépôts contenant `info/grafts` (chemin Git commun réel, y compris pour les worktrees liés) et les dépôts `shallow`, plutôt que de présenter une ascendance locale falsifiée ou incomplète comme fiable. Les dépôts Git locaux doivent rester de confiance ; cette protection n'authentifie pas le dépôt distant ni son propriétaire.
+
+**Sémantique JSON :** `ref_changed` indique qu'un pointeur observé diffère du SHA de référence, quel que soit `relation`. L'ancien champ `new_commit_observed` est conservé par compatibilité et a **exactement la même valeur**, y compris en cas de `REWOUND` ou `DIVERGED` : il **ne prouve pas la création d'un commit** et ne doit pas servir seul à déclencher une action.
+
+Limites P3.3 initiales : branche distante de test `experiment/*` uniquement ; Git SHA-1 ; source `.qmd` présente et régulière aux deux commits ; pas de surveillance continue, pas de publication ni d'interaction IA, pas encore de synchronisation avec le navigateur Firefox. Une vérification du vrai fonctionnement du connecteur GitHub dans la conversation n'établit **aucune** disponibilité automatique du même connecteur dans la barre latérale Firefox.
