@@ -155,6 +155,9 @@ class NavigationTests(unittest.TestCase):
         if not shutil.which("quarto"):
             self.fail("Quarto réel obligatoire")
         # Single source, two commits and the complete P3.1 manifest, not mocks.
+        # Remove only the synthetic local fixtures belonging to this test.
+        for version in ("V1", "V2"):
+            shutil.rmtree(self.session / version)
         repo = self.home / "fiction-git"
         repo.mkdir()
         subprocess.run(["git", "init", "-q", str(repo)], check=True)
