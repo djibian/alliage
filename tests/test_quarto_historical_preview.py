@@ -170,6 +170,21 @@ class HistoricalPreviewTests(unittest.TestCase):
             self.preview(version, "stale", render=True)
         self.assertFalse((self.root / "stale").exists())
 
+    def test_reject_project_rendering_multiple_documents_or_missing_project_file(self):
+        self.write("autre.qmd", "---\\ntitle: Autre essai\\n---\\n\\n# Autre\\n")
+        self.commit("projet à deux documents")
+        version = git(self.repo, "rev-parse", "HEAD")
+        # L'extraction reste possible en lecture seule ; le rendu est refusé.
+        self.assertEqual(self.preview(version, "snapshot-only")["render_status"], "NOT_RENDERED")
+        with self.assertRaisesRegex(PreviewError, "unique exigée"):
+            self.preview(version, "multiple", render=True)
+        self.assertFalse((self.root / "multiple").exists())
+        (self.repo / "_quarto.yml").unlink()
+        self.commit("projet sans configuration")
+        with self.assertRaisesRegex(PreviewError, "_quarto.yml"):
+            self.preview(git(self.repo, "rev-parse", "HEAD"), "missing", render=True)
+        self.assertFalse((self.root / "missing").exists())
+
     def test_real_quarto_render_of_two_versions(self):
         if os.environ.get("ALLIAGE_TEST_REAL_QUARTO") != "1":
             self.skipTest("Real Quarto validation requires ALLIAGE_TEST_REAL_QUARTO=1")
@@ -186,8 +201,18 @@ class HistoricalPreviewTests(unittest.TestCase):
             self.assertEqual(x["external_render_effects"], "NOT_VERIFIED")
         html1 = (self.root / "first" / first["rendered_html"]["path"]).read_text(encoding="utf-8")
         html2 = (self.root / "second" / second["rendered_html"]["path"]).read_text(encoding="utf-8")
+        html3 = (self.root / "third" / third["rendered_html"]["path"]).read_text(encoding="utf-8")
         self.assertIn("Texte V1", html1)
         self.assertIn("Texte V2", html2)
+        # Avant le rendu de projet, ces options _quarto.yml étaient IGNORÉES.
+        for html in (html1, html2, html3):
+            self.assertIn("styles.css", html)
+        self.assertNotIn("id=\\\"TOC\\\"", html1)
+        for html in (html2, html3):
+            self.assertTrue('id="TOC"' in html or "Sommaire" in html)
+        for version, manifest in (("first", first), ("second", second), ("third", third)):
+            self.assertIn("/_site/", "/" + manifest["rendered_html"]["path"])
+            self.assertTrue((self.root / version / "project/_site/styles.css").is_file())
         self.assertEqual(second["source_sha256"], third["source_sha256"])
         self.assertNotEqual((self.root / "second/project/styles.css").read_text(),
                             (self.root / "third/project/styles.css").read_text())
