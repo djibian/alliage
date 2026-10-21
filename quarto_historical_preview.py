@@ -135,6 +135,12 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
         rendered = None
         quarto_version = None
         if render:
+            # Exiger des sorties par défaut absentes AVANT le rendu :
+            # un ancien HTML suivi par Git ne prouve jamais la production.
+            relative_html = _path(str(PurePosixPath(source).with_suffix(".html")))
+            candidates = [project / relative_html, project / "_site" / relative_html]
+            if any(p.exists() or p.is_symlink() for p in candidates):
+                raise PreviewError("HTML candidat préexistant : provenance du rendu non vérifiable.")
             if not shutil.which("quarto"):
                 raise PreviewError("Quarto absent du PATH : aucun rendu attesté.")
             try:
@@ -151,17 +157,17 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
                 raise PreviewError("Rendu Quarto impossible ou expiré.") from exc
             if res.returncode:
                 raise PreviewError("Échec Quarto : " + (res.stdout + res.stderr)[-1000:])
-            relative_html = _path(str(PurePosixPath(source).with_suffix(".html")))
-            # Un rendu de document peut écrire à côté du .qmd, tandis qu'un
-            # projet peut le placer dans son output-dir. Ne jamais deviner.
-            candidates = [project / relative_html, project / "_site" / relative_html]
+            # Refuser les sorties personnalisées non prises en charge :
+            # seul un emplacement initialement absent et nouvellement créé
+            # est admissible. Le HTML généré n'est pas un déploiement attesté.
             found = [p for p in candidates if p.is_file() and not p.is_symlink()]
             if len(found) != 1:
                 raise PreviewError("HTML Quarto non identifiable dans le dossier isolé.")
             html = found[0]
             if project.resolve() not in html.resolve().parents:
                 raise PreviewError("HTML Quarto hors de l'instantané isolé.")
-            rendered = {"path": str(html.relative_to(stage)), "sha256": _file_hash(html)}
+            rendered = {"path": str(html.relative_to(stage)), "sha256": _file_hash(html),
+                        "existed_before_render": False}
             for entry in tracked:
                 if _file_hash(project / _path(entry["path"])) != entry["sha256"]:
                     raise PreviewError("Un fichier Git suivi a été modifié pendant le rendu.")
@@ -171,8 +177,13 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
                   "tracked_files": tracked, "snapshot_complete_for_tracked_files": True,
                   "render_status": "RENDERED_FROM_GIT_SNAPSHOT" if render else "NOT_RENDERED",
                   "rendered_html": rendered, "quarto_version": quarto_version,
-                  "publication_status": "NOT_PUBLISHED", "deployment_verified": False,
-                  "source_repository_modified": False,
+                  "publication_status": "NOT_INITIATED_BY_ALLIAGE",
+                  "deployment_verified": False,
+                  # Quarto peut exécuter des hooks, même avec --no-execute :
+                  # les écritures extérieures et le déploiement ne sont pas audités.
+                  "source_repository_modified": None,
+                  "source_repository_modification_verified": False,
+                  "external_render_effects": "NOT_VERIFIED" if render else "NOT_APPLICABLE",
                   "limits": {"git_lfs": "REJECTED", "git_submodules": "REJECTED",
                              "symlinks": "REJECTED", "external_dependencies": "NOT_VERIFIED"}}
         (stage / "manifest.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n",
