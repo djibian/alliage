@@ -196,3 +196,16 @@ La [seconde revue indépendante PR #6](https://github.com/djibian/alliage/pull/6
 **Tests adversariaux :** pour les deux chemins candidats `activite.html` et `_site/activite.html`, des variantes `./`, `//` et `/./` ou leurs équivalents sont insérées dans les manifestes avec fichiers existants, SHA-256 et tailles corrects. L'absence de `navigation.html` après refus est vérifiée. Une seconde série couvre les fichiers Git ordinaires et le `source_path` non canonique. Les cas canoniques et le rendu Quarto réel restent soumis à la CI.
 
 **Statut :** le premier verdict favorable n'est pas présumé ; attendre CI sur HEAD exact et **troisième revue indépendante**. Aucune fusion ni publication. Le contrôle des empreintes reste ponctuel et le rendu iframe reste limité à des documents Quarto de confiance.
+
+
+## P3.2 fusionnée et P3.3 amorcée — 21 octobre 2026
+
+**Fusion P3.2 confirmée :** PR #6 fusionnée, `main=08ee46a64c61af03342836a1ec78538822851707`. CI post-fusion vertes sur ce SHA exact : [Python](https://github.com/djibian/alliage/actions/runs/39603956137), [Quarto réel](https://github.com/djibian/alliage/actions/runs/39603956150) et [navigation Firefox P3.2](https://github.com/djibian/alliage/actions/runs/39603956191). Le parcours Firefox 157 V1/V2/V3 était déjà qualifié humainement avant cette fusion, avec autorisation `file://` volontaire ; aucun nouvel essai manuel n'est revendiqué après fusion.
+
+**Décision d'incrément P3.3 :** démarrer par la **comparaison en lecture seule** d'un SHA de référence immuable avec une ref Git locale explicite de suivi `refs/remotes/origin/experiment/*`. La récupération Git doit être un **geste externe explicite** et distinct ; Alliage ne fait ni `fetch` ni `checkout`, ne lance pas Quarto et ne publie rien. La sortie indique si la ref s'est déplacée (`UNCHANGED`, `FAST_FORWARD`, `REWOUND`, `DIVERGED`), si l'arbre de fichiers Git a changé, et si le blob source `.qmd` a changé indépendamment. Les identités de référence et les révisions s'expriment par noms de ref complets et SHA Git complets.
+
+**Code candidat sur `feat/p33-git-branch-delta` :** `quarto_branch_delta.py` réutilise les primitives sûres de `quarto_versions.py` (notamment `--no-replace-objects` et lecture au SHA exact). Les tests publics font évoluer uniquement des dépôts **fictifs et temporaires**, y compris un dépôt distant bare local avec deux copies distinctes, et démontrent qu'un nouveau commit CSS devient visible seulement **après** un `git fetch` explicite. Les commits sans modification `.qmd` sont également détectés via le SHA de projet et l'arbre Git.
+
+**Laboratoire privé :** `djibian/alliage-test`, contrat `AGENTS.md` relu ; branche `experiment/historique-quarto` observée au SHA `cb15dc87417992d7debdd7e0dc4ade4fb5688877`. **Aucun nouveau commit privé n'est encore créé** pour P3.3. L'autorisation spécifique d'une écriture expérimentale sera demandée à l'enseignant avant l'essai distant.
+
+**Garanties/limites :** un pointeur local de suivi n'atteste ni fraîcheur, ni identité du dépôt distant, ni version déployée ; `remote_freshness_verified=false` et `deployment_verified=false`. Pas d'intégration Firefox/IA, pas de prérogative implicite du connecteur sidebar, pas d'écriture sur données élèves. CI sur HEAD final, PR et revue indépendante requises avant fusion.
