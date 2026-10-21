@@ -36,8 +36,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Compiler la primitive et vérifier les manifestes fictifs
+      - uses: quarto-dev/quarto-actions/setup@v2
+      - name: Vérifier manifestes fictifs et rendus Quarto 1.10.19 réels
+        env:
+          ALLIAGE_TEST_REAL_QUARTO: '1'
         run: |
+          quarto --version
           python3 -m py_compile quarto_navigation.py
           python3 -m unittest discover -s tests -p 'test_quarto_navigation.py' -v
       - name: Vérifier la syntaxe et la navigation DOM sans navigateur
