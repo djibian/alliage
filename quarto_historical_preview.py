@@ -90,6 +90,8 @@ def _check_project_render_scope(project: Path, objects: list[tuple[str, str, str
     This is not an isolation mechanism for Quarto hooks/extensions.
     """
     names = [name for name, _, _, _ in objects]
+    if "_quarto.yml" not in names:
+        raise PreviewError("Rendu historique limité aux projets contenant _quarto.yml.")
     configs = [name for name in names if (
         (PurePosixPath(name).name.lower().startswith("_quarto") and
          PurePosixPath(name).suffix.lower() in (".yml", ".yaml", ".lua"))
@@ -138,6 +140,14 @@ def _check_project_render_scope(project: Path, objects: list[tuple[str, str, str
     remainder = "\n".join(lines[start + 1:])
     if re.search(r"(?m)^(?:['\"]?project['\"]?\s*:|\s*<<\s*:)", remainder):
         raise PreviewError("Bloc project supplémentaire ou fusion YAML interdite.")
+    # Root keys must be plain: complex YAML mapping keys can introduce a
+    # second project declaration through the explicit-key mapping syntax.
+    for line in lines[start + 1:]:
+        if not line or line[0].isspace() or line.startswith("#"):
+            continue
+        match = re.fullmatch(r"([A-Za-z][A-Za-z0-9_-]*):(?:\s*.*)?", line)
+        if not match or match.group(1) == "project":
+            raise PreviewError("Clé YAML racine complexe ou projet dupliqué interdit.")
 
 
 def create_preview(repo: Path, revision: str, source: str, out: Path,
