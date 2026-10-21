@@ -81,6 +81,65 @@ def _file_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+
+def _check_project_render_scope(project: Path, objects: list[tuple[str, str, str, int]]) -> None:
+    """Accept only a narrow, unambiguous Quarto project config for P3.1.
+
+    No generic YAML parser: complex mappings, profiles, aliases and any
+    project.render override are unsupported and rejected, not guessed at.
+    This is not an isolation mechanism for Quarto hooks/extensions.
+    """
+    names = [name for name, _, _, _ in objects]
+    configs = [name for name in names if (
+        (PurePosixPath(name).name.lower().startswith("_quarto") and
+         PurePosixPath(name).suffix.lower() in (".yml", ".yaml", ".lua"))
+        or PurePosixPath(name).name.lower() in ("quarto.yml", "quarto.yaml")
+    )]
+    if configs != ["_quarto.yml"]:
+        raise PreviewError("Configuration Quarto supplémentaire ou profil non pris en charge.")
+    try:
+        value = (project / "_quarto.yml").read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise PreviewError("Configuration Quarto illisible.") from exc
+    if any(char in value for char in ("\t", "\r", "\x00", "\ufeff")):
+        raise PreviewError("Syntaxe de configuration Quarto non prise en charge.")
+    # Anchors, aliases, merge keys, tags and document boundaries can change
+    # the effective project mapping without a visible project.render line.
+    for line in value.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("#") or not stripped:
+            continue
+        if (re.search(r"(?:^|\s)<<\s*:|[&*!]", line)
+                or stripped.startswith(("---", "...", "%"))):
+            raise PreviewError("Configuration Quarto YAML complexe non prise en charge.")
+    lines = value.splitlines()
+    starts = [index for index, line in enumerate(lines)
+              if re.fullmatch(r"project:\s*(?:#.*)?", line)]
+    if len(starts) != 1:
+        raise PreviewError("Bloc project Quarto unique et explicite requis.")
+    start = starts[0]
+    if any(line.strip() and not line.lstrip().startswith("#")
+           for line in lines[:start]):
+        raise PreviewError("Le bloc project doit précéder les autres paramètres.")
+    values = {}
+    for line in lines[start + 1:]:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if not line.startswith(" "):
+            break
+        match = re.fullmatch(r"  (type|output-dir):\s*([A-Za-z0-9_-]+)\s*(?:#.*)?", line)
+        if not match or match.group(1) in values:
+            raise PreviewError("Sélection project.render ou configuration projet non prise en charge.")
+        values[match.group(1)] = match.group(2)
+    if values != {"type": "default", "output-dir": "_site"}:
+        raise PreviewError("Projet P3.1 attendu : type default et output-dir _site uniquement.")
+    # Reject duplicate, quoted, or reintroduced project declarations elsewhere.
+    remainder = "\n".join(lines[start + 1:])
+    if re.search(r"(?m)^(?:['\"]?project['\"]?\s*:|\s*<<\s*:)", remainder):
+        raise PreviewError("Bloc project supplémentaire ou fusion YAML interdite.")
+
+
 def create_preview(repo: Path, revision: str, source: str, out: Path,
                    render: bool = False) -> dict:
     """Return a durable manifest; project files are read from one Git commit only.
@@ -135,8 +194,7 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
         rendered = None
         quarto_version = None
         if render:
-            if not (project / "_quarto.yml").is_file():
-                raise PreviewError("Rendu historique limité aux projets contenant _quarto.yml.")
+            _check_project_render_scope(project, objects)
             # Le rendu d'un document isolé ignore des options du projet
             # (_quarto.yml : CSS, sommaire). Ne rendre le projet que si
             # une seule ressource ordinaire peut être rendue.
