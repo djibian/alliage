@@ -107,6 +107,12 @@ def _load_version(session: Path, version: str) -> dict:
         if not _matches(path, item.get("sha256")):
             raise NavigationError("Dépendance Git modifiée depuis le rendu.")
         present[p] = item["sha256"]
+    # P3.1 refuses rendering whenever either candidate HTML already exists
+    # before Quarto runs. A tracked candidate therefore contradicts the
+    # manifest's existed_before_render=false, even with correct SHA-256.
+    forbidden_preexisting_html = {expected_html, "_site/" + expected_html}
+    if forbidden_preexisting_html.intersection(present):
+        raise NavigationError("Manifeste contradictoire : HTML candidat suivi par Git.")
     if source not in present or present[source] != report.get("source_sha256"):
         raise NavigationError("Identité de la source non démontrée.")
     return {"id": version, "commit": commit, "source_sha256": present[source],
@@ -158,7 +164,7 @@ def build_navigation(session: Path, versions: list[str], reference: str) -> Path
               '<iframe id="alliage-preview-frame" title="Aperçu historique Quarto"'
               ' referrerpolicy="no-referrer" src="' + src + '"></iframe>\n'
               '<p id="alliage-fallback">Alliage : extension Firefox requise pour naviguer.'
-              ' Aucun contenu élève publié.</p>\n'
+              " Alliage n'a déclenché aucune publication. Aucun déploiement vérifié.</p>\n"
               '<script type="application/json" id="alliage-history-data">' + serial + '</script>\n'
               '</body></html>\n')
     # Exclusive create; no alteration of prior snapshots or their manifests.
