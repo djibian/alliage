@@ -13,7 +13,9 @@ from pathlib import Path
 import re
 import subprocess
 
-from quarto_versions import VersionError, _git, _sha, _safe_source, _snapshot
+from quarto_versions import (
+    VersionError, _git, _git_environment, _sha, _safe_source, _snapshot,
+)
 
 
 class DeltaError(ValueError):
@@ -32,7 +34,7 @@ def _ancestor(repo: Path, old: str, new: str) -> bool:
         proc = subprocess.run(
             ["git", "--no-replace-objects", "-C", str(repo),
              "merge-base", "--is-ancestor", old, new],
-            capture_output=True, timeout=30,
+            capture_output=True, timeout=30, env=_git_environment(),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise DeltaError("Comparaison d'ascendance Git impossible.") from exc
@@ -47,6 +49,27 @@ def _tree(repo: Path, commit: str) -> str:
     if not COMMIT_SHA1.fullmatch(tree):
         raise DeltaError("Identité de l'arbre Git non reconnue.")
     return tree
+
+
+def _assert_complete_unmodified_ancestry(repo: Path) -> None:
+    """Refuse graphs whose parent relations can be falsified or truncated.
+
+    git --no-replace-objects disables refs/replace/*, but does NOT disable
+    the independent legacy info/grafts mechanism. --git-path resolves the
+    real common Git directory, including when repo is a linked worktree.
+    """
+    graft_raw = _git(repo, "rev-parse", "--path-format=absolute",
+                     "--git-path", "info/grafts")
+    grafts = Path(graft_raw.decode("utf-8", "strict").strip())
+    if not grafts.is_absolute():
+        raise DeltaError("Emplacement des greffes Git ambigu.")
+    if grafts.exists() or grafts.is_symlink():
+        raise DeltaError("Greffes Git locales interdites : ascendance non fiable.")
+    shallow = _git(repo, "rev-parse", "--is-shallow-repository").decode("ascii", "strict").strip()
+    if shallow == "true":
+        raise DeltaError("Dépôt Git superficiel interdit : ascendance incomplète.")
+    if shallow != "false":
+        raise DeltaError("Profondeur de l'historique Git indéterminée.")
 
 
 def compare(repo: Path, repository_id: str, source: str, tracking_ref: str,
@@ -71,6 +94,7 @@ def compare(repo: Path, repository_id: str, source: str, tracking_ref: str,
         root = Path(_git(repo, "rev-parse", "--show-toplevel").decode("utf-8").strip()).resolve()
         if repo != root:
             raise DeltaError("La racine exacte du dépôt Git est requise.")
+        _assert_complete_unmodified_ancestry(repo)
         baseline = _sha(repo, baseline_sha)
         observed = _sha(repo, tracking_ref)
         if baseline != baseline_sha:
@@ -101,7 +125,10 @@ def compare(repo: Path, repository_id: str, source: str, tracking_ref: str,
         "baseline_commit": baseline,
         "observed_commit": observed,
         "relation": relation,
+        # Deprecated compatibility field. Use ref_changed + relation; a
+        # rewritten or rewound branch does NOT prove a newly created commit.
         "new_commit_observed": baseline != observed,
+        "ref_changed": baseline != observed,
         "project_tree_changed": before_tree != after_tree,
         "source_blob_changed": before["git_blob"] != after["git_blob"],
         "baseline": {**before, "git_tree": before_tree},
