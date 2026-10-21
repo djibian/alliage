@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from quarto_historical_preview import create_preview, PreviewError
@@ -74,6 +75,10 @@ class HistoricalPreviewTests(unittest.TestCase):
         for name, result in (("first", first), ("second", second), ("third", third)):
             self.assertEqual(result, json.loads((self.root / name / "manifest.json").read_text()))
             self.assertFalse(result["deployment_verified"])
+            self.assertEqual(result["publication_status"], "NOT_INITIATED_BY_ALLIAGE")
+            self.assertIsNone(result["source_repository_modified"])
+            self.assertFalse(result["source_repository_modification_verified"])
+            self.assertEqual(result["external_render_effects"], "NOT_APPLICABLE")
             for item in result["tracked_files"]:
                 data = (self.root / name / "project" / item["path"]).read_bytes()
                 self.assertEqual(hashlib.sha256(data).hexdigest(), item["sha256"])
@@ -111,6 +116,60 @@ class HistoricalPreviewTests(unittest.TestCase):
             self.preview(git(self.repo, "rev-parse", "HEAD"), "lfs")
         self.assertFalse((self.root / "lfs").exists())
 
+
+    def test_lying_render_hook_cannot_establish_external_non_mutation(self):
+        """A renderer stub can mutate the source without changing the extracted files."""
+        real_run = subprocess.run
+
+        def fake_run(args, **kwargs):
+            if args[:2] == ["quarto", "--version"]:
+                return subprocess.CompletedProcess(args, 0, stdout="test-quarto\n", stderr="")
+            if args[:2] == ["quarto", "render"]:
+                Path(kwargs["cwd"], "activite.html").write_text(
+                    "<!doctype html><html><body>Essai isolé</body></html>", encoding="utf-8")
+                (self.repo / "styles.css").write_text("MUTATION EXTERNE\n", encoding="utf-8")
+                return subprocess.CompletedProcess(args, 0, stdout="ok\n", stderr="")
+            return real_run(args, **kwargs)
+
+        with mock.patch("quarto_historical_preview.shutil.which", return_value="/fake/quarto"), \
+                mock.patch("quarto_historical_preview.subprocess.run", side_effect=fake_run):
+            report = self.preview(self.v1, "hook-test", render=True)
+        self.assertEqual((self.repo / "styles.css").read_text(), "MUTATION EXTERNE\n")
+        self.assertEqual(report["render_status"], "RENDERED_FROM_GIT_SNAPSHOT")
+        self.assertEqual(report["publication_status"], "NOT_INITIATED_BY_ALLIAGE")
+        self.assertIsNone(report["source_repository_modified"])
+        self.assertFalse(report["source_repository_modification_verified"])
+        self.assertFalse(report["deployment_verified"])
+        self.assertEqual(report["external_render_effects"], "NOT_VERIFIED")
+        self.assertFalse(report["rendered_html"]["existed_before_render"])
+
+    def test_real_quarto_custom_output_and_stale_default_html_must_fail(self):
+        """Quarto may produce 'personnalise.html'; a tracked 'activite.html' is stale."""
+        if os.environ.get("ALLIAGE_TEST_REAL_QUARTO") != "1":
+            self.skipTest("Real Quarto validation requires ALLIAGE_TEST_REAL_QUARTO=1")
+        if not shutil.which("quarto"):
+            self.fail("Quarto executable is mandatory")
+        self.write("activite.qmd",
+                   "---\ntitle: Fictif\nformat:\n  html:\n    output-file: personnalise.html\n---\n\n## Essai\nSortie personnalisée.\n")
+        self.write("activite.html", "<!doctype html><p>HTML ANCIEN</p>")
+        self.commit("HTML obsolète et nom de sortie personnalisé")
+        version = git(self.repo, "rev-parse", "HEAD")
+
+        # Vérifier par le moteur réel que cette option produit bien un AUTRE nom.
+        control = self.root / "quarto-control"
+        shutil.copytree(self.repo, control, ignore=shutil.ignore_patterns(".git"))
+        run = subprocess.run(["quarto", "render", "activite.qmd", "--to", "html",
+                              "--no-execute"], cwd=control, text=True, capture_output=True, timeout=90)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertTrue(list(control.rglob("personnalise.html")),
+                        "Quarto doit réellement avoir écrit la sortie personnalisée")
+        self.assertEqual((control / "activite.html").read_text(encoding="utf-8"),
+                         "<!doctype html><p>HTML ANCIEN</p>")
+
+        with self.assertRaisesRegex(PreviewError, "préexistant"):
+            self.preview(version, "stale", render=True)
+        self.assertFalse((self.root / "stale").exists())
+
     def test_real_quarto_render_of_two_versions(self):
         if os.environ.get("ALLIAGE_TEST_REAL_QUARTO") != "1":
             self.skipTest("Real Quarto validation requires ALLIAGE_TEST_REAL_QUARTO=1")
@@ -122,6 +181,9 @@ class HistoricalPreviewTests(unittest.TestCase):
         for x in (first, second, third):
             self.assertEqual(x["render_status"], "RENDERED_FROM_GIT_SNAPSHOT")
             self.assertIsNotNone(x["quarto_version"])
+            self.assertFalse(x["rendered_html"]["existed_before_render"])
+            self.assertIsNone(x["source_repository_modified"])
+            self.assertEqual(x["external_render_effects"], "NOT_VERIFIED")
         html1 = (self.root / "first" / first["rendered_html"]["path"]).read_text(encoding="utf-8")
         html2 = (self.root / "second" / second["rendered_html"]["path"]).read_text(encoding="utf-8")
         self.assertIn("Texte V1", html1)
