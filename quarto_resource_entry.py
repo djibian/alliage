@@ -9,6 +9,7 @@ are untrusted browser transport, NOT cryptographic attestations in Firefox.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from urllib.parse import quote
 
@@ -34,7 +35,7 @@ def resource_entry_url(session: Path, *, reference: str = "V1",
         raise NavigationError("Session de ressource historique locale non autorisée.")
     if reference != "V1" or observed != "V2" or not isinstance(resource_id, str):
         raise NavigationError("Pilote de ressource limité à V1 et V2.")
-    if not resource_id.startswith("quarto:") or not resource_id.endswith(":activite.qmd"):
+    if not re.fullmatch(r"quarto:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+:activite\\.qmd", resource_id):
         raise NavigationError("Identité de ressource Quarto pilote obligatoire.")
 
     # _load_version verifies rendered HTML, its SHA-256 and all tracked inputs
