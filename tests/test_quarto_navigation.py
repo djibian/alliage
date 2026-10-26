@@ -278,11 +278,14 @@ class NavigationTests(unittest.TestCase):
     def test_existing_extension_v04_remains_scoped(self):
         config = json.loads((ROOT / "extension/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(config["version"], "0.4.0")
-        self.assertEqual(len(config["content_scripts"]), 2)
+        self.assertEqual(len(config["content_scripts"]), 3)
         self.assertEqual(config["content_scripts"][0]["js"], ["atelier.js"])
         self.assertEqual(config["content_scripts"][1]["js"], ["historique.js"])
         self.assertEqual(config["content_scripts"][1]["matches"],
                          ["file:///*/alliage-experiences/historique/p31-final-*/navigation.html"])
+        self.assertEqual(config["content_scripts"][2]["js"], ["historique_ressource.js"])
+        self.assertEqual(config["content_scripts"][2]["matches"],
+                         ["file:///*/alliage-experiences/historique/p31-final-observed-*/V*/project/_site/activite.html"])
         self.assertNotIn("<all_urls>", str(config))
 
 
