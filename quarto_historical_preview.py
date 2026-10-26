@@ -103,7 +103,11 @@ def _rendered_files(project: Path) -> list[dict]:
         raise PreviewError("Dossier de sortie Quarto _site absent ou symbolique.")
     files = []
     total = 0
-    for item in sorted(output.rglob("*")):
+    visited = 0
+    for item in output.rglob("*"):
+        visited += 1
+        if visited > 4 * MAX_FILES:
+            raise PreviewError("Arborescence de sortie Quarto trop volumineuse.")
         if item.is_symlink():
             raise PreviewError("Lien symbolique dans les sorties Quarto.")
         if item.is_dir():
@@ -123,6 +127,7 @@ def _rendered_files(project: Path) -> list[dict]:
                       "sha256": _file_hash(item), "bytes": size})
     if not files:
         raise PreviewError("Inventaire des sorties Quarto vide.")
+    files.sort(key=lambda entry: entry["path"])
     return files
 
 
