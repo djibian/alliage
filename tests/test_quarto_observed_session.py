@@ -363,6 +363,17 @@ class ObservedSessionTests(unittest.TestCase):
             html = session / v / manifest["rendered_html"]["path"]
             self.assertIn("styles.css", html.read_text(encoding="utf-8"))
         self.assertTrue((session / "navigation.html").is_file())
+        direct = urlsplit(report["resource_url"])
+        self.assertTrue(direct.path.endswith("/V2/project/_site/activite.html"))
+        self.assertTrue(direct.fragment.startswith("alliage-history-v0="))
+        self.assertEqual(json.loads(unquote(direct.fragment.split("=", 1)[1]))["entries"],
+                         [{"id":"V1","commit":self.initial},
+                          {"id":"V2","commit":self.second}])
+        # Real Quarto HTML is still the unmodified output hashed by P3.1.
+        observed_manifest = json.loads((session / "V2/manifest.json").read_text())
+        observed_html = session / "V2" / observed_manifest["rendered_html"]["path"]
+        self.assertEqual(digest(observed_html.read_bytes()),
+                         observed_manifest["rendered_html"]["sha256"])
 
 
 if __name__ == "__main__":
