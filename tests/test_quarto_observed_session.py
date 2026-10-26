@@ -127,6 +127,9 @@ class ObservedSessionTests(unittest.TestCase):
         self.assertFalse(report["remote_freshness_verified"])
         self.assertFalse(report["deployment_verified"])
         self.assertFalse(report["firefox_manually_verified"])
+        self.assertTrue(report["checkout_head_and_status_unchanged"])
+        self.assertFalse(report["checkout_file_contents_unchanged_verified"])
+        self.assertNotIn("checkout_unchanged_at_completion", report)
         self.assertTrue(report["navigation_url"].startswith("file://"))
         session = Path(report["session_path"])
         self.assertTrue((session / "navigation.html").is_file())
@@ -185,6 +188,56 @@ class ObservedSessionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Dépendance Git modifiée"):
                 self.run_session()
         self.assertEqual(list(root.iterdir()), [])
+
+    def test_ctrl_c_removes_only_new_session_and_preserves_prior_sessions(self):
+        """A Python keyboard interruption must not leave a partial V1/V2."""
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            previous = self.run_session()
+        previous_dir = Path(previous["session_path"])
+        previous_files = {str(p.relative_to(previous_dir)): digest(p.read_bytes())
+                          for p in previous_dir.rglob("*") if p.is_file()}
+        calls = []
+        def interrupted(*args, **kwargs):
+            calls.append(args[1])
+            if len(calls) == 2:
+                raise KeyboardInterrupt("interruption pendant V2")
+            return self.fake_preview(*args, **kwargs)
+        with patch("quarto_observed_session.create_preview", side_effect=interrupted):
+            with self.assertRaises(KeyboardInterrupt):
+                self.run_session()
+        self.assertEqual(calls, [self.initial, self.second])
+        self.assertEqual(list(previous_dir.parent.iterdir()), [previous_dir])
+        self.assertEqual(previous_files,
+                         {str(p.relative_to(previous_dir)): digest(p.read_bytes())
+                          for p in previous_dir.rglob("*") if p.is_file()})
+
+    def test_dirty_checkout_content_is_not_claimed_integrity_verified(self):
+        """Preserving 'M' status does not prove bytes were preserved."""
+        dirty = self.repo / "activite.qmd"
+        dirty.write_text("NON COMMITÉ AVANT", encoding="utf-8")
+        before_status = git(self.repo, "status", "--porcelain=v1")
+        def alter_dirty_file(*args, **kwargs):
+            if Path(args[3]).name == "V2":
+                dirty.write_text("NON COMMITÉ APRES", encoding="utf-8")
+            return self.fake_preview(*args, **kwargs)
+        with patch("quarto_observed_session.create_preview", side_effect=alter_dirty_file):
+            report = self.run_session()
+        self.assertEqual(before_status, git(self.repo, "status", "--porcelain=v1"))
+        self.assertEqual(dirty.read_text(encoding="utf-8"), "NON COMMITÉ APRES")
+        self.assertTrue(report["checkout_head_and_status_unchanged"])
+        self.assertFalse(report["checkout_file_contents_unchanged_verified"])
+        self.assertNotIn("checkout_unchanged_at_completion", report)
+
+    def test_reject_allow_empty_commit_with_identical_project_tree(self):
+        """A new commit identity is not automatically a changed project."""
+        git(self.repo, "-c", "user.name=Fixture",
+            "-c", "user.email=fixture@example.test",
+            "commit", "--allow-empty", "-qm", "sans contenu différent")
+        newer = git(self.repo, "rev-parse", "HEAD")
+        git(self.repo, "update-ref", REF, newer)
+        with self.assertRaisesRegex(SessionError, "arbre modifié"):
+            observe(self.repo, "fiction/laboratoire", "activite.qmd", REF, self.second)
+        self.assertFalse((self.home / "alliage-experiences").exists())
 
     def test_tracking_ref_move_during_render_does_not_change_pinned_sha(self):
         commits = []
