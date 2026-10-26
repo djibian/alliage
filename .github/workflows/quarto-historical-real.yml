@@ -8,6 +8,8 @@ on:
   pull_request:
     paths:
       - 'quarto_historical_preview.py'
+      - 'quarto_observed_session.py'
+      - 'tests/test_quarto_observed_session.py'
       - 'tests/test_quarto_historical_preview.py'
       - '.github/workflows/quarto-historical-real.yml'
 
