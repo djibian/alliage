@@ -191,6 +191,11 @@ class ObservedSessionTests(unittest.TestCase):
         with self.assertRaisesRegex(NavigationError, "non autorisée"):
             resource_entry_url(
                 self.repo, resource_id="quarto:fiction/laboratoire:activite.qmd")
+        # An invalid declaration cannot create a seemingly authoritative URL.
+        (session / "navigation.html").write_text("fixture placeholder", encoding="utf-8")
+        with self.assertRaisesRegex(NavigationError, "Identité de ressource"):
+            resource_entry_url(
+                session, resource_id="quarto:../../private:activite.qmd")
 
     def test_refuse_unsupported_resource_and_no_trust_without_session(self):
         with self.assertRaisesRegex(SessionError, "activite.qmd"):
