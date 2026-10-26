@@ -76,9 +76,16 @@ cette commande** ; `firefox_manually_verified=false`.
   suivi change entre observation et rendu.
 - Nouvelle session `~/alliage-experiences/historique/p31-final-observed-*/` à
   chaque essai ; les sessions antérieures ne sont jamais remplacées. Une session
-  incomplète est supprimée après échec (sous réserve des droits du système).
-- Comparaison ponctuelle du HEAD et du statut Git avant/après ; aucun contrôle
-  universel des effets externes de Quarto.
+  incomplète est supprimée après échec ordinaire ou interruption Python
+  (`KeyboardInterrupt`/Ctrl+C, `SystemExit`), si le système de fichiers
+  le permet. **Ni SIGKILL, ni arrêt machine, ni coupure électrique ne sont couverts.**
+- `checkout_head_and_status_unchanged=true` signifie seulement que le SHA
+  du HEAD et le résultat de `git status --porcelain` sont identiques avant et
+  après la commande. `checkout_file_contents_unchanged_verified=false` :
+  les octets, attributs et modifications intermédiaires du checkout ne sont
+  **pas** attestés ; un fichier déjà marqué `M` peut être modifié à nouveau
+  sans changement de statut. Aucun contrôle universel des effets externes
+  de Quarto.
 - Le HTML et les dépendances sont vérifiés **à la création seulement** ;
   Firefox ne réalise pas de vérification cryptographique permanente.
 - `repository_id` est une identité **déclarée**, pas une identité distante
@@ -87,8 +94,10 @@ cette commande** ; `firefox_manually_verified=false`.
 
 ## Qualification et prochaine décision
 
-Les tests unitaires utilisent des dépôts Git entièrement fictifs ; la CI
-Quarto réelle exécute aussi un essai CSS V1/V2 et les tests historiques P3.1.
+Les tests unitaires utilisent des dépôts Git entièrement fictifs ; le
+workflow Quarto réel doit exécuter **les deux suites** `test_quarto_historical_preview.py`
+et `test_quarto_observed_session.py` sous `ALLIAGE_TEST_REAL_QUARTO=1`.
+Sa réussite est à établir sur le HEAD exact dans les journaux, sans test réel ignoré.
 Le workflow P3.2 continue de tester le DOM de l'extension, mais n'est pas une
 qualification visuelle automatisée de Firefox. Une validation humaine reste
 nécessaire pour confirmer l'utilité et l'ergonomie de la commande.
