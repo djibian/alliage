@@ -18,7 +18,7 @@ désormais **deux adresses distinctes** :
   pour comparaison et non-régression ;
 - `resource_url` : ouverture **directe du fichier
   `V2/project/_site/activite.html`** tel que rendu par Quarto, sans wrapper
-  et sans modifier les octets de son HTML. Un fragment d'URL transporte
+  et sans modifier les octets de son HTML. Un paramètre de requête d'URL transporte
   uniquement l'identité déclarée de la ressource, deux SHA Git et la version
   visible au moment de la préparation. L'extension ajoute un panneau
   surimposé au DOM du navigateur ; elle n'écrit aucun fichier.
@@ -29,7 +29,7 @@ La nouvelle interface « Alliage · Historique sur la ressource » affiche
 
 Les SHA montrés dans l'interface proviennent de métadonnées transmises par
 l'URL ; ils **ne sont pas authentifiés de nouveau par Firefox**. Une personne
-peut modifier ce fragment : il ne constitue ni preuve de provenance en
+peut modifier ce paramètre de requête : il ne constitue ni preuve de provenance en
 temps réel, ni certificat d'intégrité, ni signature. La vérification des
 manifestes et des empreintes appartient à P3.1/P3.2 **au moment où l'URL
 est générée**. Aucun navigateur n'a été attesté par les seuls tests DOM.
@@ -40,13 +40,13 @@ est générée**. Aucun navigateur n'a été attesté par les seuls tests DOM.
   supplémentaire, mémoire du navigateur ou permission large**. La nouvelle
   règle de l'extension est limitée au chemin local du laboratoire
   `p31-final-observed-*/V*/project/_site/activite.html`. La garde JS
-  exige en plus un chemin strict, un fragment explicite et le document
+  exige en plus un chemin strict, un paramètre de requête explicite et le document
   principal (pas l'iframe). Pas d'activation sur les autres HTML, ni sur la
   page publique de la v0.4.
-- Un fragment malformé ou absent produit **aucun panneau historique** ;
+- Un paramètre de requête malformé ou absent produit **aucun panneau historique** ;
   les destinations de navigation sont reconstruites à partir de la session
   visible et des noms fixes `V1`/`V2`, jamais depuis une URL transmise
-  par le fragment.
+  par le paramètre de requête.
 - Quarto n'est **pas sandboxé** ; l'exécution demande toujours
   `--trusted-quarto`. La ref de suivi locale peut être obsolète ; le
   checkout n'est attesté qu'au niveau HEAD/statut, pas de ses octets.
@@ -69,15 +69,17 @@ est générée**. Aucun navigateur n'a été attesté par les seuls tests DOM.
    `quarto_observed_session.py --check`, puis explicitement
    `--render --trusted-quarto` comme documenté dans
    [EXPERIMENT_OBSERVED_SESSION](EXPERIMENT_OBSERVED_SESSION.md).
-3. Copier le champ **`resource_url` complet** (y compris son fragment
-   `#alliage-history-v0=...`) dans Firefox.
+3. Copier le champ **`resource_url` complet** (y compris son paramètre de requête
+   `?alliage-history-v0=...`) dans Firefox.
 4. Vérifier directement sur la ressource rendue : titres violets V2,
    bouton V1 → titres rouges, bouton V2 → titres violets. Le panneau doit
    rester visible, sans ouvrir `navigation.html` et sans iframe principale.
 5. Contrôler ensuite `navigation_url` (ancien pilote), l'état HEAD/statut du
    clone, la consultation d'une ancienne session et l'absence de publication.
-6. Vérifier que l'ouverture **sans fragment** du même
-   `activite.html` ne crée pas de panneau. L'extension v0.4 publique ne doit
+6. Vérifier que l'ouverture **sans paramètre de requête** du même
+   `activite.html` ne crée pas de panneau. Vérifier également qu'un lien
+   Quarto vers `#consigne` conserve le panneau et que le changement de
+   révision conserve cette ancre. L'extension v0.4 publique ne doit
    pas être affectée par cette nouvelle injection locale.
 
 Critères : **fluidité** de navigation dans la ressource elle-même ;
@@ -90,7 +92,7 @@ humaine valide le navigateur Firefox et son comportement `file://`.
 
 ## Si le pilote est concluant
 
-Ne pas généraliser le fragment d'URL à une architecture produit ; le
+Ne pas généraliser le paramètre de requête d'URL à une architecture produit ; le
 traiter comme un mécanisme de laboratoire à éliminer ou remplacer. La
 prochaine question est l'attachement sûr de l'historique au document
 enseignant réellement consulté, avec source canonique, SHA de provenance
