@@ -197,7 +197,9 @@ class ObservedSessionTests(unittest.TestCase):
         generated = session / "V2/project/_site/styles.css"
         tracked = session / "V2/project/styles.css"
         before_tracked = tracked.read_bytes()
-        generated.write_text("h2{color:black}", encoding="utf-8")
+        # Mutate bytes without changing length to prove SHA-256 (not only
+        # length validation) catches the tampering.
+        generated.write_bytes(b"x" * len(generated.read_bytes()))
         self.assertEqual(tracked.read_bytes(), before_tracked)
         with self.assertRaisesRegex(NavigationError, "Dépendance Quarto générée modifiée"):
             resource_entry_url(session,
@@ -288,6 +290,9 @@ class ObservedSessionTests(unittest.TestCase):
         root_html = version / "project/activite.html"
         root_html.write_bytes((version / "project/_site/activite.html").read_bytes())
         manifest["rendered_html"]["path"] = "project/activite.html"
+        # Root-level HTML is a legacy P3.1 output: it has no complete _site
+        # inventory attestation and cannot qualify for the new direct URL.
+        manifest["rendered_files"] = None
         manifest_path.write_text(json.dumps(manifest))
         with self.assertRaisesRegex(NavigationError, "Identité source/HTML"):
             resource_entry_url(session,
