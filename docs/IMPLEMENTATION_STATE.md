@@ -298,3 +298,11 @@ Un audit indépendant du HEAD `75fde827467d66b6de4f32a1ab81cf5657ea2fd8` a concl
 
 **À démontrer :** CI Python, CI P3.2/DOM et CI Quarto réel toutes vertes sur le HEAD final corrigé, puis seconde contre-revue ciblée B1/B2 et validation humaine Firefox sur l'URL directe avant toute fusion. Ne pas confondre SHA affiché dans un paramètre d'URL avec une preuve cryptographique en temps réel. Aucune modification pédagogique, publication ni déploiement.
 
+### Firefox Ubuntu — premier essai manuel de l'URL directe : FAIL et correctif du motif (26 octobre 2026)
+
+Après approbation indépendante B1/B2 sur le HEAD `d1d6bb0ab02758a9782cc4efd31978d3e0d7a71c`, l'enseignant a qualifié la génération : `--check` FAST_FORWARD V3→V4 et `--render --trusted-quarto` PASS, nouvelle session fictive `p31-final-observed-4kdo1004`, `resource_url` vers `V2/project/_site/activite.html?alliage-history-v0=...`. Firefox ouvrait le fichier mais **aucun panneau Alliage** n'apparaissait. Diagnostic de page : `protocol=file:`, document principal, chemin correct, query présente, panneau absent. L'extension avait bien chargé trois scripts et `browser.extension.isAllowedFileSchemeAccess() == true`.
+
+**Cause identifiée :** le motif Firefox de `historique_ressource.js` se terminait par `activite.html`, alors que les match patterns prennent **aussi les paramètres `?...` en compte**. Le script n'était donc pas sélectionné pour l'URL de l'essai, malgré l'autorisation `file://`. Correction limitée : conserver le motif HTML nu (ouverture neutre) et ajouter `activite.html?*` pour le cas avec query ; la garde JavaScript refuse toujours toute query absente, invalide ou multiple. Test du contrat du manifeste ajouté. Le navigateur réel sur le HEAD corrigé reste à requalifier.
+
+**Blocage indépendant à ne pas ignorer :** sur la page locale, Firefox refuse par CORS les modules natifs Quarto `activite_files/libs/quarto-html/quarto.js` et `tabsets/tabsets.js` (chargement `file://`). Corriger l'injection ne démontre donc **pas** le fonctionnement complet de la ressource Quarto. Ne pas désactiver la sécurité du navigateur ; une approche localhost HTTP strictement isolée ou une autre solution sûre doit être expérimentée séparément, en conservant A013. **Aucune fusion ni publication.**
+
