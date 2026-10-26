@@ -91,6 +91,42 @@ def _file_hash(path: Path) -> str:
 
 
 
+
+def _rendered_files(project: Path) -> list[dict]:
+    """Bounded, exact SHA-256 inventory of the Quarto output tree.
+
+    This is a point-in-time snapshot, not an authentication of future
+    browser reads. No symlinks, special files, external paths or large blobs.
+    """
+    output = project / "_site"
+    if output.is_symlink() or not output.is_dir():
+        raise PreviewError("Dossier de sortie Quarto _site absent ou symbolique.")
+    files = []
+    total = 0
+    for item in sorted(output.rglob("*")):
+        if item.is_symlink():
+            raise PreviewError("Lien symbolique dans les sorties Quarto.")
+        if item.is_dir():
+            continue
+        if not item.is_file():
+            raise PreviewError("Fichier spécial dans les sorties Quarto.")
+        relative = item.relative_to(project).as_posix()
+        if relative != str(PurePosixPath(relative)):
+            raise PreviewError("Chemin de sortie Quarto non canonique.")
+        if len(files) >= MAX_FILES:
+            raise PreviewError("Trop de dépendances générées par Quarto.")
+        size = item.stat().st_size
+        total += size
+        if size > MAX_BLOB or total > MAX_TOTAL:
+            raise PreviewError("Dépendances générées Quarto trop volumineuses.")
+        files.append({"path": "project/" + relative,
+                      "sha256": _file_hash(item), "bytes": size})
+    if not files:
+        raise PreviewError("Inventaire des sorties Quarto vide.")
+    return files
+
+
+
 def _check_project_render_scope(project: Path, objects: list[tuple[str, str, str, int]]) -> None:
     """Accept only a narrow, unambiguous Quarto project config for P3.1.
 
@@ -211,6 +247,7 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
             tracked.append({"path": name, "git_blob": blob,
                             "sha256": hashlib.sha256(data).hexdigest(), "bytes": size})
         rendered = None
+        rendered_files = None
         quarto_version = None
         if render:
             _check_project_render_scope(project, objects)
@@ -278,6 +315,15 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
                 raise PreviewError("Rendu de projet ambigu : HTML supplémentaires générés.")
             rendered = {"path": str(html.relative_to(stage)), "sha256": _file_hash(html),
                         "existed_before_render": False}
+            # Existing P3.1 also permits a root-level HTML output in its
+            # narrow renderer-stub tests. Such an output does NOT receive the
+            # new _site inventory guarantee or qualify for resource-first UI.
+            if html.is_relative_to(project / "_site"):
+                rendered_files = _rendered_files(project)
+                if not any(item["path"] == rendered["path"]
+                           and item["sha256"] == rendered["sha256"]
+                           for item in rendered_files):
+                    raise PreviewError("HTML absent de l'inventaire Quarto généré.")
             for entry in tracked:
                 if _file_hash(project / _path(entry["path"])) != entry["sha256"]:
                     raise PreviewError("Un fichier Git suivi a été modifié pendant le rendu.")
@@ -286,7 +332,8 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
                   "commit": commit, "source_path": source, "source_sha256": next(x["sha256"] for x in tracked if x["path"] == source),
                   "tracked_files": tracked, "snapshot_complete_for_tracked_files": True,
                   "render_status": "RENDERED_FROM_GIT_SNAPSHOT" if render else "NOT_RENDERED",
-                  "rendered_html": rendered, "quarto_version": quarto_version,
+                  "rendered_html": rendered, "rendered_files": rendered_files,
+                  "quarto_version": quarto_version,
                   "publication_status": "NOT_INITIATED_BY_ALLIAGE",
                   "deployment_verified": False,
                   # Quarto peut exécuter des hooks, même avec --no-execute :
