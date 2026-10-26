@@ -54,6 +54,13 @@ est générée**. Aucun navigateur n'a été attesté par les seuls tests DOM.
   exige en plus un chemin strict, un paramètre de requête explicite et le document
   principal (pas l'iframe). Pas d'activation sur les autres HTML, ni sur la
   page publique de la v0.4.
+- **Détail critique Firefox :** les motifs `content_scripts.matches` comparent
+  aussi la query à la partie chemin. La règle destinée au pilote comporte
+  donc deux motifs : `.../activite.html` (ouverture neutre sans métadonnées)
+  et `.../activite.html?*` (ouverture avec `alliage-history-v0`).
+  Sans le second, le navigateur ne charge pas le script sur `resource_url`,
+  même si l'extension est correctement installée et l'accès aux fichiers
+  locaux autorisé. Le script valide ensuite le paramètre unique et les SHA.
 - Un paramètre de requête malformé ou absent produit **aucun panneau historique** ;
   les destinations de navigation sont reconstruites à partir de la session
   visible et des noms fixes `V1`/`V2`, jamais depuis une URL transmise
@@ -100,6 +107,14 @@ est générée**. Aucun navigateur n'a été attesté par les seuls tests DOM.
 Critères : **fluidité** de navigation dans la ressource elle-même ;
 **fidélité** aux rendus CSS natifs ; **maîtrise** de la révision affichée
 et absence de publication ; **richesse** inchangée.
+
+**Blocage supplémentaire observé sur Firefox Ubuntu :** le chargement de
+modules JavaScript Quarto (`quarto.js`, `tabsets.js`) depuis `file://`
+est refusé par CORS. Il est **distinct** de la garde d'injection Alliage
+corrigée ci-dessus, et empêche à lui seul d'affirmer la fidélité fonctionnelle
+de la ressource. Ne pas modifier les paramètres de sécurité Firefox pour
+contourner CORS ; l'étudier séparément avant de qualifier la ressource Quarto
+comme pleinement opérationnelle.
 
 Une CI Node simule le DOM et les URL ; une CI Quarto réelle contrôle
 les SHA et l'absence de modification des HTML, mais seule l'observation
