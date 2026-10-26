@@ -29,7 +29,9 @@ jobs:
         uses: quarto-dev/quarto-actions/setup@v2
       - name: Version Quarto
         run: quarto --version
-      - name: Rendre trois révisions fictives dans des dossiers isolés
+      - name: Rendre les révisions historiques fictives avec Quarto réel
         env:
           ALLIAGE_TEST_REAL_QUARTO: '1'
-        run: python3 -m unittest discover -s tests -p 'test_quarto_historical_preview.py' -v
+        run: |
+          python3 -m unittest discover -s tests -p 'test_quarto_historical_preview.py' -v
+          python3 -m unittest discover -s tests -p 'test_quarto_observed_session.py' -v
