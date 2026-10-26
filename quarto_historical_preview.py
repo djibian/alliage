@@ -29,10 +29,19 @@ MAX_BLOB = 20 * 1024 * 1024
 MAX_TOTAL = 100 * 1024 * 1024
 
 
+def _no_lazy_git_environment() -> dict[str, str]:
+    # Partial clones can transparently download a missing Git object on read.
+    # Historical rendering must refuse such an object, never fetch it.
+    return {**os.environ, "GIT_NO_LAZY_FETCH": "1",
+            "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
+
+
 def _git(repo: Path, *args: str) -> bytes:
     try:
-        proc = subprocess.run(["git", "--no-replace-objects", "-C", str(repo), *args],
-                              capture_output=True, timeout=30)
+        proc = subprocess.run(["git", "--no-optional-locks", "--no-replace-objects",
+                               "-C", str(repo), *args],
+                              capture_output=True, timeout=30,
+                              env=_no_lazy_git_environment())
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise PreviewError("Lecture Git impossible.") from exc
     if proc.returncode:
@@ -230,13 +239,15 @@ def create_preview(repo: Path, revision: str, source: str, out: Path,
                 raise PreviewError("Quarto absent du PATH : aucun rendu attesté.")
             try:
                 ver = subprocess.run(["quarto", "--version"], capture_output=True,
-                                     text=True, timeout=15, cwd=project)
+                                     text=True, timeout=15, cwd=project,
+                                     env=_no_lazy_git_environment())
                 if ver.returncode:
                     raise PreviewError("Version Quarto impossible à déterminer.")
                 quarto_version = ver.stdout.strip()
                 # Le rendu en mode projet applique CSS, toc et configuration.
                 cmd = ["quarto", "render", "--to", "html", "--no-execute"]
-                res = subprocess.run(cmd, capture_output=True, text=True, cwd=project, timeout=180)
+                res = subprocess.run(cmd, capture_output=True, text=True, cwd=project,
+                                     timeout=180, env=_no_lazy_git_environment())
             except (OSError, subprocess.TimeoutExpired) as exc:
                 raise PreviewError("Rendu Quarto impossible ou expiré.") from exc
             if res.returncode:
