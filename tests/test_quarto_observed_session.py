@@ -217,6 +217,38 @@ class ObservedSessionTests(unittest.TestCase):
                 self.assertEqual(calls.call_args.kwargs["env"]["GIT_NO_LAZY_FETCH"], "1")
                 self.assertEqual(calls.call_args.kwargs["env"]["GIT_TERMINAL_PROMPT"], "0")
 
+    def test_p31_partial_clone_missing_blob_refuses_without_lazy_download(self):
+        """A real filtered clone must not retrieve a missing blob on P3.1 read."""
+        remote = self.home / "fixture-remote.git"
+        subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+        git(self.repo, "remote", "add", "origin", str(remote))
+        git(self.repo, "push", "-q", "origin",
+            self.second + ":refs/heads/experiment/laboratoire")
+        git(remote, "symbolic-ref", "HEAD", "refs/heads/experiment/laboratoire")
+        git(remote, "config", "uploadpack.allowFilter", "true")
+        partial = self.home / "filtered-clone"
+        subprocess.run(["git", "clone", "-q", "--filter=blob:none", "--no-checkout",
+                        remote.as_uri(), str(partial)], check=True)
+        blob = git(partial, "rev-parse", self.second + ":activite.qmd")
+        git_env = {**os.environ, "GIT_NO_LAZY_FETCH": "1"}
+        self.assertNotEqual(
+            subprocess.run(["git", "-C", str(partial), "cat-file", "-e", blob],
+                           env=git_env, capture_output=True).returncode, 0)
+        before = git(partial, "count-objects", "-v")
+        trace = self.home / "trace.json"
+        with patch.dict(os.environ, {"GIT_NO_LAZY_FETCH": "0",
+                                     "GIT_TRACE2_EVENT": str(trace)}):
+            with self.assertRaises(PreviewError):
+                create_preview(partial, self.second, "activite.qmd",
+                               self.home / "missing-blob-output", render=False)
+        self.assertFalse((self.home / "missing-blob-output").exists())
+        self.assertEqual(before, git(partial, "count-objects", "-v"))
+        self.assertNotEqual(
+            subprocess.run(["git", "-C", str(partial), "cat-file", "-e", blob],
+                           env=git_env, capture_output=True).returncode, 0)
+        self.assertFalse(any(json.loads(line).get("event") == "child_start"
+                             for line in trace.read_text().splitlines()))
+
     def test_real_quarto_observation_and_css_only_render(self):
         if os.environ.get("ALLIAGE_TEST_REAL_QUARTO") != "1":
             self.skipTest("Rendu Quarto réel uniquement dans la CI dédiée")
