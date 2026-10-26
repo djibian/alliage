@@ -31,6 +31,15 @@
         "historique.js"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "file:///*/alliage-experiences/historique/p31-final-observed-*/V*/project/_site/activite.html"
+      ],
+      "js": [
+        "historique_ressource.js"
+      ],
+      "run_at": "document_idle"
     }
   ]
 }
