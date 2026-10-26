@@ -285,7 +285,15 @@ class NavigationTests(unittest.TestCase):
                          ["file:///*/alliage-experiences/historique/p31-final-*/navigation.html"])
         self.assertEqual(config["content_scripts"][2]["js"], ["historique_ressource.js"])
         self.assertEqual(config["content_scripts"][2]["matches"],
-                         ["file:///*/alliage-experiences/historique/p31-final-observed-*/V*/project/_site/activite.html"])
+                         [
+                             "file:///*/alliage-experiences/historique/p31-final-observed-*/V*/project/_site/activite.html",
+                             "file:///*/alliage-experiences/historique/p31-final-observed-*/V*/project/_site/activite.html?*",
+                         ])
+        # Match patterns consider query strings part of their path. The plain
+        # .html pattern does NOT match the opt-in ?alliage-history-v0=... URL.
+        # Preserve both narrow patterns: plain HTML injection remains inert
+        # without the explicit, validated query, while queried URLs inject.
+        self.assertTrue(config["content_scripts"][2]["matches"][1].endswith("activite.html?*"))
         self.assertNotIn("<all_urls>", str(config))
 
 
