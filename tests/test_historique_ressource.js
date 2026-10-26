@@ -18,7 +18,7 @@ const payload = () => ({
   deployment_verified:false, publication_performed:false
 });
 const href = (p=payload(),revision="V2") =>
-  session+"/"+revision+"/project/_site/activite.html#alliage-history-v0="+
+  session+"/"+revision+"/project/_site/activite.html?alliage-history-v0="+
   encodeURIComponent(JSON.stringify(p));
 
 class Element {
@@ -56,7 +56,7 @@ function run(url,iframe=false) {
   const window={location:{assign:url=>navigations.push(url)}};
   window.self=window;
   window.top=iframe?{}:window;
-  vm.runInNewContext(source,{location,window,document,decodeURIComponent,URL,JSON},{timeout:1000});
+  vm.runInNewContext(source,{location,window,document,URL,URLSearchParams,JSON,Array},{timeout:1000});
   return {host:document.documentElement.children[0]||null,navigations};
 }
 
@@ -70,23 +70,34 @@ test("V2 historical Quarto resource opens directly; V1 → V2 keeps same session
   assert.match(findAll(first.host,"div").slice(-1)[0].textContent,/non recontrôlées/);
   buttons[0].emit("click");
   assert.equal(first.navigations.length,1);
-  assert.match(first.navigations[0],/\/V1\/project\/_site\/activite\.html#/);
-  assert.equal(new URL(first.navigations[0]).hash,new URL(href()).hash);
+  assert.match(first.navigations[0],/\/V1\/project\/_site\/activite\.html\?/);
+  assert.equal(new URL(first.navigations[0]).search,new URL(href()).search);
   const second=run(first.navigations[0]);
   assert.ok(second.host);
   const back=findAll(second.host,"button");
   assert.equal(back[0].disabled,true);
   assert.equal(back[1].disabled,false);
   back[1].emit("click");
-  assert.match(second.navigations[0],/\/V2\/project\/_site\/activite\.html#/);
+  assert.match(second.navigations[0],/\/V2\/project\/_site\/activite\.html\?/);
   assert.equal(new URL(second.navigations[0]).origin,"null"); // file: opaque origin
 });
 
-test("forged provenance, wrong page and absent explicit fragment inject nothing",()=>{
+test("Quarto heading anchors survive history navigation",()=>{
+  const current=run(href()+"#consigne");
+  assert.ok(current.host);
+  findAll(current.host,"button")[0].emit("click");
+  assert.equal(current.navigations.length,1);
+  const next=new URL(current.navigations[0]);
+  assert.equal(next.hash,"#consigne");
+  assert.equal(next.search,new URL(href()).search);
+  assert.ok(run(next.href).host);
+});
+
+test("forged provenance, wrong page and absent explicit query inject nothing",()=>{
   const cases=[
-    href().split("#")[0],
-    "https://example.invalid/activite.html#alliage-history-v0="+encodeURIComponent(JSON.stringify(payload())),
-    "file:///home/fiction/Documents/activite.html#alliage-history-v0="+encodeURIComponent(JSON.stringify(payload())),
+    href().split("?")[0],
+    "https://example.invalid/activite.html?alliage-history-v0="+encodeURIComponent(JSON.stringify(payload())),
+    "file:///home/fiction/Documents/activite.html?alliage-history-v0="+encodeURIComponent(JSON.stringify(payload())),
     href({...payload(),deployment_verified:true}),
     href({...payload(),publication_performed:true}),
     href({...payload(),verification:"DEPLOYED"}),
@@ -102,7 +113,7 @@ test("forged provenance, wrong page and absent explicit fragment inject nothing"
   assert.equal(run(href(),true).host,null,"no iframe injection");
 });
 
-test("untrusted fragment cannot give a custom navigation path",()=>{
+test("untrusted query metadata cannot give a custom navigation path",()=>{
   const malicious={...payload(),entries:[
     {id:"V1",commit:sha(1),html:"https://evil.example/private"},
     {id:"V2",commit:sha(2),html:"file:///etc/passwd"}
@@ -111,6 +122,6 @@ test("untrusted fragment cannot give a custom navigation path",()=>{
   assert.ok(result.host);
   findAll(result.host,"button")[0].emit("click");
   assert.equal(result.navigations.length,1);
-  assert.ok(result.navigations[0].startsWith(session+"/V1/project/_site/activite.html#"));
+  assert.ok(result.navigations[0].startsWith(session+"/V1/project/_site/activite.html?"));
   assert.ok(!result.navigations[0].includes("evil.example/private"));
 });
