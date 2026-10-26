@@ -285,3 +285,16 @@ L'audit indépendant de la PR #9 au HEAD `9f1166c30858aede78d2ffc93e426abea10d4b
 
 **Frontière A013 :** aucune nouvelle infrastructure, aucun agent IA, aucune identité distante prétendument vérifiée, aucune approbation de conception ni publication. Voir `docs/EXPERIMENT_RESOURCE_IN_CONTEXT.md`. Statut : branche candidate, aucune fusion décidée.
 
+### Première contre-revue de la PR #10 — corrections B1/B2 (26 octobre 2026)
+
+Un audit indépendant du HEAD `75fde827467d66b6de4f32a1ab81cf5657ea2fd8` a conclu **CORRECTIONS REQUISES** malgré les trois CI vertes, pour deux raisons : **B1**, `_site/styles.css` et les autres dépendances générées n'étaient pas inventoriés ni vérifiés ; **B2**, `resource_entry_url()` n'imposait pas elle-même une identité commune de source `.qmd` et de chemin HTML entre V1 et V2.
+
+**Réparations proposées sur `feat/p34-resource-local-history` (non fusionnée) :**
+
+- **B1 — P3.1 :** enregistre dans chaque manifeste de sortie `_site` un inventaire strictement borné `rendered_files`, avec chemins canoniques, tailles et SHA-256. Refuse les liens symboliques, fichiers spéciaux, volumes et arborescences hors bornes. Les rendus HTML historiques racine ne reçoivent pas cette garantie et restent compatibles avec les tests anciens.
+- **B1 — P3.2 :** `_load_version` valide les SHA-256 de tous les fichiers générés déclarés et l'égalité exacte avec la liste des fichiers réellement présents sous `_site`. L'absence d'inventaire reste tolérée uniquement pour le **navigateur historique P3.2**, mais ne peut qualifier l'URL directe ; la présence du CSS produit `project/_site/styles.css` est exigée.
+- **B2 — URL directe :** compare les deux `source_path` à la source `activite.qmd` de l'identité déclarée, et impose à chacune exactement `rendered_html_path=project/_site/activite.html`, `rendered_files_verified=true` et `rendered_css_verified=true`. L'identité owner/repo demeure déclarée, sans attestation distante ; Firefox conserve ses limites de revalidation.
+- **Contre-épreuves fictives :** altération CSS _généré_ conservant la même taille (SHA-256), fichier généré non inventorié, entrée CSS supprimée de l'inventaire, CSS absent, ancien manifeste, couple V1/V2 de sources différentes chacune vérifiable, chemin HTML racine non admis dans l'URL directe. Vérification supplémentaire des SHA des sorties Quarto réelles dans le test P3.1.
+
+**À démontrer :** CI Python, CI P3.2/DOM et CI Quarto réel toutes vertes sur le HEAD final corrigé, puis seconde contre-revue ciblée B1/B2 et validation humaine Firefox sur l'URL directe avant toute fusion. Ne pas confondre SHA affiché dans un paramètre d'URL avec une preuve cryptographique en temps réel. Aucune modification pédagogique, publication ni déploiement.
+
