@@ -261,3 +261,14 @@ La [seconde revue indépendante PR #6](https://github.com/djibian/alliage/pull/6
 - **Périmètre refusé :** bouton Firefox, permission additionnelle, serveur, API IA, adaptateur multiapplication, validation/passage aux élèves. L'amélioration de fluidité est locale et limitée ; l'expérience ressource-en-contexte décrite par A013 reste la cible.
 
 **Prochaine validation :** vérifier CI Python, rendu Quarto réel et DOM sur HEAD exact ; revue indépendante ; essai Ubuntu/Firefox humain de la commande sur laboratoire fictif après approbation ; décision humaine de fusion.
+
+### Contre-revue de la PR #9 — correctifs ciblés (26 octobre 2026)
+
+L'audit indépendant de la PR #9 au HEAD `9f1166c30858aede78d2ffc93e426abea10d4b5e` conclut **CORRECTIONS REQUISES** sur trois points : le test du raccordement Quarto réel était ignoré par la CI, le champ `checkout_unchanged_at_completion` surattestait l'intégrité, et `except Exception` ne supprimait pas une session incomplète après Ctrl+C.
+
+- **B1 :** le workflow `.github/workflows/quarto-historical-real.yml` invoque désormais explicitement les suites P3.1 et `test_quarto_observed_session.py` avec `ALLIAGE_TEST_REAL_QUARTO=1` ; exécution sans omission du test réel à confirmer dans les journaux du nouveau HEAD.
+- **B2 :** suppression de `checkout_unchanged_at_completion` et remplacement par `checkout_head_and_status_unchanged=true` accompagné de `checkout_file_contents_unchanged_verified=false`. Empreinte du SHA HEAD et du statut Git seulement, **pas** des octets d'un checkout sale, d'effets temporaires ou des écritures extérieures possibles de Quarto ; contre-épreuve d'un fichier marqué `M` dont le contenu évolue sans changer son statut.
+- **B3 :** nettoyage d'une session neuve après `Exception`, `KeyboardInterrupt` ou `SystemExit`, et propagation de l'interruption ; contre-épreuve interrompant le deuxième rendu après V1 et vérifiant la conservation d'une session antérieure. Aucune garantie après SIGKILL, perte d'alimentation ou échec de suppression.
+- **Complément facultatif :** test explicite d'un commit `--allow-empty` dont l'arbre ne change pas et qui est refusé. Les tests et fixtures demeurent fictifs et ne publient rien.
+
+**Statut :** corrections candidates sur la branche de la PR #9, toujours Draft. CI sur le HEAD final et nouvelle contre-revue indispensables ; la validation Firefox humaine de cette nouvelle commande reste à réaliser. Rien à fusionner ni publier sans décision explicite de l'enseignant.
