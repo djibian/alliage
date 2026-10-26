@@ -10,11 +10,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from urllib.parse import unquote, urlsplit
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from quarto_observed_session import SessionError, create_observed_session, observe
 from quarto_historical_preview import PreviewError, _git as preview_git, create_preview
+from quarto_resource_entry import resource_entry_url
+from quarto_navigation import NavigationError
 
 REF = "refs/remotes/origin/experiment/laboratoire"
 CONFIG = "project:\n  type: default\n  output-dir: _site\n\nformat:\n  html:\n    css: styles.css\n\nexecute:\n  enabled: false\n"
@@ -131,6 +134,21 @@ class ObservedSessionTests(unittest.TestCase):
         self.assertFalse(report["checkout_file_contents_unchanged_verified"])
         self.assertNotIn("checkout_unchanged_at_completion", report)
         self.assertTrue(report["navigation_url"].startswith("file://"))
+        self.assertEqual(report["resource_surface"],
+                         "LOCAL_RENDERED_HTML_NOT_CANONICAL_PUBLICATION")
+        direct = urlsplit(report["resource_url"])
+        self.assertEqual(direct.scheme, "file")
+        self.assertTrue(direct.path.endswith("/V2/project/_site/activite.html"))
+        self.assertTrue(direct.fragment.startswith("alliage-history-v0="))
+        data = json.loads(unquote(direct.fragment.split("=", 1)[1]))
+        self.assertEqual(data["schema"], "alliage.quarto-resource-history.v0")
+        self.assertEqual(data["resource_id"], "quarto:fiction/laboratoire:activite.qmd")
+        self.assertEqual(data["entries"],
+                         [{"id": "V1", "commit": self.initial},
+                          {"id": "V2", "commit": self.second}])
+        self.assertFalse(data["deployment_verified"])
+        self.assertFalse(data["publication_performed"])
+        self.assertEqual(data["verification"], "POINT_IN_TIME_ONLY")
         session = Path(report["session_path"])
         self.assertTrue((session / "navigation.html").is_file())
         self.assertIn("./V1/project/_site/activite.html",
@@ -143,6 +161,36 @@ class ObservedSessionTests(unittest.TestCase):
         self.assertTrue((session / "navigation.html").exists())
         self.assertEqual(before, (git(self.repo, "rev-parse", "HEAD"),
                                   git(self.repo, "status", "--porcelain=v1")))
+
+    def test_resource_url_refuses_tampered_preview_without_mutating_originals(self):
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        source_html = session / "V2/project/_site/activite.html"
+        before = source_html.read_bytes()
+        url = resource_entry_url(
+            session, reference="V1", observed="V2",
+            resource_id="quarto:fiction/laboratoire:activite.qmd")
+        self.assertTrue(url.startswith(source_html.as_uri()))
+        self.assertEqual(source_html.read_bytes(), before)
+        (session / "V1/project/styles.css").write_text("ALTÉRÉ", encoding="utf-8")
+        with self.assertRaisesRegex(NavigationError, "Dépendance Git modifiée"):
+            resource_entry_url(
+                session, reference="V1", observed="V2",
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+        self.assertEqual(source_html.read_bytes(), before)
+
+    def test_resource_url_refuses_forged_session_or_missing_navigation(self):
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        (session / "navigation.html").unlink()
+        with self.assertRaisesRegex(NavigationError, "non autorisée"):
+            resource_entry_url(
+                session, resource_id="quarto:fiction/laboratoire:activite.qmd")
+        with self.assertRaisesRegex(NavigationError, "non autorisée"):
+            resource_entry_url(
+                self.repo, resource_id="quarto:fiction/laboratoire:activite.qmd")
 
     def test_refuse_unsupported_resource_and_no_trust_without_session(self):
         with self.assertRaisesRegex(SessionError, "activite.qmd"):
