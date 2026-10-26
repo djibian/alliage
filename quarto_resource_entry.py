@@ -3,7 +3,7 @@
 """Opt-in URL to a real, unmodified Quarto preview page with a local history toolbar.
 
 Experimental P3.2 extension surface, NOT canonical published resource identity.
-Revalidates the P3.1 manifests point-in-time and writes no files. URL fragments
+Revalidates the P3.1 manifests point-in-time and writes no files. URL queries
 are untrusted browser transport, NOT cryptographic attestations in Firefox.
 """
 from __future__ import annotations
@@ -47,7 +47,7 @@ def resource_entry_url(session: Path, *, reference: str = "V1",
 
     # Only two pinned local revisions are ever navigated in the initial pilot.
     # No arbitrary file path, repository URL or remote site is accepted from
-    # the fragment; the extension derives fixed paths from the current page.
+    # the query; the extension derives fixed paths from the current page.
     payload = {
         "schema": "alliage.quarto-resource-history.v0",
         "resource_id": resource_id,
@@ -61,5 +61,5 @@ def resource_entry_url(session: Path, *, reference: str = "V1",
     target = session / observed / "project/_site/activite.html"
     if not target.is_file() or target.is_symlink():
         raise NavigationError("HTML historique observé absent.")
-    fragment = quote(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), safe="")
-    return target.as_uri() + "#alliage-history-v0=" + fragment
+    query = quote(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), safe="")
+    return target.as_uri() + "?alliage-history-v0=" + query
