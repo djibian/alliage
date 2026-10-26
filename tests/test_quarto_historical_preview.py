@@ -299,6 +299,15 @@ class HistoricalPreviewTests(unittest.TestCase):
         for version, manifest in (("first", first), ("second", second), ("third", third)):
             self.assertIn("/_site/", "/" + manifest["rendered_html"]["path"])
             self.assertTrue((self.root / version / "project/_site/styles.css").is_file())
+            # The generated CSS can differ independently of the tracked CSS
+            # and must be attested at render time, not inferred from Git blobs.
+            generated = {asset["path"]: asset for asset in manifest["rendered_files"]}
+            self.assertIn("project/_site/styles.css", generated)
+            self.assertIn(manifest["rendered_html"]["path"], generated)
+            for path, asset in generated.items():
+                source_bytes = (self.root / version / path).read_bytes()
+                self.assertEqual(asset["sha256"], hashlib.sha256(source_bytes).hexdigest())
+                self.assertEqual(asset["bytes"], len(source_bytes))
         self.assertEqual(second["source_sha256"], third["source_sha256"])
         self.assertNotEqual((self.root / "second/project/styles.css").read_text(),
                             (self.root / "third/project/styles.css").read_text())
