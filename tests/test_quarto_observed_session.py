@@ -87,11 +87,20 @@ class ObservedSessionTests(unittest.TestCase):
                             "bytes": len(data), "git_blob": "a" * 40})
         html = b'<!doctype html><html><head><link rel="stylesheet" href="styles.css"></head><body>Fictif</body></html>'
         (site / "activite.html").write_bytes(html)
+        rendered_css = (project / "styles.css").read_bytes()
+        (site / "styles.css").write_bytes(rendered_css)
+        rendered_files = [
+            {"path": "project/_site/activite.html", "sha256": digest(html),
+             "bytes": len(html)},
+            {"path": "project/_site/styles.css", "sha256": digest(rendered_css),
+             "bytes": len(rendered_css)},
+        ]
         manifest = {
             "schema": "alliage.quarto-historical-preview.v0",
             "commit": revision, "source_path": source,
             "source_sha256": next(x["sha256"] for x in tracked if x["path"] == source),
             "tracked_files": tracked,
+            "rendered_files": rendered_files,
             "render_status": "RENDERED_FROM_GIT_SNAPSHOT",
             "rendered_html": {"path": "project/_site/activite.html",
                               "sha256": digest(html), "existed_before_render": False},
