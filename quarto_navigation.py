@@ -176,7 +176,9 @@ def _load_version(session: Path, version: str) -> dict:
     return {"id": version, "commit": commit, "source_sha256": present[source],
             "source_path": source, "rendered_html_path": rendered["path"],
             "rendered_files_verified": assets_verified,
-            "rendered_file_paths": sorted(item["path"] for item in report["rendered_files"]) if assets_verified else [],
+            "rendered_css_verified": assets_verified and any(
+                item["path"] == "project/_site/styles.css"
+                for item in report["rendered_files"]),
             "html": "./" + quote(version + "/" + rendered["path"], safe="/"),
             "quarto_version": report["quarto_version"],
             "publication_status": "NOT_INITIATED_BY_ALLIAGE"}
