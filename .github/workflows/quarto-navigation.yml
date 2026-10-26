@@ -7,6 +7,8 @@ on:
       - feat/p32-local-history-navigation
     paths:
       - 'quarto_navigation.py'
+      - 'quarto_observed_session.py'
+      - 'tests/test_quarto_observed_session.py'
       - 'extension/historique.js'
       - 'extension/manifest.json'
       - 'tests/test_quarto_navigation.py'
@@ -15,6 +17,8 @@ on:
   pull_request:
     paths:
       - 'quarto_navigation.py'
+      - 'quarto_observed_session.py'
+      - 'tests/test_quarto_observed_session.py'
       - 'extension/historique.js'
       - 'extension/manifest.json'
       - 'tests/test_quarto_navigation.py'
