@@ -33,7 +33,7 @@ PILOT_SOURCE = "activite.qmd"
 
 
 def _fingerprint(repo: Path) -> tuple[str, str]:
-    """Check the checkout without changing HEAD or relying on a clean tree."""
+    """Sample HEAD and porcelain status, NOT worktree file contents or metadata."""
     head = _git(repo, "rev-parse", "HEAD").decode("ascii", "strict").strip()
     status = _git(repo, "status", "--porcelain=v1", "-z", "--untracked-files=all")
     return head, hashlib.sha256(status).hexdigest()
@@ -105,7 +105,7 @@ def create_observed_session(repo: Path, repository_id: str, source: str,
         # P3.2 independently rehashes every Git-tracked file and both HTML files.
         page = build_navigation(session, ["V1", "V2"], reference="V1")
         if _fingerprint(repo) != before:
-            raise SessionError("Checkout Git modifié durant la session : résultat refusé.")
+            raise SessionError("HEAD ou statut Git modifié durant la session : résultat refusé.")
         return {
             "schema": "alliage.quarto-observed-session.v0",
             "resource_id": delta["resource_id"],
@@ -116,7 +116,10 @@ def create_observed_session(repo: Path, repository_id: str, source: str,
             "local_observed": "V2",
             "navigation_url": page.as_uri(),
             "session_path": str(session),
-            "checkout_unchanged_at_completion": True,
+            # A dirty file can change bytes while porcelain status stays "M".
+            # Never claim a full worktree content-integrity attestation.
+            "checkout_head_and_status_unchanged": True,
+            "checkout_file_contents_unchanged_verified": False,
             "remote_freshness_verified": False,
             "publication_performed": False,
             "deployment_verified": False,
@@ -124,8 +127,9 @@ def create_observed_session(repo: Path, repository_id: str, source: str,
             "quarto_external_effects": "NOT_VERIFIED",
             "firefox_manually_verified": False,
         }
-    except Exception:
-        # Never leave an apparently reusable half-rendered navigation session.
+    except (Exception, KeyboardInterrupt, SystemExit):
+        # Ctrl+C is not an Exception. Clean up Python interruptions as well;
+        # SIGKILL, power loss and failed removal remain outside this guarantee.
         if session is not None:
             shutil.rmtree(session)
         raise
