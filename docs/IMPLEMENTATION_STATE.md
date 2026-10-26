@@ -272,3 +272,16 @@ L'audit indépendant de la PR #9 au HEAD `9f1166c30858aede78d2ffc93e426abea10d4b
 - **Complément facultatif :** test explicite d'un commit `--allow-empty` dont l'arbre ne change pas et qui est refusé. Les tests et fixtures demeurent fictifs et ne publient rien.
 
 **Statut :** corrections candidates sur la branche de la PR #9, toujours Draft. CI sur le HEAD final et nouvelle contre-revue indispensables ; la validation Firefox humaine de cette nouvelle commande reste à réaliser. Rien à fusionner ni publier sans décision explicite de l'enseignant.
+
+## Navigation historique en contexte Quarto local — candidat expérimental (26 octobre 2026)
+
+**Départ vérifié :** `main=f1093f61485730c1dea174c30e20eab2fba929f7` après fusion de la PR #9 ; CI Python, Quarto réel et navigation P3.2 post-fusion : SUCCESS. P1/P2/v0.4/P3.0–P3.3 restent les bases de non-régression.
+
+**Hypothèse minimale sur `feat/p34-resource-local-history` :** obtenir une navigation accessible **dans le HTML Quarto historique directement ouvert**, plutôt que depuis `navigation.html`. `quarto_resource_entry.py` produit après P3.1/P3.2 vérifiés un `resource_url` vers `V2/project/_site/activite.html` ; `extension/historique_ressource.js` y ajoute localement des commandes V1 ↔ V2. Il ne modifie aucun HTML rendu, aucune source, ne lit pas Git et ne déploie pas. Le chemin Firefox est limité aux sessions locales `p31-final-observed-*`. L'ancienne interface `navigation_url` reste disponible pour comparaison.
+
+**Provenance :** les SHA et métadonnées de session sont placés dans un fragment d'URL au moment de l'attestation P3.2. **Le fragment peut être altéré et ne constitue pas une attestation cryptographique** : l'extension présente des SHA *indiqués*, jamais une preuve d'intégrité au moment de l'affichage. Aucun lien démontré entre ces aperçus et un HTML public/une ressource enseignante canonique ; cet incrément n'implémente pas ce lien.
+
+**Qualité attendue :** tests Python de génération d'URL, refus de manifestes altérés et préservation des octets Quarto ; tests JavaScript de passage V2 → V1 → V2 et cas URL/fragments malformés ; CI Quarto réelle ; non-régression de l'ancien historique et de v0.4. Les résultats exacts seront consignés à partir de la CI sur HEAD final. **Firefox réel reste à qualifier humainement** : les tests DOM ne prouvent pas les permissions de fichiers locaux ni le rendu visuel.
+
+**Frontière A013 :** aucune nouvelle infrastructure, aucun agent IA, aucune identité distante prétendument vérifiée, aucune approbation de conception ni publication. Voir `docs/EXPERIMENT_RESOURCE_IN_CONTEXT.md`. Statut : branche candidate, aucune fusion décidée.
+
