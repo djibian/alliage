@@ -17,7 +17,8 @@ Expériences courtes, séquentielles et non destructives :
 2. **P3.1 — aperçus isolés** : créer deux vraies révisions Quarto fictives, restituer l'ensemble des dépendances de chacune et vérifier le rendu HTML obtenu avec Quarto réel, sans toucher aux sources ni aux données élèves.
 3. **P3.2 — navigation Firefox** : afficher le navigateur d'historique sur les seuls aperçus locaux identifiés, retour à la révision de travail ; vérification manuelle et régression v0.4.
 4. **P3.3 — modification externe** : tester un commit sur une branche de test autorisée via connecteur GitHub de la conversation ordinaire, puis récupération Git explicite et détection de l'écart de SHA. Vérifier séparément les capacités du panneau Firefox ; aucun accès Work/API présumé.
-5. **P3.4 — préparation de publication** : distinguer validation, SHA source, rendu élève et attestation de déploiement, sans déployer. Tester la non-divulgation des sections enseignantes avant toute étape de publication effective.
+5. **Raccordement expérimental P3.3 → P3.1 → P3.2 (avant P3.4)** : V3/V4 fictives qualifiées sur Ubuntu/Quarto réel et Firefox (26/10/2026), avec intervention manuelle. Prochaine preuve : commande locale minimale, explicite et réversible réutilisant les composants ; tests d'identité de ressource, d'intégrité, de non-récupération Git implicite, de sessions neuves et de non-régression v0.4. Les chemins et `navigation.html` restent des outils de laboratoire, non une architecture produit définitive.
+6. **P3.4 — préparation de publication** : distinguer validation, SHA source, rendu élève et attestation de déploiement, sans déployer. Tester la non-divulgation des sections enseignantes avant toute étape de publication effective.
 
 **Hors phase :** restauration réelle, publication effective, Grist et toutes les autres applications.
 
