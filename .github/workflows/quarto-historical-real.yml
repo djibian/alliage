@@ -9,6 +9,7 @@ on:
     paths:
       - 'quarto_historical_preview.py'
       - 'quarto_observed_session.py'
+      - 'quarto_resource_entry.py'
       - 'tests/test_quarto_observed_session.py'
       - 'tests/test_quarto_historical_preview.py'
       - '.github/workflows/quarto-historical-real.yml'
