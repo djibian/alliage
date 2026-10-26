@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -139,8 +139,8 @@ class ObservedSessionTests(unittest.TestCase):
         direct = urlsplit(report["resource_url"])
         self.assertEqual(direct.scheme, "file")
         self.assertTrue(direct.path.endswith("/V2/project/_site/activite.html"))
-        self.assertTrue(direct.fragment.startswith("alliage-history-v0="))
-        data = json.loads(unquote(direct.fragment.split("=", 1)[1]))
+        self.assertIn("alliage-history-v0", parse_qs(direct.query))
+        data = json.loads(parse_qs(direct.query)["alliage-history-v0"][0])
         self.assertEqual(data["schema"], "alliage.quarto-resource-history.v0")
         self.assertEqual(data["resource_id"], "quarto:fiction/laboratoire:activite.qmd")
         self.assertEqual(data["entries"],
@@ -365,8 +365,8 @@ class ObservedSessionTests(unittest.TestCase):
         self.assertTrue((session / "navigation.html").is_file())
         direct = urlsplit(report["resource_url"])
         self.assertTrue(direct.path.endswith("/V2/project/_site/activite.html"))
-        self.assertTrue(direct.fragment.startswith("alliage-history-v0="))
-        self.assertEqual(json.loads(unquote(direct.fragment.split("=", 1)[1]))["entries"],
+        self.assertIn("alliage-history-v0", parse_qs(direct.query))
+        self.assertEqual(json.loads(parse_qs(direct.query)["alliage-history-v0"][0])["entries"],
                          [{"id":"V1","commit":self.initial},
                           {"id":"V2","commit":self.second}])
         # Real Quarto HTML is still the unmodified output hashed by P3.1.
