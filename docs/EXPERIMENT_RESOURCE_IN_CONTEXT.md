@@ -27,6 +27,17 @@ La nouvelle interface « Alliage · Historique sur la ressource » affiche
 `V1` (référence antérieure) et `V2` (révision observée), permettant
 `V2 → V1 → V2` **sans revenir à `navigation.html`**.
 
+À la création des aperçus, P3.1 établit maintenant un **inventaire borné
+de tous les fichiers réguliers produits dans `project/_site`**, avec SHA-256,
+taille et chemin. P3.2 compare lors de chaque construction d'URL directe
+l'inventaire à l'ensemble réellement présent (y compris le CSS généré
+`_site/styles.css`, distinct du CSS suivi dans Git) et refuse tout fichier
+absent, surnuméraire, modifié, symbolique ou non régulier. Les sessions
+antérieures sans cet inventaire restent lisibles dans la navigation P3.2
+historique, mais **ne peuvent pas obtenir cette nouvelle URL directe**.
+Les deux manifestes doivent aussi attester exactement la source
+`activite.qmd` et son HTML `project/_site/activite.html`.
+
 Les SHA montrés dans l'interface proviennent de métadonnées transmises par
 l'URL ; ils **ne sont pas authentifiés de nouveau par Firefox**. Une personne
 peut modifier ce paramètre de requête : il ne constitue ni preuve de provenance en
@@ -47,6 +58,10 @@ est générée**. Aucun navigateur n'a été attesté par les seuls tests DOM.
   les destinations de navigation sont reconstruites à partir de la session
   visible et des noms fixes `V1`/`V2`, jamais depuis une URL transmise
   par le paramètre de requête.
+- **Attestation ponctuelle uniquement** : les empreintes des dépendances
+  générées sont vérifiées avant la fourniture de l'URL directe. Firefox ne
+  recalcule pas ces empreintes pendant l'affichage. L'inventaire porte sur
+  `_site` ; les éventuels effets externes du moteur restent non vérifiés.
 - Quarto n'est **pas sandboxé** ; l'exécution demande toujours
   `--trusted-quarto`. La ref de suivi locale peut être obsolète ; le
   checkout n'est attesté qu'au niveau HEAD/statut, pas de ses octets.
