@@ -45,6 +45,20 @@ def resource_entry_url(session: Path, *, reference: str = "V1",
         raise NavigationError("Les SHA des aperçus doivent être différents.")
     if entries[0]["quarto_version"] != entries[1]["quarto_version"]:
         raise NavigationError("Moteurs Quarto différents.")
+    # Do not trust two individually valid manifests to belong to the same
+    # logical resource or to have the fixed HTML layout assumed by Firefox.
+    # The repository owner/name is still DECLARED, not remotely authenticated.
+    declared_source = resource_id.rsplit(":", 1)[1]
+    required_html = "project/_site/activite.html"
+    for item in entries:
+        if (item["source_path"] != declared_source
+                or item["rendered_html_path"] != required_html
+                or not item["rendered_files_verified"]
+                or not item["rendered_css_verified"]):
+            raise NavigationError(
+                "Identité source/HTML ou dépendances CSS non attestées pour la ressource.")
+    if entries[0]["source_path"] != entries[1]["source_path"]:
+        raise NavigationError("Les versions ne concernent pas la même ressource.")
 
     # Only two pinned local revisions are ever navigated in the initial pilot.
     # No arbitrary file path, repository URL or remote site is accepted from
