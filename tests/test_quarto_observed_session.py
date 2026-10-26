@@ -189,6 +189,110 @@ class ObservedSessionTests(unittest.TestCase):
                 resource_id="quarto:fiction/laboratoire:activite.qmd")
         self.assertEqual(source_html.read_bytes(), before)
 
+    def test_generated_css_tampering_refused_even_with_intact_git_inputs(self):
+        """B1: generated CSS is not the Git-tracked styles.css."""
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        generated = session / "V2/project/_site/styles.css"
+        tracked = session / "V2/project/styles.css"
+        before_tracked = tracked.read_bytes()
+        generated.write_text("h2{color:black}", encoding="utf-8")
+        self.assertEqual(tracked.read_bytes(), before_tracked)
+        with self.assertRaisesRegex(NavigationError, "Dépendance Quarto générée modifiée"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+
+    def test_generated_inventory_refuses_missing_and_extra_css_files(self):
+        """New assets, removed assets and omissions cannot escape the inventory."""
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        project = session / "V2/project"
+        extra = project / "_site/extra.css"
+        extra.write_text("fake", encoding="utf-8")
+        with self.assertRaisesRegex(NavigationError, "Inventaire des sorties Quarto"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+        extra.unlink()
+        manifest_path = session / "V2/manifest.json"
+        original = json.loads(manifest_path.read_text())
+        altered = dict(original)
+        altered["rendered_files"] = [
+            item for item in original["rendered_files"]
+            if not item["path"].endswith("/styles.css")
+        ]
+        manifest_path.write_text(json.dumps(altered))
+        with self.assertRaisesRegex(NavigationError, "Inventaire des sorties Quarto"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+        manifest_path.write_text(json.dumps(original))
+        (project / "_site/styles.css").unlink()
+        with self.assertRaisesRegex(NavigationError, "Fichier d'aperçu absent"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+
+    def test_resource_entry_refuses_legacy_manifest_without_rendered_inventory(self):
+        """P3.2 legacy navigation may read it; direct history requires the stronger proof."""
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        manifest_path = session / "V1/manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        del manifest["rendered_files"]
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(NavigationError, "CSS non attestées"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+
+    def test_resource_entry_refuses_individually_valid_different_qmd(self):
+        """B2: a V1 manifest for another QMD must never pair with V2."""
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        version = session / "V1"
+        project = version / "project"
+        manifest_path = version / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        other = b"---\\ntitle: Fictif autre\\n---\\n\\n## Autre\\n".replace(b"\\n", b"\n")
+        (project / "autre.qmd").write_bytes(other)
+        manifest["tracked_files"].append({
+            "path":"autre.qmd", "sha256":digest(other), "git_blob":"a"*40,
+            "bytes":len(other)
+        })
+        manifest["source_path"] = "autre.qmd"
+        manifest["source_sha256"] = digest(other)
+        old_html = project / "_site/activite.html"
+        new_html = project / "_site/autre.html"
+        old_html.rename(new_html)
+        data = new_html.read_bytes()
+        manifest["rendered_html"]["path"] = "project/_site/autre.html"
+        manifest["rendered_html"]["sha256"] = digest(data)
+        for item in manifest["rendered_files"]:
+            if item["path"].endswith("/activite.html"):
+                item["path"] = "project/_site/autre.html"
+                break
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(NavigationError, "Identité source/HTML"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+
+    def test_resource_entry_refuses_root_html_despite_valid_manifest(self):
+        """P3.2 supports root historical HTML; the direct URL does not."""
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        version = session / "V1"
+        manifest_path = version / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        root_html = version / "project/activite.html"
+        root_html.write_bytes((version / "project/_site/activite.html").read_bytes())
+        manifest["rendered_html"]["path"] = "project/activite.html"
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(NavigationError, "Identité source/HTML"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+
     def test_resource_url_refuses_forged_session_or_missing_navigation(self):
         with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
             report = self.run_session()
