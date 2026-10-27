@@ -288,6 +288,8 @@ class NavigationTests(unittest.TestCase):
                          [
                              "file:///*/alliage-experiences/historique/p31-final-observed-*/V*/project/_site/activite.html",
                              "file:///*/alliage-experiences/historique/p31-final-observed-*/V*/project/_site/activite.html?*",
+                              "http://127.0.0.1/alliage-local-*/V*/project/_site/activite.html",
+                              "http://127.0.0.1/alliage-local-*/V*/project/_site/activite.html?*",
                          ])
         # Match patterns consider query strings part of their path. The plain
         # .html pattern does NOT match the opt-in ?alliage-history-v0=... URL.
