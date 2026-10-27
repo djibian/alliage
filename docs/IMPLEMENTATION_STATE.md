@@ -306,3 +306,10 @@ Après approbation indépendante B1/B2 sur le HEAD `d1d6bb0ab02758a9782cc4efd319
 
 **Blocage indépendant à ne pas ignorer :** sur la page locale, Firefox refuse par CORS les modules natifs Quarto `activite_files/libs/quarto-html/quarto.js` et `tabsets/tabsets.js` (chargement `file://`). Corriger l'injection ne démontre donc **pas** le fonctionnement complet de la ressource Quarto. Ne pas désactiver la sécurité du navigateur ; une approche localhost HTTP strictement isolée ou une autre solution sûre doit être expérimentée séparément, en conservant A013. **Aucune fusion ni publication.**
 
+### Firefox Ubuntu — cause exacte du panneau absent et réparation ciblée (27 octobre 2026)
+
+Après le premier correctif de motif d'URL, Firefox charge bien `historique_ressource.js`, mais l'enseignant a constaté un `return` sur la garde d'unicité de query (lignes 20–21). Le pas-à-pas **dans le contexte de l'extension** a donné `keys.length=0`, `keys[0]=undefined`, alors que `query.getAll("alliage-history-v0").length=1`. La validation de tous les autres attributs du paramètre était déjà positive dans la page. **Ce sont ces données du débogueur, pas une hypothèse d'autorisation, qui expliquent le refus effectivement observé.**
+
+La garde ne repose désormais plus sur `Array.from(URLSearchParams.keys())`. Elle vérifie la query brute avec `/^[?]alliage-history-v0=[^&]+$/` (une seule clé littérale, sans séparateur `&` brut), puis exige exactement une valeur de `getAll()` et décode le JSON. Les destinations V1/V2 restent des chemins fixes ; les SHA restent seulement déclaratifs. Un test adversarial reproduit `keys()` vide malgré `getAll()` correct, et plusieurs tests négatifs refusent les autres paramètres, les doublons et les séparateurs ajoutés.
+
+**Qualification encore nécessaire :** trois CI vertes sur le nouveau HEAD, contre-revue ciblée du correctif Firefox, puis rechargement de l'extension dans Firefox réel et confirmation V2→V1→V2. Les modules Quarto `file://` bloqués par CORS demeurent un problème indépendant : pas de qualification de fidélité complète ni de fusion avant résolution.
