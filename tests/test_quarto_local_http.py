@@ -13,13 +13,13 @@ from unittest.mock import patch
 
 from quarto_local_http import AttestedPreview, HTTPPreviewError, make_server
 from quarto_navigation import NavigationError
-from test_quarto_observed_session import ObservedSessionTests
+import test_quarto_observed_session as observed_tests
 
 
 class LocalHTTPPreviewTests(unittest.TestCase):
     def setUp(self):
         # Reuse the genuine P3.3/P3.1/P3.2 fake-Git integration fixture.
-        self.fixture = ObservedSessionTests("test_check_is_read_only_and_css_change_is_real")
+        self.fixture = observed_tests.ObservedSessionTests("test_check_is_read_only_and_css_change_is_real")
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
         with patch("quarto_observed_session.create_preview",
