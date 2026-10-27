@@ -20,6 +20,10 @@ const payload = () => ({
 const href = (p=payload(),revision="V2") =>
   session+"/"+revision+"/project/_site/activite.html?alliage-history-v0="+
   encodeURIComponent(JSON.stringify(p));
+const httpSession = "http://127.0.0.1:46273/alliage-local-"+"a".repeat(32);
+const httpHref = (p=payload(),revision="V2") =>
+  httpSession+"/"+revision+"/project/_site/activite.html?alliage-history-v0="+
+  encodeURIComponent(JSON.stringify(p));
 
 class Element {
   constructor(tag) {
@@ -151,5 +155,38 @@ test("raw query separators, duplicates and extra keys always fail closed",()=>{
     candidate.replace("?alliage-history-v0=","?not-history=")
   ]) {
     assert.equal(run(url,false,EmptyKeysURLSearchParams).host,null,url.slice(0,130));
+  }
+});
+
+test("opt-in loopback Quarto serves direct V2/V1 history without file: origin",()=>{
+  const first=run(httpHref(),false,EmptyKeysURLSearchParams);
+  assert.ok(first.host,"loopback HTML must host native history overlay");
+  const buttons=findAll(first.host,"button");
+  buttons[0].emit("click");
+  assert.equal(first.navigations.length,1);
+  assert.ok(first.navigations[0].startsWith(httpSession+"/V1/project/_site/activite.html?"));
+  assert.equal(new URL(first.navigations[0]).origin,"http://127.0.0.1:46273");
+  const second=run(first.navigations[0]+"#consigne");
+  assert.ok(second.host);
+  findAll(second.host,"button")[1].emit("click");
+  assert.equal(new URL(second.navigations[0]).hash,"#consigne");
+  assert.ok(second.navigations[0].startsWith(httpSession+"/V2/"));
+});
+
+test("loopback host, token, version, path and explicit query are tightly scoped",()=>{
+  const valid=httpHref();
+  for(const candidate of [
+    valid.replace("127.0.0.1","localhost"),
+    valid.replace("127.0.0.1","127.0.0.2"),
+    valid.replace("http://","https://"),
+    valid.replace("alliage-local-","other-local-"),
+    valid.replace("a".repeat(32),"b".repeat(31)),
+    valid.replace("/V2/","/V3/"),
+    valid.replace("/project/_site/","/other/_site/"),
+    valid.split("?")[0],
+    valid+"&other=yes",
+    valid+"&alliage-history-v0=duplicate",
+  ]) {
+    assert.equal(run(candidate).host,null,candidate.slice(0,95));
   }
 });
