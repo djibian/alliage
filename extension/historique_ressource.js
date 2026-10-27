@@ -15,11 +15,15 @@
   if (location.search.length > 3000) return;
   let payload;
   try {
+    // Firefox's content-script debugger observed an empty keys() iterator
+    // even while getAll() returned the one expected value. Do not use the
+    // iterator as a security gate. This URL is generated with exactly one
+    // literal query key and percent-encoded JSON; reject raw extra separators.
+    if (!/^\\?alliage-history-v0=[^&]+$/.test(location.search)) return;
     const query = new URLSearchParams(location.search);
-    const keys = Array.from(query.keys());
-    if (keys.length !== 1 || keys[0] !== "alliage-history-v0" ||
-        query.getAll("alliage-history-v0").length !== 1) return;
-    payload = JSON.parse(query.get("alliage-history-v0"));
+    const values = query.getAll("alliage-history-v0");
+    if (values.length !== 1) return;
+    payload = JSON.parse(values[0]);
   } catch (_) { return; }
   if (!payload || payload.schema !== "alliage.quarto-resource-history.v0" ||
       payload.reference_id !== "V1" || payload.observed_id !== "V2" ||
