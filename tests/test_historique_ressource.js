@@ -45,7 +45,12 @@ function findAll(node,tag) {
   }
   return nodes;
 }
-function run(url,iframe=false) {
+// Reproduce Firefox's observed extension-debugger state: getAll() returns
+// the history value, while keys() iteration unexpectedly produces no keys.
+class EmptyKeysURLSearchParams extends URLSearchParams {
+  keys() {return [][Symbol.iterator]();}
+}
+function run(url,iframe=false,SearchParams=URLSearchParams) {
   const location=new URL(url);
   const navigations=[];
   const document={
@@ -56,7 +61,7 @@ function run(url,iframe=false) {
   const window={location:{assign:url=>navigations.push(url)}};
   window.self=window;
   window.top=iframe?{}:window;
-  vm.runInNewContext(source,{location,window,document,URL,URLSearchParams,JSON,Array},{timeout:1000});
+  vm.runInNewContext(source,{location,window,document,URL,URLSearchParams:SearchParams,JSON,Array},{timeout:1000});
   return {host:document.documentElement.children[0]||null,navigations};
 }
 
@@ -124,4 +129,27 @@ test("untrusted query metadata cannot give a custom navigation path",()=>{
   assert.equal(result.navigations.length,1);
   assert.ok(result.navigations[0].startsWith(session+"/V1/project/_site/activite.html?"));
   assert.ok(!result.navigations[0].includes("evil.example/private"));
+});
+
+test("Firefox content-script regression: empty keys() iterator cannot reject a valid URL",()=>{
+  const candidate=href();
+  assert.ok(run(candidate,false,EmptyKeysURLSearchParams).host,
+            "getAll() must allow a valid, single history parameter without keys()");
+  assert.ok(run(href({...payload(),label:"fictif & rouge"}),false,
+                EmptyKeysURLSearchParams).host,
+            "encoded ampersands inside the JSON payload must remain allowed");
+});
+
+test("raw query separators, duplicates and extra keys always fail closed",()=>{
+  const candidate=href();
+  for(const url of [
+    candidate+"&other=true",
+    candidate+"&alliage-history-v0="+encodeURIComponent(JSON.stringify(payload())),
+    candidate+"&",
+    candidate.replace("?alliage-history-v0=","?%61lliage-history-v0="),
+    candidate.replace("?alliage-history-v0=","?alliage-history-v0=&other="),
+    candidate.replace("?alliage-history-v0=","?not-history=")
+  ]) {
+    assert.equal(run(url,false,EmptyKeysURLSearchParams).host,null,url.slice(0,130));
+  }
 });
