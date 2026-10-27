@@ -10,6 +10,8 @@ on:
       - 'quarto_historical_preview.py'
       - 'quarto_observed_session.py'
       - 'quarto_resource_entry.py'
+      - 'quarto_local_http.py'
+      - 'tests/test_quarto_local_http.py'
       - 'tests/test_quarto_observed_session.py'
       - 'tests/test_quarto_historical_preview.py'
       - '.github/workflows/quarto-historical-real.yml'
@@ -36,3 +38,4 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p 'test_quarto_historical_preview.py' -v
           python3 -m unittest discover -s tests -p 'test_quarto_observed_session.py' -v
+          python3 -m unittest discover -s tests -p 'test_quarto_local_http.py' -v
