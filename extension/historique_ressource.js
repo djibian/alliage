@@ -19,7 +19,7 @@
     // even while getAll() returned the one expected value. Do not use the
     // iterator as a security gate. This URL is generated with exactly one
     // literal query key and percent-encoded JSON; reject raw extra separators.
-    if (!/^\\?alliage-history-v0=[^&]+$/.test(location.search)) return;
+    if (!/^[?]alliage-history-v0=[^&]+$/.test(location.search)) return;
     const query = new URLSearchParams(location.search);
     const values = query.getAll("alliage-history-v0");
     if (values.length !== 1) return;
