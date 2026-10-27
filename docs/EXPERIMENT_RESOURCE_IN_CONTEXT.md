@@ -120,6 +120,59 @@ Une CI Node simule le DOM et les URL ; une CI Quarto réelle contrôle
 les SHA et l'absence de modification des HTML, mais seule l'observation
 humaine valide le navigateur Firefox et son comportement `file://`.
 
+## Variante HTTP locale pour qualifier les modules Quarto (pilote optionnel)
+
+Le premier essai humain a **confirmé** la présence du panneau et le parcours
+historique en `file://`. Il a aussi mis en évidence que Firefox bloque les
+modules ES natifs `quarto.js` et `tabsets.js` chargés depuis ce schéma :
+la navigation de l'extension ne constitue donc pas, à elle seule, une
+qualification complète de Quarto.
+
+Pour ce **blocage démontré seulement**, un transport HTTP expérimental distinct
+du pont v0.4 sert **uniquement les fichiers générés et inventoriés** de V1/V2.
+Il n'introduit ni point d'écriture, ni pilotage Quarto/Git par le navigateur,
+ni publication, ni serveur permanent, ni répertoire partagé librement.
+
+Dans un terminal Ubuntu, depuis le clone Alliage sur le HEAD de la PR :
+
+```bash
+python3 "$CODE/quarto_local_http.py" \
+  --session "$HOME/alliage-experiences/historique/p31-final-observed-4kdo1004" \
+  --resource-id "quarto:djibian/alliage-test:activite.qmd"
+```
+
+**Garder ce terminal ouvert** jusqu'à la fin de l'essai. Il imprime une seule
+adresse `http://127.0.0.1:<port>/alliage-local-<jeton>/V2/project/_site/activite.html?alliage-history-v0=...`
+à copier **intégralement** dans Firefox avec l'extension rechargée depuis la
+version actuelle de `extension/manifest.json`. Le port est choisi par le
+système et le jeton local est régénéré à chaque lancement. Ne pas partager
+ce lien. Arrêter le serveur par **Ctrl+C**, sans état persistant.
+
+**Garde-fous :** écoute uniquement sur `127.0.0.1` ; Host exact ; rejet
+des origines externes et des requêtes `Sec-Fetch-Site: cross-site` ; préfixe
+aléatoire imprévisible ; routes explicitement limitées aux fichiers
+`project/_site` des deux manifestes revérifiés ; SHA-256 et tailles revérifiés
+**à chaque réponse** ; refus des liens symboliques, chemins non inventoriés,
+fichiers modifiés et méthodes d'écriture ; en-têtes `no-store`,
+`nosniff`, `no-referrer`, `same-origin` et refus d'iframe.
+Aucune origine CORS générale n'est autorisée. La navigation conserve le jeton
+de session et le paramètre historique, mais celui-ci reste **déclaratif et
+non signé**. Tout autre processus présent sur le même poste peut en principe
+contacter le loopback : le jeton réduit l'exposition, il ne crée pas une
+isolation de sécurité contre un poste compromis.
+
+Vérifications humaines demandées : les modules Quarto ne produisent plus
+d'erreur CORS ; sommaire et interactions natifs fonctionnent ; V2 violet →
+V1 rouge → V2 violet, `#consigne`, retour navigateur, et absence du panneau
+si la query est supprimée ; aucun changement des octets HTML/CSS des deux
+instantanés et aucun effet Git/publication. Le navigateur doit signaler
+une erreur plutôt que servir un actif modifié. **Ce résultat HTTP devra être
+observé dans Firefox réel** ; les tests locaux HTTP ou les CI seuls ne le
+démontrent pas.
+
+Le transport ne constitue **pas** le modèle de navigation produit (A013).
+Le `file://` antérieur et la `navigation_url` existante sont préservés.
+
 ## Si le pilote est concluant
 
 Ne pas généraliser le paramètre de requête d'URL à une architecture produit ; le
