@@ -6,6 +6,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import http.client
+import threading
 import subprocess
 import sys
 import tempfile
@@ -18,6 +20,7 @@ from quarto_observed_session import SessionError, create_observed_session, obser
 from quarto_historical_preview import PreviewError, _git as preview_git, create_preview
 from quarto_resource_entry import resource_entry_url
 from quarto_navigation import NavigationError
+from quarto_local_http import AttestedPreview, make_server
 
 REF = "refs/remotes/origin/experiment/laboratoire"
 CONFIG = "project:\n  type: default\n  output-dir: _site\n\nformat:\n  html:\n    css: styles.css\n\nexecute:\n  enabled: false\n"
@@ -497,6 +500,36 @@ class ObservedSessionTests(unittest.TestCase):
         observed_html = session / "V2" / observed_manifest["rendered_html"]["path"]
         self.assertEqual(digest(observed_html.read_bytes()),
                          observed_manifest["rendered_html"]["sha256"])
+        # Real Quarto assets (not simulated DOM) must be available as JS modules
+        # through the same-origin local HTTP service with their original bytes.
+        view = AttestedPreview(session, report["resource_id"])
+        real_js = [
+            asset["path"] for asset in observed_manifest["rendered_files"]
+            if asset["path"].endswith("/quarto.js")
+        ]
+        self.assertTrue(real_js, "Quarto réel devrait produire un module quarto.js")
+        server = make_server(view)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            for path in real_js:
+                endpoint = view.prefix + "/V2/" + path
+                connection = http.client.HTTPConnection("127.0.0.1",
+                                                        server.server_port, timeout=5)
+                try:
+                    connection.request("GET", endpoint)
+                    response = connection.getresponse()
+                    data = response.read()
+                    self.assertEqual(response.status, 200)
+                    self.assertIn("text/javascript", response.getheader("Content-Type"))
+                    self.assertEqual(data, (session / "V2" / path).read_bytes())
+                    self.assertIsNone(response.getheader("Access-Control-Allow-Origin"))
+                finally:
+                    connection.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
 
 
 if __name__ == "__main__":
