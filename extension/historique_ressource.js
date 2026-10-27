@@ -5,10 +5,18 @@
  */
 (() => {
   "use strict";
-  if (window.top !== window.self || location.protocol !== "file:" || location.host) return;
-  const match = location.pathname.match(
-    /^(.*\/alliage-experiences\/historique\/p31-final-observed-[a-zA-Z0-9_-]+)\/(V[12])\/project\/_site\/activite\.html$/
-  );
+  if (window.top !== window.self) return;
+  const filePreview = location.protocol === "file:" && !location.host;
+  const httpPreview = location.protocol === "http:" &&
+    location.hostname === "127.0.0.1" && location.port !== "";
+  if (!filePreview && !httpPreview) return;
+  const match = filePreview
+    ? location.pathname.match(
+        /^(.*\/alliage-experiences\/historique\/p31-final-observed-[a-zA-Z0-9_-]+)\/(V[12])\/project\/_site\/activite\.html$/
+      )
+    : location.pathname.match(
+        /^(\/alliage-local-[0-9a-f]{32})\/(V[12])\/project\/_site\/activite\.html$/
+      );
   if (!match || document.getElementById("alliage-resource-history")) return;
   // The query is intentionally separate from Quarto's #heading anchors.
   // Require one parameter exactly; do not accept additional or duplicate keys.
