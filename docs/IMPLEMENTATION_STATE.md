@@ -272,3 +272,57 @@ L'audit indépendant de la PR #9 au HEAD `9f1166c30858aede78d2ffc93e426abea10d4b
 - **Complément facultatif :** test explicite d'un commit `--allow-empty` dont l'arbre ne change pas et qui est refusé. Les tests et fixtures demeurent fictifs et ne publient rien.
 
 **Statut :** corrections candidates sur la branche de la PR #9, toujours Draft. CI sur le HEAD final et nouvelle contre-revue indispensables ; la validation Firefox humaine de cette nouvelle commande reste à réaliser. Rien à fusionner ni publier sans décision explicite de l'enseignant.
+
+## Navigation historique en contexte Quarto local — candidat expérimental (26 octobre 2026)
+
+**Départ vérifié :** `main=f1093f61485730c1dea174c30e20eab2fba929f7` après fusion de la PR #9 ; CI Python, Quarto réel et navigation P3.2 post-fusion : SUCCESS. P1/P2/v0.4/P3.0–P3.3 restent les bases de non-régression.
+
+**Hypothèse minimale sur `feat/p34-resource-local-history` :** obtenir une navigation accessible **dans le HTML Quarto historique directement ouvert**, plutôt que depuis `navigation.html`. `quarto_resource_entry.py` produit après P3.1/P3.2 vérifiés un `resource_url` vers `V2/project/_site/activite.html` ; `extension/historique_ressource.js` y ajoute localement des commandes V1 ↔ V2. Il ne modifie aucun HTML rendu, aucune source, ne lit pas Git et ne déploie pas. Le chemin Firefox est limité aux sessions locales `p31-final-observed-*`. L'ancienne interface `navigation_url` reste disponible pour comparaison.
+
+**Provenance :** les SHA et métadonnées de session sont placés dans un paramètre local d'URL (sans empiéter sur les ancres Quarto) au moment de l'attestation P3.2. **Le paramètre peut être altéré et ne constitue pas une attestation cryptographique** : l'extension présente des SHA *indiqués*, jamais une preuve d'intégrité au moment de l'affichage. Aucun lien démontré entre ces aperçus et un HTML public/une ressource enseignante canonique ; cet incrément n'implémente pas ce lien.
+
+**Qualité attendue :** tests Python de génération d'URL, refus de manifestes altérés et préservation des octets Quarto ; tests JavaScript de passage V2 → V1 → V2 et cas URL/fragments malformés ; CI Quarto réelle ; non-régression de l'ancien historique et de v0.4. Les résultats exacts seront consignés à partir de la CI sur HEAD final. **Firefox réel reste à qualifier humainement** : les tests DOM ne prouvent pas les permissions de fichiers locaux ni le rendu visuel.
+
+**Frontière A013 :** aucune nouvelle infrastructure, aucun agent IA, aucune identité distante prétendument vérifiée, aucune approbation de conception ni publication. Voir `docs/EXPERIMENT_RESOURCE_IN_CONTEXT.md`. Statut : branche candidate, aucune fusion décidée.
+
+### Première contre-revue de la PR #10 — corrections B1/B2 (26 octobre 2026)
+
+Un audit indépendant du HEAD `75fde827467d66b6de4f32a1ab81cf5657ea2fd8` a conclu **CORRECTIONS REQUISES** malgré les trois CI vertes, pour deux raisons : **B1**, `_site/styles.css` et les autres dépendances générées n'étaient pas inventoriés ni vérifiés ; **B2**, `resource_entry_url()` n'imposait pas elle-même une identité commune de source `.qmd` et de chemin HTML entre V1 et V2.
+
+**Réparations proposées sur `feat/p34-resource-local-history` (non fusionnée) :**
+
+- **B1 — P3.1 :** enregistre dans chaque manifeste de sortie `_site` un inventaire strictement borné `rendered_files`, avec chemins canoniques, tailles et SHA-256. Refuse les liens symboliques, fichiers spéciaux, volumes et arborescences hors bornes. Les rendus HTML historiques racine ne reçoivent pas cette garantie et restent compatibles avec les tests anciens.
+- **B1 — P3.2 :** `_load_version` valide les SHA-256 de tous les fichiers générés déclarés et l'égalité exacte avec la liste des fichiers réellement présents sous `_site`. L'absence d'inventaire reste tolérée uniquement pour le **navigateur historique P3.2**, mais ne peut qualifier l'URL directe ; la présence du CSS produit `project/_site/styles.css` est exigée.
+- **B2 — URL directe :** compare les deux `source_path` à la source `activite.qmd` de l'identité déclarée, et impose à chacune exactement `rendered_html_path=project/_site/activite.html`, `rendered_files_verified=true` et `rendered_css_verified=true`. L'identité owner/repo demeure déclarée, sans attestation distante ; Firefox conserve ses limites de revalidation.
+- **Contre-épreuves fictives :** altération CSS _généré_ conservant la même taille (SHA-256), fichier généré non inventorié, entrée CSS supprimée de l'inventaire, CSS absent, ancien manifeste, couple V1/V2 de sources différentes chacune vérifiable, chemin HTML racine non admis dans l'URL directe. Vérification supplémentaire des SHA des sorties Quarto réelles dans le test P3.1.
+
+**À démontrer :** CI Python, CI P3.2/DOM et CI Quarto réel toutes vertes sur le HEAD final corrigé, puis seconde contre-revue ciblée B1/B2 et validation humaine Firefox sur l'URL directe avant toute fusion. Ne pas confondre SHA affiché dans un paramètre d'URL avec une preuve cryptographique en temps réel. Aucune modification pédagogique, publication ni déploiement.
+
+### Firefox Ubuntu — premier essai manuel de l'URL directe : FAIL et correctif du motif (26 octobre 2026)
+
+Après approbation indépendante B1/B2 sur le HEAD `d1d6bb0ab02758a9782cc4efd31978d3e0d7a71c`, l'enseignant a qualifié la génération : `--check` FAST_FORWARD V3→V4 et `--render --trusted-quarto` PASS, nouvelle session fictive `p31-final-observed-4kdo1004`, `resource_url` vers `V2/project/_site/activite.html?alliage-history-v0=...`. Firefox ouvrait le fichier mais **aucun panneau Alliage** n'apparaissait. Diagnostic de page : `protocol=file:`, document principal, chemin correct, query présente, panneau absent. L'extension avait bien chargé trois scripts et `browser.extension.isAllowedFileSchemeAccess() == true`.
+
+**Cause identifiée :** le motif Firefox de `historique_ressource.js` se terminait par `activite.html`, alors que les match patterns prennent **aussi les paramètres `?...` en compte**. Le script n'était donc pas sélectionné pour l'URL de l'essai, malgré l'autorisation `file://`. Correction limitée : conserver le motif HTML nu (ouverture neutre) et ajouter `activite.html?*` pour le cas avec query ; la garde JavaScript refuse toujours toute query absente, invalide ou multiple. Test du contrat du manifeste ajouté. Le navigateur réel sur le HEAD corrigé reste à requalifier.
+
+**Blocage indépendant à ne pas ignorer :** sur la page locale, Firefox refuse par CORS les modules natifs Quarto `activite_files/libs/quarto-html/quarto.js` et `tabsets/tabsets.js` (chargement `file://`). Corriger l'injection ne démontre donc **pas** le fonctionnement complet de la ressource Quarto. Ne pas désactiver la sécurité du navigateur ; une approche localhost HTTP strictement isolée ou une autre solution sûre doit être expérimentée séparément, en conservant A013. **Aucune fusion ni publication.**
+
+### Firefox Ubuntu — cause exacte du panneau absent et réparation ciblée (27 octobre 2026)
+
+Après le premier correctif de motif d'URL, Firefox charge bien `historique_ressource.js`, mais l'enseignant a constaté un `return` sur la garde d'unicité de query (lignes 20–21). Le pas-à-pas **dans le contexte de l'extension** a donné `keys.length=0`, `keys[0]=undefined`, alors que `query.getAll("alliage-history-v0").length=1`. La validation de tous les autres attributs du paramètre était déjà positive dans la page. **Ce sont ces données du débogueur, pas une hypothèse d'autorisation, qui expliquent le refus effectivement observé.**
+
+La garde ne repose désormais plus sur `Array.from(URLSearchParams.keys())`. Elle vérifie la query brute avec `/^[?]alliage-history-v0=[^&]+$/` (une seule clé littérale, sans séparateur `&` brut), puis exige exactement une valeur de `getAll()` et décode le JSON. Les destinations V1/V2 restent des chemins fixes ; les SHA restent seulement déclaratifs. Un test adversarial reproduit `keys()` vide malgré `getAll()` correct, et plusieurs tests négatifs refusent les autres paramètres, les doublons et les séparateurs ajoutés.
+
+**Qualification encore nécessaire :** trois CI vertes sur le nouveau HEAD, contre-revue ciblée du correctif Firefox, puis rechargement de l'extension dans Firefox réel et confirmation V2→V1→V2. Les modules Quarto `file://` bloqués par CORS demeurent un problème indépendant : pas de qualification de fidélité complète ni de fusion avant résolution.
+
+### Quarto ES modules — transport HTTP local éphémère P3, expérimentation (27 octobre 2026)
+
+**Fait humain préalable :** sur Ubuntu Firefox, le correctif de query sur `dc0d15aa2affdc0e5432234fb40b3ca42898aae3` rend le panneau visible et la navigation des versions possible dans le HTML local ; les modules Quarto natifs restent bloqués par le CORS de `file://`. Cette validation partielle ne garantit pas encore la fidélité des interactions natives.
+
+**Réponse minimale au blocage établi :** `quarto_local_http.py` ouvre un serveur HTTP **temporaire et en lecture seule**, lié strictement à `127.0.0.1` sur un port éphémère. À partir d'une session fictive P3.1/P3.2 déjà créée et entièrement revérifiée par `resource_entry_url()`, il n'expose que l'inventaire généré `project/_site` de V1 et V2 ; il associe chaque URL à un préfixe de capacité aléatoire (128 bits), refuse les requêtes hors inventaire, les méthodes d'écriture, les Host/Origin externes, les requêtes `cross-site`, les liens symboliques et la modification des fichiers **au moment de chaque réponse** (taille + SHA-256). Les ressources JavaScript sont servies comme `text/javascript`, avec en-têtes `no-store`, `nosniff`, `same-origin`, `no-referrer` et `X-Frame-Options: DENY`. Le navigateur historique `file://`, la v0.4, les sources Quarto, Git, la publication et le déploiement restent inchangés. Ce serveur ne constitue **pas** une nouvelle architecture produit au sens A013.
+
+**Extension :** le même `historique_ressource.js` reconnaît désormais aussi uniquement les URLs `http://127.0.0.1:<port>/alliage-local-<32hex>/V[12]/project/_site/activite.html?alliage-history-v0=...` ; les boutons V1/V2 préservent préfixe, port, paramètres et fragment Quarto. Aucun élargissement de `host_permissions` (déjà `http://127.0.0.1/*`) ni autorisation `<all_urls>`. Les SHA du paramètre restent déclaratifs.
+
+**Nouvelles preuves automatisées :** tests adversariaux HTTP réels sur loopback pour MIME, octets intacts, accès aux modules JS, refus Host/Origin/cross-site, jetons devinés, traversée de chemin, chemins et méthodes inconnus, CSS symbolique/altéré à taille constante ; tests DOM JS des parcours V2→V1→V2 et `#consigne` sous HTTP ; extension du vrai test Quarto pour livrer le module `quarto.js` réel via HTTP et vérifier ses octets.
+
+**À démontrer :** CI complètes sur le HEAD final, contre-revue indépendante du changement de surface localhost (notamment attaques web/CSRF/XS-Leaks et symlinks), puis *qualification humaine Firefox* sur la nouvelle URL HTTP, confirmant zéro erreur CORS Quarto, sommaire/ancres/comportements natifs, intégrité et absence de publication. Ne pas fusionner la PR #10 tant que ces conditions ne sont pas satisfaites. L'URL aléatoire réduit l'exposition depuis les sites tiers, mais un processus local compromis demeure hors du modèle de protection.
+

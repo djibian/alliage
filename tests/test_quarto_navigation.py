@@ -278,11 +278,24 @@ class NavigationTests(unittest.TestCase):
     def test_existing_extension_v04_remains_scoped(self):
         config = json.loads((ROOT / "extension/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(config["version"], "0.4.0")
-        self.assertEqual(len(config["content_scripts"]), 2)
+        self.assertEqual(len(config["content_scripts"]), 3)
         self.assertEqual(config["content_scripts"][0]["js"], ["atelier.js"])
         self.assertEqual(config["content_scripts"][1]["js"], ["historique.js"])
         self.assertEqual(config["content_scripts"][1]["matches"],
                          ["file:///*/alliage-experiences/historique/p31-final-*/navigation.html"])
+        self.assertEqual(config["content_scripts"][2]["js"], ["historique_ressource.js"])
+        self.assertEqual(config["content_scripts"][2]["matches"],
+                         [
+                             "file:///*/alliage-experiences/historique/p31-final-observed-*/V*/project/_site/activite.html",
+                             "file:///*/alliage-experiences/historique/p31-final-observed-*/V*/project/_site/activite.html?*",
+                              "http://127.0.0.1/alliage-local-*/V*/project/_site/activite.html",
+                              "http://127.0.0.1/alliage-local-*/V*/project/_site/activite.html?*",
+                         ])
+        # Match patterns consider query strings part of their path. The plain
+        # .html pattern does NOT match the opt-in ?alliage-history-v0=... URL.
+        # Preserve both narrow patterns: plain HTML injection remains inert
+        # without the explicit, validated query, while queried URLs inject.
+        self.assertTrue(config["content_scripts"][2]["matches"][1].endswith("activite.html?*"))
         self.assertNotIn("<all_urls>", str(config))
 
 

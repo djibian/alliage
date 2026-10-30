@@ -60,6 +60,56 @@ def _matches(path: Path, expected: object) -> bool:
     return hashlib.sha256(path.read_bytes()).hexdigest() == expected
 
 
+
+def _verify_rendered_files(folder: Path, rendered: dict, inventory: object) -> bool:
+    """Verify every regular output under _site, with no untracked extras.
+
+    Backward compatible with older P3.1 manifests (return False). The new
+    resource-first entry refuses that unverifiable legacy case.
+    """
+    if inventory is None:
+        return False
+    if not isinstance(inventory, list) or not 1 <= len(inventory) <= 2000:
+        raise NavigationError("Inventaire des dépendances Quarto invalide.")
+    site = folder / "project" / "_site"
+    if site.is_symlink() or not site.is_dir():
+        raise NavigationError("Dossier de sortie Quarto absent ou symbolique.")
+    expected = {}
+    total = 0
+    for item in inventory:
+        if not isinstance(item, dict):
+            raise NavigationError("Dépendance rendue invalide.")
+        name = item.get("path")
+        if not isinstance(name, str) or not name.startswith("project/_site/"):
+            raise NavigationError("Chemin de dépendance Quarto invalide.")
+        canonical = str(_relative(name))
+        if canonical != name or name in expected:
+            raise NavigationError("Dépendance Quarto dupliquée ou non canonique.")
+        file = _regular_within(folder, name)
+        size = item.get("bytes")
+        if type(size) is not int or size < 0 or size != file.stat().st_size:
+            raise NavigationError("Taille de dépendance Quarto différente.")
+        total += size
+        if total > 100 * 1024 * 1024:
+            raise NavigationError("Dépendances Quarto trop volumineuses.")
+        if not _matches(file, item.get("sha256")):
+            raise NavigationError("Dépendance Quarto générée modifiée.")
+        expected[name] = item["sha256"]
+    if rendered["path"] not in expected or expected[rendered["path"]] != rendered.get("sha256"):
+        raise NavigationError("HTML absent des dépendances Quarto attestées.")
+    observed = set()
+    for path in site.rglob("*"):
+        if path.is_symlink() or (not path.is_file() and not path.is_dir()):
+            raise NavigationError("Sortie Quarto symbolique ou non régulière.")
+        if path.is_file():
+            observed.add("project/" + path.relative_to(folder / "project").as_posix())
+            if len(observed) > 2000:
+                raise NavigationError("Sorties Quarto trop nombreuses.")
+    if observed != set(expected):
+        raise NavigationError("Inventaire des sorties Quarto incomplet ou altéré.")
+    return True
+
+
 def _load_version(session: Path, version: str) -> dict:
     folder = session / version
     if folder.is_symlink() or not folder.is_dir():
@@ -122,7 +172,13 @@ def _load_version(session: Path, version: str) -> dict:
         raise NavigationError("Manifeste contradictoire : HTML candidat suivi par Git.")
     if source not in present or present[source] != report.get("source_sha256"):
         raise NavigationError("Identité de la source non démontrée.")
+    assets_verified = _verify_rendered_files(folder, rendered, report.get("rendered_files"))
     return {"id": version, "commit": commit, "source_sha256": present[source],
+            "source_path": source, "rendered_html_path": rendered["path"],
+            "rendered_files_verified": assets_verified,
+            "rendered_css_verified": assets_verified and any(
+                item["path"] == "project/_site/styles.css"
+                for item in report["rendered_files"]),
             "html": "./" + quote(version + "/" + rendered["path"], safe="/"),
             "quarto_version": report["quarto_version"],
             "publication_status": "NOT_INITIATED_BY_ALLIAGE"}

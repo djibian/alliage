@@ -6,15 +6,21 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import http.client
+import threading
 import subprocess
 import sys
 import tempfile
 import unittest
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from quarto_observed_session import SessionError, create_observed_session, observe
 from quarto_historical_preview import PreviewError, _git as preview_git, create_preview
+from quarto_resource_entry import resource_entry_url
+from quarto_navigation import NavigationError
+from quarto_local_http import AttestedPreview, make_server
 
 REF = "refs/remotes/origin/experiment/laboratoire"
 CONFIG = "project:\n  type: default\n  output-dir: _site\n\nformat:\n  html:\n    css: styles.css\n\nexecute:\n  enabled: false\n"
@@ -84,11 +90,20 @@ class ObservedSessionTests(unittest.TestCase):
                             "bytes": len(data), "git_blob": "a" * 40})
         html = b'<!doctype html><html><head><link rel="stylesheet" href="styles.css"></head><body>Fictif</body></html>'
         (site / "activite.html").write_bytes(html)
+        rendered_css = (project / "styles.css").read_bytes()
+        (site / "styles.css").write_bytes(rendered_css)
+        rendered_files = [
+            {"path": "project/_site/activite.html", "sha256": digest(html),
+             "bytes": len(html)},
+            {"path": "project/_site/styles.css", "sha256": digest(rendered_css),
+             "bytes": len(rendered_css)},
+        ]
         manifest = {
             "schema": "alliage.quarto-historical-preview.v0",
             "commit": revision, "source_path": source,
             "source_sha256": next(x["sha256"] for x in tracked if x["path"] == source),
             "tracked_files": tracked,
+            "rendered_files": rendered_files,
             "render_status": "RENDERED_FROM_GIT_SNAPSHOT",
             "rendered_html": {"path": "project/_site/activite.html",
                               "sha256": digest(html), "existed_before_render": False},
@@ -131,6 +146,21 @@ class ObservedSessionTests(unittest.TestCase):
         self.assertFalse(report["checkout_file_contents_unchanged_verified"])
         self.assertNotIn("checkout_unchanged_at_completion", report)
         self.assertTrue(report["navigation_url"].startswith("file://"))
+        self.assertEqual(report["resource_surface"],
+                         "LOCAL_RENDERED_HTML_NOT_CANONICAL_PUBLICATION")
+        direct = urlsplit(report["resource_url"])
+        self.assertEqual(direct.scheme, "file")
+        self.assertTrue(direct.path.endswith("/V2/project/_site/activite.html"))
+        self.assertIn("alliage-history-v0", parse_qs(direct.query))
+        data = json.loads(parse_qs(direct.query)["alliage-history-v0"][0])
+        self.assertEqual(data["schema"], "alliage.quarto-resource-history.v0")
+        self.assertEqual(data["resource_id"], "quarto:fiction/laboratoire:activite.qmd")
+        self.assertEqual(data["entries"],
+                         [{"id": "V1", "commit": self.initial},
+                          {"id": "V2", "commit": self.second}])
+        self.assertFalse(data["deployment_verified"])
+        self.assertFalse(data["publication_performed"])
+        self.assertEqual(data["verification"], "POINT_IN_TIME_ONLY")
         session = Path(report["session_path"])
         self.assertTrue((session / "navigation.html").is_file())
         self.assertIn("./V1/project/_site/activite.html",
@@ -143,6 +173,150 @@ class ObservedSessionTests(unittest.TestCase):
         self.assertTrue((session / "navigation.html").exists())
         self.assertEqual(before, (git(self.repo, "rev-parse", "HEAD"),
                                   git(self.repo, "status", "--porcelain=v1")))
+
+    def test_resource_url_refuses_tampered_preview_without_mutating_originals(self):
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        source_html = session / "V2/project/_site/activite.html"
+        before = source_html.read_bytes()
+        url = resource_entry_url(
+            session, reference="V1", observed="V2",
+            resource_id="quarto:fiction/laboratoire:activite.qmd")
+        self.assertTrue(url.startswith(source_html.as_uri()))
+        self.assertEqual(source_html.read_bytes(), before)
+        (session / "V1/project/styles.css").write_text("ALTÉRÉ", encoding="utf-8")
+        with self.assertRaisesRegex(NavigationError, "Dépendance Git modifiée"):
+            resource_entry_url(
+                session, reference="V1", observed="V2",
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+        self.assertEqual(source_html.read_bytes(), before)
+
+    def test_generated_css_tampering_refused_even_with_intact_git_inputs(self):
+        """B1: generated CSS is not the Git-tracked styles.css."""
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        generated = session / "V2/project/_site/styles.css"
+        tracked = session / "V2/project/styles.css"
+        before_tracked = tracked.read_bytes()
+        # Mutate bytes without changing length to prove SHA-256 (not only
+        # length validation) catches the tampering.
+        generated.write_bytes(b"x" * len(generated.read_bytes()))
+        self.assertEqual(tracked.read_bytes(), before_tracked)
+        with self.assertRaisesRegex(NavigationError, "Dépendance Quarto générée modifiée"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+
+    def test_generated_inventory_refuses_missing_and_extra_css_files(self):
+        """New assets, removed assets and omissions cannot escape the inventory."""
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        project = session / "V2/project"
+        extra = project / "_site/extra.css"
+        extra.write_text("fake", encoding="utf-8")
+        with self.assertRaisesRegex(NavigationError, "Inventaire des sorties Quarto"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+        extra.unlink()
+        manifest_path = session / "V2/manifest.json"
+        original = json.loads(manifest_path.read_text())
+        altered = dict(original)
+        altered["rendered_files"] = [
+            item for item in original["rendered_files"]
+            if not item["path"].endswith("/styles.css")
+        ]
+        manifest_path.write_text(json.dumps(altered))
+        with self.assertRaisesRegex(NavigationError, "Inventaire des sorties Quarto"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+        manifest_path.write_text(json.dumps(original))
+        (project / "_site/styles.css").unlink()
+        with self.assertRaisesRegex(NavigationError, "Fichier d'aperçu absent"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+
+    def test_resource_entry_refuses_legacy_manifest_without_rendered_inventory(self):
+        """P3.2 legacy navigation may read it; direct history requires the stronger proof."""
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        manifest_path = session / "V1/manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        del manifest["rendered_files"]
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(NavigationError, "CSS non attestées"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+
+    def test_resource_entry_refuses_individually_valid_different_qmd(self):
+        """B2: a V1 manifest for another QMD must never pair with V2."""
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        version = session / "V1"
+        project = version / "project"
+        manifest_path = version / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        other = b"---\\ntitle: Fictif autre\\n---\\n\\n## Autre\\n".replace(b"\\n", b"\n")
+        (project / "autre.qmd").write_bytes(other)
+        manifest["tracked_files"].append({
+            "path":"autre.qmd", "sha256":digest(other), "git_blob":"a"*40,
+            "bytes":len(other)
+        })
+        manifest["source_path"] = "autre.qmd"
+        manifest["source_sha256"] = digest(other)
+        old_html = project / "_site/activite.html"
+        new_html = project / "_site/autre.html"
+        old_html.rename(new_html)
+        data = new_html.read_bytes()
+        manifest["rendered_html"]["path"] = "project/_site/autre.html"
+        manifest["rendered_html"]["sha256"] = digest(data)
+        for item in manifest["rendered_files"]:
+            if item["path"].endswith("/activite.html"):
+                item["path"] = "project/_site/autre.html"
+                break
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(NavigationError, "Identité source/HTML"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+
+    def test_resource_entry_refuses_root_html_despite_valid_manifest(self):
+        """P3.2 supports root historical HTML; the direct URL does not."""
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        version = session / "V1"
+        manifest_path = version / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        root_html = version / "project/activite.html"
+        root_html.write_bytes((version / "project/_site/activite.html").read_bytes())
+        manifest["rendered_html"]["path"] = "project/activite.html"
+        # Root-level HTML is a legacy P3.1 output: it has no complete _site
+        # inventory attestation and cannot qualify for the new direct URL.
+        manifest["rendered_files"] = None
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(NavigationError, "Identité source/HTML"):
+            resource_entry_url(session,
+                resource_id="quarto:fiction/laboratoire:activite.qmd")
+
+    def test_resource_url_refuses_forged_session_or_missing_navigation(self):
+        with patch("quarto_observed_session.create_preview", side_effect=self.fake_preview):
+            report = self.run_session()
+        session = Path(report["session_path"])
+        (session / "navigation.html").unlink()
+        with self.assertRaisesRegex(NavigationError, "non autorisée"):
+            resource_entry_url(
+                session, resource_id="quarto:fiction/laboratoire:activite.qmd")
+        with self.assertRaisesRegex(NavigationError, "non autorisée"):
+            resource_entry_url(
+                self.repo, resource_id="quarto:fiction/laboratoire:activite.qmd")
+        # An invalid declaration cannot create a seemingly authoritative URL.
+        (session / "navigation.html").write_text("fixture placeholder", encoding="utf-8")
+        with self.assertRaisesRegex(NavigationError, "Identité de ressource"):
+            resource_entry_url(
+                session, resource_id="quarto:../../private:activite.qmd")
 
     def test_refuse_unsupported_resource_and_no_trust_without_session(self):
         with self.assertRaisesRegex(SessionError, "activite.qmd"):
@@ -315,6 +489,47 @@ class ObservedSessionTests(unittest.TestCase):
             html = session / v / manifest["rendered_html"]["path"]
             self.assertIn("styles.css", html.read_text(encoding="utf-8"))
         self.assertTrue((session / "navigation.html").is_file())
+        direct = urlsplit(report["resource_url"])
+        self.assertTrue(direct.path.endswith("/V2/project/_site/activite.html"))
+        self.assertIn("alliage-history-v0", parse_qs(direct.query))
+        self.assertEqual(json.loads(parse_qs(direct.query)["alliage-history-v0"][0])["entries"],
+                         [{"id":"V1","commit":self.initial},
+                          {"id":"V2","commit":self.second}])
+        # Real Quarto HTML is still the unmodified output hashed by P3.1.
+        observed_manifest = json.loads((session / "V2/manifest.json").read_text())
+        observed_html = session / "V2" / observed_manifest["rendered_html"]["path"]
+        self.assertEqual(digest(observed_html.read_bytes()),
+                         observed_manifest["rendered_html"]["sha256"])
+        # Real Quarto assets (not simulated DOM) must be available as JS modules
+        # through the same-origin local HTTP service with their original bytes.
+        view = AttestedPreview(session, report["resource_id"])
+        real_js = [
+            asset["path"] for asset in observed_manifest["rendered_files"]
+            if asset["path"].endswith("/quarto.js")
+        ]
+        self.assertTrue(real_js, "Quarto réel devrait produire un module quarto.js")
+        server = make_server(view)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            for path in real_js:
+                endpoint = view.prefix + "/V2/" + path
+                connection = http.client.HTTPConnection("127.0.0.1",
+                                                        server.server_port, timeout=5)
+                try:
+                    connection.request("GET", endpoint)
+                    response = connection.getresponse()
+                    data = response.read()
+                    self.assertEqual(response.status, 200)
+                    self.assertIn("text/javascript", response.getheader("Content-Type"))
+                    self.assertEqual(data, (session / "V2" / path).read_bytes())
+                    self.assertIsNone(response.getheader("Access-Control-Allow-Origin"))
+                finally:
+                    connection.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
 
 
 if __name__ == "__main__":

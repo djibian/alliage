@@ -20,6 +20,7 @@ import tempfile
 from quarto_branch_delta import compare
 from quarto_historical_preview import create_preview
 from quarto_navigation import build_navigation
+from quarto_resource_entry import resource_entry_url
 from quarto_versions import _git
 
 
@@ -104,6 +105,10 @@ def create_observed_session(repo: Path, repository_id: str, source: str,
                 raise SessionError("Discordance Git / manifeste du rendu " + version)
         # P3.2 independently rehashes every Git-tracked file and both HTML files.
         page = build_navigation(session, ["V1", "V2"], reference="V1")
+        # Separate opt-in surface: open the actual rendered resource with a
+        # browser-injected history toolbar, not the wrapper navigation.html.
+        direct_url = resource_entry_url(
+            session, reference="V1", observed="V2", resource_id=delta["resource_id"])
         if _fingerprint(repo) != before:
             raise SessionError("HEAD ou statut Git modifié durant la session : résultat refusé.")
         return {
@@ -115,6 +120,8 @@ def create_observed_session(repo: Path, repository_id: str, source: str,
             "local_reference": "V1",
             "local_observed": "V2",
             "navigation_url": page.as_uri(),
+            "resource_url": direct_url,
+            "resource_surface": "LOCAL_RENDERED_HTML_NOT_CANONICAL_PUBLICATION",
             "session_path": str(session),
             # A dirty file can change bytes while porcelain status stays "M".
             # Never claim a full worktree content-integrity attestation.
