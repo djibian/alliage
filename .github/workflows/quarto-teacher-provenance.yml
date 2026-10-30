@@ -1,0 +1,36 @@
+name: P3.5 — provenance source Quarto professeur (lecture seule)
+
+on:
+  pull_request:
+    paths:
+      - 'quarto_teacher_provenance.py'
+      - 'quarto_versions.py'
+      - 'quarto_branch_delta.py'
+      - 'tests/test_quarto_teacher_provenance.py'
+      - '.github/workflows/quarto-teacher-provenance.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'quarto_teacher_provenance.py'
+      - 'quarto_versions.py'
+      - 'quarto_branch_delta.py'
+      - 'tests/test_quarto_teacher_provenance.py'
+      - '.github/workflows/quarto-teacher-provenance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Vérifier syntaxe et preuve locale sans Quarto et sans réseau Git
+        run: |
+          python3 -m py_compile quarto_teacher_provenance.py
+          python3 -m unittest discover -s tests -p 'test_quarto_teacher_provenance.py' -v
