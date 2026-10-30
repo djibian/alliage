@@ -326,3 +326,41 @@ La garde ne repose désormais plus sur `Array.from(URLSearchParams.keys())`. Ell
 
 **À démontrer :** CI complètes sur le HEAD final, contre-revue indépendante du changement de surface localhost (notamment attaques web/CSRF/XS-Leaks et symlinks), puis *qualification humaine Firefox* sur la nouvelle URL HTTP, confirmant zéro erreur CORS Quarto, sommaire/ancres/comportements natifs, intégrité et absence de publication. Ne pas fusionner la PR #10 tant que ces conditions ne sont pas satisfaites. L'URL aléatoire réduit l'exposition depuis les sites tiers, mais un processus local compromis demeure hors du modèle de protection.
 
+### P3.5 — lecture de la source enseignante canonique : contrat d'entrée (30 octobre 2026)
+
+**Point de départ confirmé :** PR #10 fusionnée sur `main` par squash
+`4589ca2227d82345a8c5a3e572f5fa606640f4b4`.
+Les trois workflows de `main` sont `SUCCESS` après fusion.
+La navigation historique dans une sortie locale Quarto monopage est qualifiée
+Firefox, mais ne signifie **pas** qu'une véritable ressource professeur
+multipage/profilée est reliée à son origine Git.
+
+**Observation en lecture seule du dépôt pédagogique distinct :**
+le projet utilise deux profils Quarto `eleve` / `professeur`, des sorties
+déclarées `dist/eleve` / `dist/professeur` et un projet multipage.
+Le moteur P3.1 limité à `_site`, une ressource et aucun profil ne peut pas
+être généralisé par simple changement de chemin sans invalider ses garanties.
+
+**Incrément isolé sur branche P3.5 :** `quarto_teacher_provenance.py`
+lit une référence Git explicite et un SHA40 fixé, exige la racine exacte
+et un historique sans greffe ni shallow, vérifie la source `.qmd`,
+son blob, son hash SHA-256 et l'arbre Git complet. Il reconnaît un
+contrat de profil Quarto restreint, à partir des objets du commit uniquement ;
+une configuration modifiée ou incertaine est refusée. Il ne rend rien,
+ne lit aucun HTML professeur, ne fait aucun fetch, ne démarre aucun serveur
+et n'écrit pas dans le dépôt externe. Il **ne prouve pas** la sémantique
+effective YAML/Quarto, l'authenticité distante du nom du dépôt, le
+rattachement navigateur, la confidentialité des rendus ou le déploiement élève.
+
+**Tests synthétiques créés :** source/arbres SHA fixés, modification CSS
+sans modification de la source, profil dérivé incohérent, ref mobile,
+chemin source invalide, profil absent/symbolique, checkout sale et absence
+d'écriture Git. **Statut CI et revue :** à vérifier sur le HEAD final
+de la PR P3.5 ; aucune approbation ni fusion anticipée.
+
+**Suite nécessaire :** essai local non destructeur de ce contrôle, puis
+un rendu réel du **profil `professeur` isolé**, à moteur Quarto explicitement
+autorisé, avec inventaire et preuve de non-exposition de la projection élève.
+Ce sera un autre incrément et exigera une nouvelle qualification Firefox.
+Voir `docs/EXPERIMENT_TEACHER_SOURCE.md`.
+
