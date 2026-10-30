@@ -62,7 +62,7 @@ def _verify_declarations(repo: Path, commit: str) -> dict:
     """
     root, root_blob = _git_regular_file(repo, commit, "_quarto.yml")
     if (root.count(b"\x00") or b"\r" in root or b"\t" in root
-            or b"<<:" in root or b"&" in root or b"*" in root):
+            or b"<<:" in root or re.search(rb"(?m)^\\s*[&*][A-Za-z0-9_-]+", root)):
         raise TeacherProvenanceError("Configuration racine ambiguë.")
     try:
         text = root.decode("utf-8", "strict")
