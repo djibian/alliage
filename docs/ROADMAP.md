@@ -20,6 +20,21 @@ Expériences courtes, séquentielles et non destructives :
 5. **Raccordement expérimental P3.3 → P3.1 → P3.2 (avant P3.4)** : V3/V4 fictives qualifiées sur Ubuntu/Quarto réel et Firefox (26/10/2026), avec intervention manuelle. Prochaine preuve : commande locale minimale, explicite et réversible réutilisant les composants ; tests d'identité de ressource, d'intégrité, de non-récupération Git implicite, de sessions neuves et de non-régression v0.4. Les chemins et `navigation.html` restent des outils de laboratoire, non une architecture produit définitive.
 6. **P3.4 — préparation de publication** : distinguer validation, SHA source, rendu élève et attestation de déploiement, sans déployer. Tester la non-divulgation des sections enseignantes avant toute étape de publication effective.
 
+### P3.5 — source canonique et profil enseignant (après fusion PR #10)
+
+La PR #10 est fusionnée dans `main` et qualifie la navigation historique
+dans **un laboratoire Quarto monopage**. Le véritable dépôt de conception a
+des profils `eleve`/`professeur`, plusieurs fichiers `.qmd` et des sorties
+différentes. **P3.1 ne sait volontairement pas rendre cette structure.**
+
+Étape actuelle **strictement en lecture seule** : qualifier un SHA complet,
+la source canonique, l'identité du projet Git et les profils Quarto déclarés,
+sans prétendre avoir ouvert le rendu professeur. Ensuite seulement, rendre
+une ressource professeur isolée, vérifier toutes ses dépendances et sa
+confidentialité, puis lier le navigateur à cette provenance. Le HTML professeur
+n'est jamais un contenu publiable par défaut. Le résultat n'est ni une nouvelle
+architecture définitive, ni une validation ou publication élèves.
+
 **Hors phase :** restauration réelle, publication effective, Grist et toutes les autres applications.
 
 ## Puis, progressivement
