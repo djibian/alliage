@@ -96,7 +96,9 @@ def probe(repo: Path, repository_id: str, source: str, working_ref: str,
     This is a prerequisite to binding a real professor browser document;
     no browser URL is considered trusted and no local render is performed.
     """
-    if not isinstance(repository_id, str) or not REPOSITORY.fullmatch(repository_id):
+    if (not isinstance(repository_id, str)
+            or not REPOSITORY.fullmatch(repository_id)
+            or any(part in (".", "..") for part in repository_id.split("/"))):
         raise TeacherProvenanceError("Identité explicite owner/repo attendue.")
     try:
         source = _safe_source(source)
