@@ -118,10 +118,9 @@ def probe(repo: Path, repository_id: str, source: str, working_ref: str,
         snap = _snapshot(repo, commit, source)
         tree = _tree(repo, commit)
         config = _verify_declarations(repo, commit)
-        # HEAD/status concern only this local checkout. They do not prove that
-        # the browser displays these bytes or that the remote is up-to-date.
-        head = _sha(repo, "HEAD")
-        dirty = bool(_git(repo, "status", "--porcelain=v1", "-z", "--untracked-files=all"))
+        # Deliberately do NOT inspect the mutable worktree: git status can
+        # refresh index metadata and it would not prove browser provenance.
+        # The Git object graph at the explicit commit is the only evidence.
         if _sha(repo, working_ref) != expected_sha:
             raise TeacherProvenanceError("Référence modifiée pendant la lecture.")
     except (VersionError, OSError, UnicodeError) as exc:
@@ -137,8 +136,8 @@ def probe(repo: Path, repository_id: str, source: str, working_ref: str,
         "working_tree_git_sha": tree,
         "source_git_blob": snap["git_blob"],
         "source_sha256": snap["sha256"],
-        "checkout_head_matches_ref": head == commit,
-        "checkout_clean_at_observation": not dirty,
+        "checkout_head_matches_ref": None,
+        "checkout_clean_at_observation": None,
         "checkout_bytes_verified": False,
         "profiles": config,
         "teacher_profile": "professeur",
