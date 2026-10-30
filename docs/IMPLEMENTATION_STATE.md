@@ -354,9 +354,11 @@ rattachement navigateur, la confidentialité des rendus ou le déploiement élè
 
 **Tests synthétiques créés :** source/arbres SHA fixés, modification CSS
 sans modification de la source, profil dérivé incohérent, ref mobile,
-chemin source invalide, profil absent/symbolique, checkout sale et absence
+chemin source invalide, profil absent/symbolique, checkout non inspecté et absence
 d'écriture Git. **Statut CI et revue :** à vérifier sur le HEAD final
 de la PR P3.5 ; aucune approbation ni fusion anticipée.
+
+**Précision :** le contrôle P3.5 n'effectue volontairement aucun `git status` et ne lit pas le checkout mutable ; les champs `checkout_clean_at_observation` et `checkout_head_matches_ref` valent `null` plutôt que suggérer une preuve de correspondance de l'HTML affiché. Seuls les objets Git épinglés sont observés.
 
 **Suite nécessaire :** essai local non destructeur de ce contrôle, puis
 un rendu réel du **profil `professeur` isolé**, à moteur Quarto explicitement
