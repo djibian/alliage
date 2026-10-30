@@ -91,6 +91,8 @@ class TeacherSourceProbeTests(unittest.TestCase):
                          "dist/eleve")
         self.assertNotEqual(result["working_tree_git_sha"], "")
         self.assertFalse(result["profile_effective_render_verified"])
+        self.assertIsNone(result["checkout_clean_at_observation"])
+        self.assertIsNone(result["checkout_head_matches_ref"])
         self.assertFalse(result["teacher_html_url_verified"])
         self.assertFalse(result["published_html_url_verified"])
         self.assertFalse(result["student_deployment_verified"])
@@ -125,7 +127,8 @@ class TeacherSourceProbeTests(unittest.TestCase):
     def test_dirty_checkout_cannot_be_treated_as_verified_page(self):
         (self.repo / SOURCE).write_text("MODIFIÉ ET NON ENREGISTRÉ",encoding="utf-8")
         result = self.inspect()
-        self.assertFalse(result["checkout_clean_at_observation"])
+        self.assertIsNone(result["checkout_clean_at_observation"])
+        self.assertIsNone(result["checkout_head_matches_ref"])
         self.assertFalse(result["checkout_bytes_verified"])
         self.assertFalse(result["teacher_html_url_verified"])
         self.assertEqual((self.repo / SOURCE).read_text(encoding="utf-8"),
