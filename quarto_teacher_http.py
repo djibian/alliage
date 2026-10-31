@@ -49,6 +49,18 @@ def _asset_name(value: object) -> str:
     relative = PurePosixPath(value)
     if relative.is_absolute() or relative.as_posix() != value:
         raise TeacherHTTPError("Chemin non canonique.")
+    # Quarto may copy files into its output tree. Inclusion in a generated
+    # inventory alone must not grant HTTP access to QMD/source/config files.
+    # Reject the session rather than silently omitting required dependencies.
+    forbidden_suffixes = {
+        ".qmd", ".md", ".ipynb", ".yml", ".yaml", ".toml",
+        ".py", ".lua", ".sh",
+    }
+    forbidden_names = {"manifest.json", ".gitignore", ".env"}
+    if (any(part.startswith(".") for part in relative.parts)
+            or relative.suffix.lower() in forbidden_suffixes
+            or relative.name.lower() in forbidden_names):
+        raise TeacherHTTPError("Source ou métadonnée non diffusable.")
     return value
 
 
