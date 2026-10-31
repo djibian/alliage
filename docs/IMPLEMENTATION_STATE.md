@@ -521,3 +521,53 @@ avec 15 tests et les workflows Python/P3.5 sont passés. Le HEAD
 final après documentation doit être revérifié puis faire l'objet
 d'une seconde contre-revue ciblée B1/B2/B3. La PR reste Draft.
 
+
+## P3.6A — correction G2 de la provenance des mutations Quarto (31 octobre 2026)
+
+**PR #13 toujours Draft, non fusionnée.** Base GitHub :
+`7231ac4fb54ec54aebd498e72d4bd588878e631e`. Le candidat Python corrigé
+est attesté par les CI du commit `4d7749fa5de7c08f706dfd8684bf52f275950c34` ;
+la présente capitalisation documentaire se fait **après** cette qualification
+et exige de recontrôler le HEAD final de la PR avant reprise.
+
+**Acquis antérieurs conservés :** P3.5 lit en sécurité la source Git/profils
+déclarés ; P3.6A rend sous Quarto réel un projet multipage/profils **fictif**
+dans une copie privée épinglée ; B1/B2/B3 ont été corrigés ; Quarto 1.10.x
+modifie exactement `.gitignore` et Alliage accepte exclusivement cette mutation
+prévisible, comptabilisée dans `tracked_source_mutations_accepted`. Les
+contre-épreuves Unicode rendent la prédiction cohérente avec
+`String.trim()` ECMAScript. L'audit du HEAD
+`e9c6f31b7968ca4829a14bf4b1dfd7d6e12d8d62` a établi
+**CORRECTIONS REQUISES — G2 uniquement** : l'API interne pouvait accepter des
+octets `original_gitignore` dont le SHA ne correspondait pas au SHA de
+`expected[".gitignore"]`, même si le chemin normal de `render()` restait
+cohérent.
+
+**G2 corrigé :** `_verify_tracked_copy()` impose maintenant l'identité
+SHA-256 des octets d'origine avec le manifeste Git attendu, ou refuse si le
+nom `.gitignore` est absent, avant de prédire toute transformation.
+Contre-test reproductible sur fichiers entièrement fictifs : faux octets
+d'origine et fichier attendu absent refusés, véritable transformation
+acceptée. Aucun élargissement de la zone de mutation permise.
+
+**CI réellement vérifiées sur `4d7749fa5de7c08f706dfd8684bf52f275950c34` :**
+[Python #41211085507](https://github.com/djibian/alliage/actions/runs/41211085507)
+**118 tests, 9 ignorés** ;
+[P3.5 #41211085531](https://github.com/djibian/alliage/actions/runs/41211085531)
+**12 PASS** ;
+[Quarto réel #41211085526](https://github.com/djibian/alliage/actions/runs/41211085526)
+**22 PASS en 1.10.19 et 22 PASS en 1.10.20** ; vérification des journaux
+des jobs, incluant le nouveau contre-test G2. Aucun rendu du corpus privé
+n'a été relancé après le correctif.
+
+**Limites inchangées :** Quarto n'est pas sandboxé ; `--no-execute` ne
+neutralise ni hooks ni filtres ; `render_profile_effective_verified=false` ;
+manifestes locaux non signés ; sorties privées et non exposées en HTTP ;
+pas de fidélité Firefox sur le véritable HTML professeur ni de publication
+élèves attestée. La session contient l'intégralité des blobs Git du
+projet source : toute exposition demande une qualification distincte.
+
+**Prochaine porte :** contrôle des CI sur le HEAD final et contre-revue
+indépendante **ciblée G2**, puis décision humaine explicite sur un seul
+nouvel essai de rendu professeur privé local. **Aucune fusion, publication,
+URL Firefox professeur ou réexécution Quarto privée sans mandat.**
