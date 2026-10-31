@@ -73,3 +73,51 @@ ni à une API IA ; il n'écrit ni ne publie de ressource.
 Pas de fusion des PR #13 ou #14 sans décision du propriétaire. Aucun fichier
 pédagogique privé, sortie HTML enseignant, manifeste réel, chemin de session
 ou secret ne doit être mis dans les commits, les logs GitHub ou les fixtures.
+
+## Démonstration Firefox uniquement fictive (après audit indépendant)
+
+La [contre-revue de la PR #14](https://github.com/djibian/alliage/pull/14#pullrequestreview-5723954886)
+accorde **GO pour une seule première démonstration Firefox sur fixture inspectée**,
+mais **NO-GO pour une véritable session professeur**. Elle documente :
+L1 l'identité fictive non authentifiée dans le manifeste ;
+L2 la possibilité de renommer un fichier source en actif autorisé ;
+L3 les ambiguïtés HTTP de `BaseHTTPRequestHandler` ;
+L4 la différence entre CSP et blocage universel des navigations ;
+L5 les limites de vérification ponctuelle/TOCTOU.
+Ces limites subsistent et devront être résolues avant une autorisation réelle.
+
+Pour éviter de faire passer une vraie session pour une fixture fictive,
+`p36b_fictional_firefox_demo.py` n'accepte **ni `--repo` ni
+`--session`**. Il construit dans un répertoire temporaire la fixture Git
+publique de `tests/test_quarto_teacher_render.py`, rend cette fixture
+avec Quarto local 1.10.19 ou 1.10.20 après l'option explicite
+`--trusted-fixture-quarto`, vérifie les marqueurs professeur/élève et
+`verify_session()`, puis sert la page par le lecteur P3.6B en loopback.
+Ctrl+C ferme le serveur et déclenche le nettoyage de la fixture.
+
+Sur une **copie de qualification Alliage propre et isolée**, épingler le
+SHA exact de la PR #14 après contrôle de ses CI et de la revue, puis lancer :
+
+```bash
+python3 p36b_fictional_firefox_demo.py --trusted-fixture-quarto
+```
+
+Aucun autre dépôt, chemin de session ou identifiant de projet n'est requis.
+Ouvrir uniquement l'URL aléatoire affichée dans **un nouveau profil Firefox
+de test sans extension**, sans la publier ni la transmettre. Idéalement,
+couper la connectivité externe de la machine au moment de l'observation,
+en conservant la boucle locale `127.0.0.1`.
+
+**Protocole humain :** dans Firefox, examiner Réseau et Console (F12),
+noter les requêtes 200/403/404, les refus CSP et les chargements externes ;
+vérifier l'affichage du contenu fictif et l'absence de sentinelle élève.
+Observer les écarts de fidélité : le JavaScript Quarto est *intentionnellement
+bloqué* (onglets interactifs, recherche, copy-code, etc.). Ne pas cliquer
+de lien externe vers Internet actif ; ne pas interpréter une absence
+d'affichage comme une preuve de confidentialité. Pas d'ouverture de
+la vraie session professeur avant un incrément distinct, revu et
+autorisé explicitement.
+
+**Statut du lancement :** l'existence de cette commande et les tests CI
+ne constituent pas une preuve d'exécution Firefox humaine ; attendre
+son rapport d'observation avant toute conclusion sur Firefox.
