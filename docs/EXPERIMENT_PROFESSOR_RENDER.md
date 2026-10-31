@@ -235,3 +235,25 @@ manifests, refus des mutations adversariales et non-régression P3.5.
 Le correctif ne doit être considéré comme qualifié qu'après ces CI
 et une contre-revue indépendante de cette exception ciblée.
 
+
+### Raffinement de la prédiction exacte : Unicode `trim()` (31 octobre 2026)
+
+Une contre-épreuve supplémentaire sur le correctif `.gitignore` a démontré que
+`str.strip()` (Python) et `String.trim()` (ECMAScript, réellement utilisé par
+Quarto 1.10.19/1.10.20) ne reconnaissent pas exactement les mêmes caractères :
+Python retire notamment U+0085 et U+001C, tandis que JavaScript les conserve ;
+JavaScript retire U+FEFF, contrairement au `strip()` Python sans paramètre.
+Ce désaccord pouvait accepter une prédiction qui ne correspondrait pas aux octets
+produits par Quarto sur une entrée synthétique atypique.
+
+`_expected_quarto_gitignore()` emploie maintenant explicitement l'ensemble de
+blancs ECMAScript pour le retrait des espaces aux extrémités des lignes.
+Tests fictifs ciblés sur U+0085, U+001C et U+FEFF, plus une exécution Quarto
+réelle sous deux versions sur un `.gitignore` synthétique contenant U+0085.
+Le traitement de toutes les autres entrées Git, les restrictions de profil,
+l'inventaire et les refus d'intégrité restent inchangés.
+
+**Statut :** nouvelle CI et contre-revue indépendante requises sur le HEAD
+intégrant cette correction ; aucune autorisation implicite de rendu privé,
+d'exposition navigateur ou de fusion. Cette précision n'est pas une preuve que
+l'ensemble du code Quarto installé est sandboxé ou immuable.
