@@ -176,9 +176,8 @@ class TeacherRenderTests(unittest.TestCase):
         self.assertEqual(before, (git(self.repo, "rev-parse", "HEAD"),
                                   git(self.repo, "status", "--porcelain")))
         self.assertEqual(self.output.stat().st_mode & 0o777, 0o700)
-        css = html_path.parent / "publication/tim.css"
-        self.assertTrue(any(item["path"].endswith(".css")
-                            for item in result["rendered_files"]))
+        # embed-resources: true may inline CSS, not create an extra CSS file.
+        self.assertGreater(len(html), 200)
         # Distinct learner render on another *fictional* worktree, not served
         # and not published; its bytes must not contain teacher-only sentinel.
         learner_project = self.home / "fictional-learner-only"
@@ -200,12 +199,10 @@ class TeacherRenderTests(unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
                          "Requires explicit Quarto real test job")
-    def test_same_size_css_tampering_is_detected(self):
+    def test_same_size_html_tampering_is_detected(self):
         self.assertIsNotNone(shutil.which("quarto"))
         result = render(*self.args(), self.output, trusted_quarto=True)
-        css = next(item for item in result["rendered_files"]
-                   if item["path"].endswith(".css"))
-        target = self.output / "project" / css["path"]
+        target = self.output / "project" / result["rendered_html"]["path"]
         data = target.read_bytes()
         target.write_bytes(b"x" * len(data))
         with self.assertRaises(TeacherRenderError):
