@@ -35,7 +35,24 @@ PROFILE_CONTENT = {
 # duplicate keys, flow mappings, tags, anchors, aliases, and extra YAML
 # documents must fail closed rather than silently change profile semantics.
 _QUOTED_GLOB = re.compile(r'    - "[A-Za-z0-9_./*?-]+"')
-_PATH_SCALAR = re.compile(r"[A-Za-z0-9_./-]+")
+# Plain YAML path scalars are deliberately narrower than generic Quarto
+# values. A bare "-" changes YAML sequence semantics, numeric-only values
+# become numbers, and keywords like true/null/on can become bool/null.
+# Paths in this qualified subset start with a letter or underscore; other
+# legitimate YAML spellings must be qualified separately, not guessed.
+_PATH_SCALAR = re.compile(r"[A-Za-z_][A-Za-z0-9_./-]*\\Z")
+_YAML_NON_STRING_SCALARS = frozenset({
+    "true", "false", "null", "yes", "no", "on", "off", "y", "n",
+})
+
+
+def _plain_yaml_path(value: str | None) -> bool:
+    """Recognize only unambiguous YAML *strings* denoting relative paths."""
+    return (isinstance(value, str)
+            and _PATH_SCALAR.fullmatch(value) is not None
+            and value.casefold() not in _YAML_NON_STRING_SCALARS
+            and all(part not in ("", ".", "..", ".git")
+                    for part in value.split("/")))
 
 
 def _recognize_root_config(root: bytes) -> None:
@@ -134,13 +151,15 @@ def _recognize_root_config(root: bytes) -> None:
             if filter_open:
                 if value is not None:
                     raise TeacherProvenanceError("Liste de filtres Quarto non reconnue.")
-            elif (value is None or not _PATH_SCALAR.fullmatch(value)
-                  or (name in values and value not in values[name])):
-                raise TeacherProvenanceError("Valeur d'option Quarto non reconnue.")
+            elif name in values:
+                if value not in values[name]:
+                    raise TeacherProvenanceError("Valeur d'option Quarto non reconnue.")
+            elif not _plain_yaml_path(value):
+                raise TeacherProvenanceError("Chemin Quarto YAML ambigu ou non reconnu.")
         elif line.startswith("      - "):
             value = line[len("      - "):]
             if (not filter_open or current != "odt"
-                    or not _PATH_SCALAR.fullmatch(value)):
+                    or not _plain_yaml_path(value)):
                 raise TeacherProvenanceError("Élément de liste Quarto invalide.")
             filter_items += 1
         else:
