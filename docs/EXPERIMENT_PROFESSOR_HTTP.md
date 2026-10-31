@@ -121,3 +121,35 @@ autorisé explicitement.
 **Statut du lancement :** l'existence de cette commande et les tests CI
 ne constituent pas une preuve d'exécution Firefox humaine ; attendre
 son rapport d'observation avant toute conclusion sur Firefox.
+
+## Première observation Firefox fictive — défaut d'intégration CSS (31 octobre 2026)
+
+Le propriétaire a lancé le lecteur fictif sur Firefox et constaté que le
+HTML de l'activité et la sentinelle professeur fictive s'affichent. La page
+est cependant visuellement **sans mise en forme Quarto**, avec deux refus
+CSP `style-src-elem` visant des stylesheets `data:text/css`. Aucune
+preuve d'absence totale de requêtes externes ni de fonctionnalité
+interactive n'a été fournie à ce stade. L'image de navigateur, l'URL
+contenant une capacité et les informations de profil de l'utilisateur
+**ne doivent pas être reproduites dans le dépôt public**.
+
+**Cause ciblée :** la fixture Quarto utilise `embed-resources: true`,
+qui produit des feuilles CSS via des URLs `data:text/css`. La directive
+`style-src 'self' 'unsafe-inline'` n'autorise pas ces URLs ; `unsafe-inline`
+ne signifie pas `data:`.
+
+**Correction expérimentale minimale :** autoriser uniquement le schéma
+`data:` supplémentaire dans `style-src` ; préserver
+`script-src 'none'`, `connect-src 'none'`, l'absence d'origines externes
+dans la CSP et la barrière fictive. Un test adversarial vérifie ces invariants
+et le test Quarto réel exige la présence de `data:text/css` dans le HTML
+généré. Il faudra **une nouvelle observation Firefox après CI** pour
+confirmer le retour de la mise en forme et inventorier les refus restants.
+
+**Isolement du navigateur :** l'essai initial s'est déroulé en fenêtre de
+navigation privée d'un Firefox déjà ouvert. Cette configuration ne vaut pas
+nouveau profil dédié sans extensions et ne vérifie pas l'absence de réseau
+externe. Elle est acceptée comme **observation initiale fictive seulement**.
+
+Les observations navigateur et cette exception CSS ne lèvent **aucune**
+limite L1–L5 de l'audit, ni le NO-GO pour HTML professeur réel.
