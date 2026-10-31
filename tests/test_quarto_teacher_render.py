@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from quarto_teacher_render import TeacherRenderError, plan, render, verify_session
+from quarto_teacher_provenance import TeacherProvenanceError
 
 SOURCE = "cours/mission/activite.qmd"
 TEACHER_ONLY = "FICTIONAL_TEACHER_MARKER_2026_NOT_A_CORRECTION"
@@ -118,7 +119,7 @@ class TeacherRenderTests(unittest.TestCase):
 
     def test_moving_ref_is_refused(self):
         git(self.repo, "update-ref", "refs/heads/professeur", self.sha)
-        with self.assertRaises(TeacherRenderError):
+        with self.assertRaises(TeacherProvenanceError):
             # Bad SHA never considered valid provenance.
             plan(self.repo, "fiction/laboratoire", SOURCE, "refs/heads/professeur", "a" * 40)
 
