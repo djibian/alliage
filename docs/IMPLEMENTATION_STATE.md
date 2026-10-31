@@ -441,3 +441,36 @@ requalification locale en lecture seule par le propriétaire.
 La PR reste Draft ; aucun `main`, rendu, données pédagogiques
 ni publication ne sont modifiés.
 
+### P3.6A — premier rendu professeur isolé, fixtures uniquement (31 octobre 2026)
+
+**Départ vérifié :** `main=7231ac4fb54ec54aebd498e72d4bd588878e631e`,
+PR #11 fusionnée. Les trois CI de `main` ont réussi après squash
+(contrôle Git P3.5, Python général, Quarto réel du pilote précédent).
+La base P3.5 sait reconnaître la source et les profils au commit déclaré,
+mais **aucun HTML enseignant réel** n'était encore lié au commit.
+
+**Nouvel incrément en PR Draft** : `quarto_teacher_render.py` distingue
+`plan` (préflight strictement en lecture seule) et `render`
+(explicitement opt-in `--trusted-quarto`). Le projet Git complet est
+reconstitué dans une session locale privée à partir du SHA, sans checkout,
+sans téléchargement implicite et sans reprendre les fichiers mutables
+du clone. Le rendu cible un **fichier QMD** et le profil `professeur` ;
+Quarto est exécuté avec environnement réduit et `--no-execute`.
+Les sorties hors `dist/professeur` sont refusées ; les fichiers d'entrée
+suivis sont rehashés, le HTML attendu doit être unique et la sortie
+est inventoriée avec SHA-256 ; `verify_session` refait le contrôle.
+
+**Limites critiques :** Quarto reste non sandboxé, potentiellement capable
+d'effets externes ; la session contient une copie **privée complète**
+des sources et rendus. **Aucune preuve générale** de l'interprétation
+du profil ou de l'absence d'une fuite dans une vraie sortie élève
+n'est revendiquée. Les tests en CI n'utilisent **que des fixtures
+Git inventées**, avec sentinelles professeur/élève. Il n'existe
+encore ni serveur professeur, ni lien avec Firefox, ni publication.
+
+**À démontrer avant approbation :** exécution réelle Quarto sur fixture
+multipage/profilée, comportement de sortie, tests adversariaux et
+CI sur HEAD exact, contre-revue indépendante avant tout rendu
+d'un corpus pédagogique réel, puis qualification privée Ubuntu.
+Voir `docs/EXPERIMENT_PROFESSOR_RENDER.md` et issue #12.
+
