@@ -474,3 +474,50 @@ CI sur HEAD exact, contre-revue indépendante avant tout rendu
 d'un corpus pédagogique réel, puis qualification privée Ubuntu.
 Voir `docs/EXPERIMENT_PROFESSOR_RENDER.md` et issue #12.
 
+### PR #13 — correction des trois blocages du premier audit P3.6A (31 octobre 2026)
+
+La contre-revue indépendante sur le HEAD
+`a6e973e896ad93b47c1ecf69f75ee008a11099cb`
+a conclu **CORRECTIONS REQUISES**, uniquement pour :
+B1 (préflight de métadonnées YAML actif contournable par
+`"filters":` / `'filters':` / CRLF), B2 (redirection de
+`project/dist` par lien symbolique intermédiaire non détectée),
+B3 (manifest `rendered_html` substituable avec un asset non HTML).
+
+**B1 corrigé :** `_validate_qmd_frontmatter()` consomme toute la
+syntaxe YAML du document pilote dans un sous-ensemble borné à dix
+métadonnées et à leurs valeurs validées par type ; toute forme
+équivalente hors grammaire est refusée. Test adversarial avec
+fragments YAML fictifs, clés entre guillemets, CRLF, doublons,
+alias et métadonnées inconnues. Une **expérience Quarto réelle**
+sur deux documents fictifs confirme qu'un filtre Lua peut être
+activé avec une clé entre guillemets ou un frontmatter CRLF,
+y compris avec `--no-execute`; le préflight les refuse.
+
+**B2 corrigé :** contrôle des composants physiques `project`,
+`dist` et `professeur` avant l'inventaire ; refus du symlink
+intermédiaire vers un dossier externe même si le manifeste et les
+octets des fichiers restent cohérents.
+
+**B3 corrigé :** `_single_teacher_html()` impose la même
+unicité et identité du HTML pendant `render()` et
+`verify_session()` ; refus du manifeste qui désigne un
+fichier `asset.txt` ou change `source_path`.
+
+**Durcissement complémentaire :** rejet des segments `..`,
+`.`, vides et `.git` dans les globs `project.render` et
+`project.resources`, avec tests négatifs P3.5.
+
+**Garanties conservées :** aucune modification du dépôt pédagogique
+réel, aucun rendu réel des ressources privées, aucun serveur
+professeur, aucune publication, aucune prétention de sandbox
+ou de preuve de confidentialité générale. Les sessions restent
+confidentielles. Le statut `LOCAL_PROFESSOR_FILES_REHASHED`
+ne prouve ni l'authenticité cryptographique du manifeste ni
+l'intégrité ultérieure de tous les blobs Git.
+
+**CI :** après les premières corrections, le workflow Quarto réel
+avec 15 tests et les workflows Python/P3.5 sont passés. Le HEAD
+final après documentation doit être revérifié puis faire l'objet
+d'une seconde contre-revue ciblée B1/B2/B3. La PR reste Draft.
+
