@@ -2,6 +2,8 @@
 """P3.6B professor HTTP safety experiment: exclusively fictional files."""
 from __future__ import annotations
 
+import contextlib
+import io
 import hashlib
 import http.client
 import json
@@ -223,6 +225,39 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(TeacherHTTPError, "diffusable"):
             FictionalTeacherPreview(self.session)
+
+    def test_fixed_firefox_demo_refuses_unapproved_and_session_arguments(self):
+        import p36b_fictional_firefox_demo as demo
+        with contextlib.redirect_stderr(io.StringIO()):
+            for args in ([], ["--session", str(self.session)],
+                         ["--repo", str(self.session)],
+                         ["--trusted-fixture-quarto", "--session",
+                          str(self.session)]):
+                with self.subTest(args=args):
+                    with self.assertRaises(SystemExit) as error:
+                        demo.main(args)
+                    self.assertEqual(error.exception.code, 2)
+
+    @unittest.skipUnless(os.environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
+                         "Run in dedicated Quarto fixture CI")
+    def test_fixed_firefox_demo_generates_only_its_public_fixture(self):
+        import p36b_fictional_firefox_demo as demo
+        fixture, preview, report = demo.create_fixed_fictional_session()
+        try:
+            self.assertEqual(
+                report["resource_id"],
+                "quarto:fiction/laboratoire:cours/mission/activite.qmd",
+            )
+            self.assertEqual(
+                verify_session(fixture.output)["status"],
+                "LOCAL_PROFESSOR_FILES_REHASHED",
+            )
+            page, mime = preview.get_asset(preview.html_route)
+            self.assertIn(b"FICTIONAL_TEACHER_MARKER", page)
+            self.assertNotIn(b"FICTIONAL_STUDENT_MARKER", page)
+            self.assertTrue(mime.startswith("text/html"))
+        finally:
+            fixture.doCleanups()
 
     @unittest.skipUnless(os.environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
                          "Run in dedicated Quarto fixture CI")
