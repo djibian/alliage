@@ -287,6 +287,44 @@ class TeacherRenderTests(unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
                          "Requires explicit Quarto real test job")
+    def test_B1_real_quarto_recognizes_quoted_filters_and_crlf(self):
+        """Prove a fictional Lua filter can actually run despite --no-execute."""
+        self.assertIsNotNone(shutil.which("quarto"))
+        sentinel = "FICTIONAL_LUA_FILTER_WAS_EXECUTED_IN_QUARTO"
+        for mode in ("quoted", "crlf"):
+            with self.subTest(mode=mode):
+                project = self.home / ("quarto-" + mode)
+                shutil.copytree(self.repo, project,
+                                ignore=shutil.ignore_patterns(".git"))
+                (project / "audit-filter.lua").write_text(
+                    'function Pandoc(doc)\n'
+                    '  return pandoc.Pandoc({pandoc.Para("'
+                    + sentinel + '")}, doc.meta)\n'
+                    'end\n',
+                    encoding="utf-8")
+                title = 'title: "Fiction"\n'
+                head = ('"filters":\n' if mode == "quoted" else 'filters:\n')
+                qmd = "---\n" + title + head + "  - audit-filter.lua\n---\n\n# Test fictif\n"
+                if mode == "crlf":
+                    qmd = qmd.replace("\n", "\r\n")
+                (project / SOURCE).write_bytes(qmd.encode("utf-8"))
+                with self.assertRaises(TeacherRenderError):
+                    _validate_qmd_frontmatter(qmd.encode("utf-8"))
+                cmd = ["quarto", "render", SOURCE, "--to", "html",
+                       "--profile", "professeur", "--no-execute"]
+                env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+                       "HOME": str(self.home), "QUARTO_PROFILE": "professeur",
+                       "LANG": "C.UTF-8"}
+                result = subprocess.run(cmd, cwd=project, env=env,
+                                        capture_output=True, timeout=180)
+                self.assertEqual(result.returncode, 0,
+                                 "Quarto fictif n'a pas pu rendre le document.")
+                html_path = project / "dist/professeur" / Path(SOURCE).with_suffix(".html")
+                self.assertTrue(html_path.is_file())
+                self.assertIn(sentinel, html_path.read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(os.environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
+                         "Requires explicit Quarto real test job")
     def test_real_quarto_professor_only_and_student_sentinel(self):
         self.assertIsNotNone(shutil.which("quarto"))
         before = (git(self.repo, "rev-parse", "HEAD"),
