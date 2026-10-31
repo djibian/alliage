@@ -366,3 +366,43 @@ autorisé, avec inventaire et preuve de non-exposition de la projection élève.
 Ce sera un autre incrément et exigera une nouvelle qualification Firefox.
 Voir `docs/EXPERIMENT_TEACHER_SOURCE.md`.
 
+### PR #11 — contre-revue indépendante B1 : correction ciblée (31 octobre 2026)
+
+La première contre-revue indépendante du HEAD `50be9889ed49354e0d20273afde21cf56d636d45`
+a conclu **CORRECTIONS REQUISES** pour un défaut unique **B1** :
+`_verify_declarations()` cherchait deux fragments de configuration
+`_quarto.yml` mais pouvait accepter des clés `profile.default` ou
+`project.output-dir` répétées, un second groupe, des mappings compacts,
+des documents YAML invalides et des ancres/alias non reconnus.
+Les protections Git, les statuts de preuve non exagérés et l'absence de
+rendu ou de publication avaient été jugés conformes.
+
+**Correction :** `_recognize_root_config()` consomme désormais l'intégralité
+de la configuration racine et reconnaît uniquement un **sous-ensemble
+structurel Quarto borné**, sans parseur YAML général : déclarations
+`project`/`profile` exactement délimitées, listes de chemins entre
+guillemets, profil par défaut et groupe uniques, clés racine/format
+autorisées et non dupliquées, indentation/valeurs simples vérifiées.
+Toute extension syntaxique, commentaire, fusion YAML, alias, tag,
+déclaration compacte ou section supplémentaire est refusée en l'absence
+d'une qualification dédiée. Il ne reste plus de garde d'ancres fondé
+sur une expression régulière défaillante ; les syntaxes d'ancres et
+d'alias sont simplement **hors grammaire admise**. Les deux fichiers
+`_quarto-professeur.yml` / `_quarto-eleve.yml` restent comparés
+octet par octet à leur profil attendu.
+
+**Contre-épreuves ajoutées :** clés dupliquées, second groupe,
+déclaration concurrente compacte, YAML invalide, ancre et alias en
+position de valeur, document additionnel, indentation, autre format,
+option dupliquée, liste projet supplémentaire et autres mutations ;
+un projet fictif multiprofil représentatif des déclarations canoniques
+demeure reconnu. Les tests couvrent la **reconnaissance déclarative**
+uniquement, ni la sémantique effective Quarto, ni un rendu, ni une URL.
+
+**Périmètre préservé :** lecture des objets Git épinglés, aucune lecture
+du checkout, aucun `fetch`, aucun Quarto, aucune navigation Firefox,
+aucune publication, et aucune donnée source privée dans les commits publics.
+
+**À faire :** revérifier les CI sur le HEAD final puis demander une
+**seconde contre-revue ciblée B1** ; la PR reste Draft et non fusionnée.
+
