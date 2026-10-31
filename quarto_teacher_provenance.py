@@ -29,10 +29,127 @@ PROFILE_CONTENT = {
     "professeur": b"project:\n  output-dir: dist/professeur\n",
     "eleve": b"project:\n  output-dir: dist/eleve\n",
 }
-ROOT_PROFILE = re.compile(
-    r"(?m)^profile:\n  default: eleve\n  group:\n    - \[eleve, professeur\](?:\n|$)")
-ROOT_PROJECT = re.compile(
-    r"(?m)^project:\n  type: default\n  output-dir: dist(?:\n|$)")
+# P3.5 is intentionally NOT a general YAML reader. It recognizes only a
+# small, completely consumed structural subset matching the declared Quarto
+# project/profile format. A fragment match is insufficient: extra keys,
+# duplicate keys, flow mappings, tags, anchors, aliases, and extra YAML
+# documents must fail closed rather than silently change profile semantics.
+_QUOTED_GLOB = re.compile(r'    - "[A-Za-z0-9_./*?-]+"')
+_PATH_SCALAR = re.compile(r"[A-Za-z0-9_./-]+")
+
+
+def _recognize_root_config(root: bytes) -> None:
+    """Validate the entire limited YAML grammar, not selected substrings.
+
+    This does not attest Quarto's actual interpretation or a rendered page.
+    Adding syntax requires dedicated adversarial tests and requalification.
+    """
+    if (not root or b"\x00" in root or b"\r" in root or b"\t" in root
+            or root.startswith(b"\xef\xbb\xbf")):
+        raise TeacherProvenanceError("Configuration Quarto racine non canonique.")
+    try:
+        content = root.decode("utf-8", "strict")
+    except UnicodeDecodeError as exc:
+        raise TeacherProvenanceError("Configuration Quarto non UTF-8.") from exc
+    sections: dict[str, list[str]] = {}
+    active = None
+    for line in content.split("\n"):
+        if not line:
+            continue
+        if line != line.rstrip() or line.startswith("#"):
+            raise TeacherProvenanceError("Commentaires ou espaces YAML non qualifiés.")
+        # All recognized root keys have an exact spelling, value and layout.
+        # Unrecognized root declarations, even valid YAML, are outside P3.5.
+        if not line.startswith(" "):
+            key = {"project:": "project", "profile:": "profile",
+                   "format:": "format", "lang: fr": "lang"}.get(line)
+            if key is None or key in sections:
+                raise TeacherProvenanceError("Déclaration racine YAML inconnue ou dupliquée.")
+            sections[key] = []
+            active = key
+        else:
+            if active is None or len(line) - len(line.lstrip(" ")) not in (2, 4, 6):
+                raise TeacherProvenanceError("Indentation YAML non reconnue.")
+            sections[active].append(line)
+
+    if "project" not in sections or "profile" not in sections:
+        raise TeacherProvenanceError("Déclarations projet et profil requises.")
+
+    project = sections["project"]
+    if (len(project) != 6 or project[:3] !=
+            ["  type: default", "  output-dir: dist", "  render:"] or
+            not _QUOTED_GLOB.fullmatch(project[3]) or
+            project[4] != "  resources:" or
+            not _QUOTED_GLOB.fullmatch(project[5])):
+        raise TeacherProvenanceError("Structure project Quarto non reconnue.")
+
+    if sections["profile"] != [
+            "  default: eleve", "  group:", "    - [eleve, professeur]"]:
+        raise TeacherProvenanceError("Groupes de profils Quarto ambigus ou contradictoires.")
+    if "lang" in sections and sections["lang"]:
+        raise TeacherProvenanceError("Bloc lang Quarto ambigu.")
+
+    # Format options are not interpreted as Quarto behavior. They are still
+    # lexically/structurally validated so malformed YAML cannot slip through
+    # unrelated lines and invalidate the recognized project/profile tree.
+    formats = sections.get("format", [])
+    current = None
+    seen_formats: set[str] = set()
+    seen_keys: set[str] = set()
+    filter_items = 0
+    filter_open = False
+    allowed = {
+        "html": {"toc", "embed-resources", "page-layout", "format-links", "css"},
+        "odt": {"toc", "page-width", "reference-doc", "filters"},
+    }
+    values = {
+        "toc": {"true", "false"},
+        "embed-resources": {"true", "false"},
+        "page-layout": {"full"},
+        "format-links": {"true", "false"},
+        "page-width": {"7"},
+    }
+    for line in formats:
+        if line in ("  html:", "  odt:"):
+            if filter_open and not filter_items:
+                raise TeacherProvenanceError("Liste de filtres Quarto vide.")
+            current = line.strip()[:-1]
+            if current in seen_formats:
+                raise TeacherProvenanceError("Format Quarto dupliqué.")
+            seen_formats.add(current)
+            seen_keys = set()
+            filter_open = False
+        elif line.startswith("    ") and not line.startswith("      "):
+            if filter_open and not filter_items:
+                raise TeacherProvenanceError("Liste de filtres Quarto vide.")
+            match = re.fullmatch(r"    ([a-z-]+):(?: ([A-Za-z0-9_./-]+))?", line)
+            if not match or current is None:
+                raise TeacherProvenanceError("Option Quarto mal formée.")
+            name, value = match.groups()
+            if name not in allowed[current] or name in seen_keys:
+                raise TeacherProvenanceError("Option Quarto inconnue ou dupliquée.")
+            seen_keys.add(name)
+            filter_open = name == "filters"
+            filter_items = 0
+            if filter_open:
+                if value is not None:
+                    raise TeacherProvenanceError("Liste de filtres Quarto non reconnue.")
+            elif (value is None or not _PATH_SCALAR.fullmatch(value)
+                  or (name in values and value not in values[name])):
+                raise TeacherProvenanceError("Valeur d'option Quarto non reconnue.")
+        elif line.startswith("      - "):
+            value = line[len("      - "):]
+            if (not filter_open or current != "odt"
+                    or not _PATH_SCALAR.fullmatch(value)):
+                raise TeacherProvenanceError("Élément de liste Quarto invalide.")
+            filter_items += 1
+        else:
+            raise TeacherProvenanceError("Structure YAML Quarto non reconnue.")
+    if filter_open and not filter_items:
+        raise TeacherProvenanceError("Liste de filtres Quarto vide.")
+    if "format" in sections and not seen_formats:
+        raise TeacherProvenanceError("Format Quarto vide.")
+
 
 
 def _git_regular_file(repo: Path, commit: str, path: str) -> tuple[bytes, str]:
@@ -61,18 +178,7 @@ def _verify_declarations(repo: Path, commit: str) -> dict:
     require a separate qualification. Return only hashes, never YAML contents.
     """
     root, root_blob = _git_regular_file(repo, commit, "_quarto.yml")
-    if (root.count(b"\x00") or b"\r" in root or b"\t" in root
-            or b"<<:" in root or re.search(rb"(?m)^\\s*[&*][A-Za-z0-9_-]+", root)):
-        raise TeacherProvenanceError("Configuration racine ambiguë.")
-    try:
-        text = root.decode("utf-8", "strict")
-    except UnicodeDecodeError as exc:
-        raise TeacherProvenanceError("Configuration Quarto non UTF-8.") from exc
-    if (len(ROOT_PROFILE.findall(text)) != 1
-            or len(ROOT_PROJECT.findall(text)) != 1
-            or len(re.findall(r"(?m)^project:\s*$", text)) != 1
-            or len(re.findall(r"(?m)^profile:\s*$", text)) != 1):
-        raise TeacherProvenanceError("Profils enseignant/élève ou sortie racine non reconnus.")
+    _recognize_root_config(root)
     profiles = {}
     for profile, exact in PROFILE_CONTENT.items():
         name = "_quarto-" + profile + ".yml"
