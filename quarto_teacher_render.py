@@ -342,6 +342,13 @@ def _verify_tracked_copy(project: Path, expected: dict[str, str], *,
     downstream consumer can mistake the post-render copy for byte-for-byte
     identical Git input.
     """
+    # A predicted Quarto edit is valid only for the exact tracked Git input.
+    # Enforce this here too, not only at the caller that reconstructed Git.
+    if original_gitignore is not None and (
+        ".gitignore" not in expected
+        or hashlib.sha256(original_gitignore).hexdigest() != expected[".gitignore"]
+    ):
+        raise TeacherRenderError("Origine Git du .gitignore incohérente.")
     predicted = (_expected_quarto_gitignore(original_gitignore)
                  if original_gitignore is not None else None)
     predicted_sha = (hashlib.sha256(predicted).hexdigest()
