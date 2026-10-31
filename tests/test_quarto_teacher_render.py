@@ -166,6 +166,34 @@ class TeacherRenderTests(unittest.TestCase):
         with self.assertRaises(TeacherRenderError):
             _verify_tracked_copy(project, {".gitignore": initial_sha})
 
+    def test_quarto_gitignore_original_must_match_tracked_digest(self):
+        """G2: reject direct calls with a substituted original Git blob."""
+        project = self.home / "snap"
+        project.mkdir()
+        authentic = b"# ORIGINAL\\nkeep/\\n"
+        substituted = b"# DIFFERENT\\nremove/\\n"
+        git_sha = hashlib.sha256(authentic).hexdigest()
+        (project / ".gitignore").write_bytes(
+            _expected_quarto_gitignore(substituted))
+        # An unbound original used to be silently accepted as Quarto's edit.
+        with self.assertRaisesRegex(TeacherRenderError, "Origine Git"):
+            _verify_tracked_copy(
+                project, {".gitignore": git_sha},
+                original_gitignore=substituted)
+        # The original is also invalid when no tracked .gitignore exists.
+        with self.assertRaisesRegex(TeacherRenderError, "Origine Git"):
+            _verify_tracked_copy(
+                project, {"other.txt": git_sha},
+                original_gitignore=substituted)
+        # An exact original is still admissible for a deterministic rewrite.
+        (project / ".gitignore").write_bytes(
+            _expected_quarto_gitignore(authentic))
+        accepted = _verify_tracked_copy(
+            project, {".gitignore": git_sha},
+            original_gitignore=authentic)
+        self.assertEqual(len(accepted), 1)
+        self.assertEqual(accepted[0]["source_sha256"], git_sha)
+
     def test_quarto_gitignore_prediction_uses_ecmascript_trim(self):
         """JS trim keeps NEL/FS but strips BOM; Python strip is different."""
         rules = b"\n\n/.quarto/\n**/*.quarto_ipynb\n"
