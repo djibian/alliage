@@ -75,7 +75,7 @@ class TeacherRenderTests(unittest.TestCase):
         # Every real Quarto 1.10.x render must exercise its deterministic
         # .gitignore housekeeping against a tracked fictitious input file.
         (self.repo / ".gitignore").write_text(
-            "# Fictitious Git ignores\ndist/\n", encoding="utf-8")
+            "# Fictitious Git ignores\nlocal-cache/\n", encoding="utf-8")
         (self.repo / SOURCE).write_text(
             '---\ntitle: "Laboratoire fictif"\n---\n\n# Mission de test\n'
             "Texte commun.\n\n"
