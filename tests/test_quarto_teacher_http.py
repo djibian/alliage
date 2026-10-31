@@ -205,6 +205,25 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
         with self.assertRaises((TeacherHTTPError, TeacherRenderError)):
             FictionalTeacherPreview(self.session)
 
+    def test_output_inventory_does_not_authorize_qmd_sources(self):
+        """A Quarto-copied QMD must never become an HTTP route."""
+        name = "dist/professeur/cours/mission/private-source.qmd"
+        data = b"FICTIONAL_PROFESSOR_SOURCE_NOT_FOR_HTTP"
+        target = self.session / "project" / name
+        target.write_bytes(data)
+        self.manifest["rendered_files"].append({
+            "path": name, "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        })
+        self.save_manifest()
+        # The normal P3.6A verifier checks integrity, not HTTP suitability.
+        self.assertEqual(
+            verify_session(self.session)["status"],
+            "LOCAL_PROFESSOR_FILES_REHASHED",
+        )
+        with self.assertRaisesRegex(TeacherHTTPError, "diffusable"):
+            FictionalTeacherPreview(self.session)
+
     @unittest.skipUnless(os.environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
                          "Run in dedicated Quarto fixture CI")
     def test_real_quarto_fictional_professor_output_served(self):
