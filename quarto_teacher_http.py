@@ -26,11 +26,13 @@ BIND = "127.0.0.1"
 PREFIX = "dist/professeur/"
 MAX_ASSETS = 2000
 # Deliberately STATIC: remote resources and every script (including Quarto's
-# own) are blocked. Full interactive fidelity is NOT proven by this experiment.
+# own) are blocked. Quarto's embed-resources uses data:text/css stylesheets;
+# permit only that additional stylesheet scheme, without enabling scripts,
+# external stylesheets or network connections. This is still not full fidelity.
 CSP = (
     "sandbox allow-same-origin; default-src 'none'; script-src 'none'; "
     "connect-src 'none'; img-src 'self' data:; "
-    "style-src 'self' 'unsafe-inline'; font-src 'self' data:; "
+    "style-src 'self' 'unsafe-inline' data:; font-src 'self' data:; "
     "media-src 'self'; object-src 'none'; frame-src 'none'; "
     "worker-src 'none'; form-action 'none'; base-uri 'none'"
 )
