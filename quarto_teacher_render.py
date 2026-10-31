@@ -45,6 +45,9 @@ _QMD_PLAIN_ID = re.compile(r"[A-Za-z_][A-Za-z0-9_./-]*\Z")
 _QMD_DURATION = re.compile(r"[1-9][0-9]{0,2} min\Z")
 _QMD_INT = re.compile(r"(?:0|[1-9][0-9]{0,2})\Z")
 _QMD_PLAIN_LIST_ITEM = re.compile(r"[A-Za-z_][A-Za-z0-9_. /-]*\Z")
+_YAML_NON_STRING = frozenset({"true", "false", "null", "yes", "no",
+                              "on", "off", "y", "n"})
+
 
 
 def _yaml_simple_string(value: str) -> bool:
@@ -59,7 +62,8 @@ def _yaml_simple_string(value: str) -> bool:
         inner = value[1:-1]
         return bool(inner) and "'" not in inner and not any(
             ord(char) < 32 for char in inner)
-    return _QMD_PLAIN_ID.fullmatch(value) is not None
+    return (_QMD_PLAIN_ID.fullmatch(value) is not None
+            and value.casefold() not in _YAML_NON_STRING)
 
 
 def _validate_qmd_frontmatter(raw: bytes) -> None:
@@ -89,9 +93,10 @@ def _validate_qmd_frontmatter(raw: bytes) -> None:
             raise TeacherRenderError("Clé YAML QMD dupliquée.")
         seen.add(key)
         if key in _QMD_TEXT_KEYS:
-            good = _yaml_simple_string(value)
+            good = value.startswith(('"', "'")) and _yaml_simple_string(value)
         elif key in _QMD_ID_KEYS:
-            good = _QMD_PLAIN_ID.fullmatch(value) is not None
+            good = (_QMD_PLAIN_ID.fullmatch(value) is not None
+                    and value.casefold() not in _YAML_NON_STRING)
         elif key == "activity-order":
             good = _QMD_INT.fullmatch(value) is not None
         elif key == "duration":
