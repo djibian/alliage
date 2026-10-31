@@ -31,11 +31,84 @@ class TeacherRenderError(ValueError):
 MAX_RENDERED_FILES = 2000
 MAX_RENDERED_BYTES = 100 * 1024 * 1024
 MAX_HTML_BYTES = 20 * 1024 * 1024
-FORBIDDEN_META = re.compile(
-    r"(?m)^(?:\s*(?:pre-render|post-render|filters|filter|execute|"
-    r"include-in-header|include-before-body|include-after-body|"
-    r"metadata-files|format|project)\s*:)"
-)
+# Fail-closed subset of QMD YAML front matter for this first professor-only
+# experiment. We do not try to interpret YAML using a security-sensitive
+# regex blacklist: unknown keys, quoted key spellings, composed mappings,
+# anchors, tags, nested blocks, comments and non-LF newlines are rejected.
+# This grammar is NOT a general YAML parser, and newly required metadata must
+# first be accompanied by positive fixtures and adversarial qualification.
+_QMD_TEXT_KEYS = {"title", "subtitle"}
+_QMD_ID_KEYS = {"activity-id", "curriculum-unit", "publication-status",
+                "support-level"}
+_QMD_LIST_KEYS = {"official-refs", "concepts"}
+_QMD_PLAIN_ID = re.compile(r"[A-Za-z_][A-Za-z0-9_./-]*\Z")
+_QMD_DURATION = re.compile(r"[1-9][0-9]{0,2} min\Z")
+_QMD_INT = re.compile(r"(?:0|[1-9][0-9]{0,2})\Z")
+_QMD_PLAIN_LIST_ITEM = re.compile(r"[A-Za-z_][A-Za-z0-9_. /-]*\Z")
+
+
+def _yaml_simple_string(value: str) -> bool:
+    """Subset of YAML scalars that unambiguously decode to a single string."""
+    if not value or value != value.strip():
+        return False
+    if value.startswith('"') and value.endswith('"') and len(value) >= 2:
+        inner = value[1:-1]
+        return bool(inner) and '"' not in inner and "\\" not in inner and not any(
+            ord(char) < 32 for char in inner)
+    if value.startswith("'") and value.endswith("'") and len(value) >= 2:
+        inner = value[1:-1]
+        return bool(inner) and "'" not in inner and not any(
+            ord(char) < 32 for char in inner)
+    return _QMD_PLAIN_ID.fullmatch(value) is not None
+
+
+def _validate_qmd_frontmatter(raw: bytes) -> None:
+    """Consume the *entire* recognized frontmatter; reject equivalent tricks."""
+    if not raw.startswith(b"---\n"):
+        raise TeacherRenderError("QMD sans en-tête YAML LF qualifié.")
+    close = raw.find(b"\n---\n", 4)
+    if close < 0 or close > 65536:
+        raise TeacherRenderError("En-tête YAML QMD incomplet ou surdimensionné.")
+    head = raw[4:close]
+    if b"\r" in head or b"\t" in head or b"\x00" in head:
+        raise TeacherRenderError("Métadonnées YAML non canoniques.")
+    try:
+        text = head.decode("utf-8", "strict")
+    except UnicodeDecodeError as exc:
+        raise TeacherRenderError("Métadonnées YAML non UTF-8.") from exc
+    seen: set[str] = set()
+    for line in text.split("\n"):
+        # Only a flat mapping of explicitly enumerated metadata keys is
+        # recognized. This also rejects quoted keys like "filters", key
+        # duplication, tags, inline mapping, aliases and multiline payloads.
+        match = re.fullmatch(r"([a-z][a-z0-9-]*): (.+)", line)
+        if not match:
+            raise TeacherRenderError("Structure de métadonnées QMD non reconnue.")
+        key, value = match.groups()
+        if key in seen:
+            raise TeacherRenderError("Clé YAML QMD dupliquée.")
+        seen.add(key)
+        if key in _QMD_TEXT_KEYS:
+            good = _yaml_simple_string(value)
+        elif key in _QMD_ID_KEYS:
+            good = _QMD_PLAIN_ID.fullmatch(value) is not None
+        elif key == "activity-order":
+            good = _QMD_INT.fullmatch(value) is not None
+        elif key == "duration":
+            good = _QMD_DURATION.fullmatch(value) is not None
+        elif key in _QMD_LIST_KEYS:
+            good = False
+            if value.startswith("[") and value.endswith("]"):
+                items = [part.strip() for part in value[1:-1].split(",")]
+                good = bool(items) and all(
+                    item and (_yaml_simple_string(item)
+                              and (item.startswith(("'", '"'))
+                                   or _QMD_PLAIN_LIST_ITEM.fullmatch(item) is not None))
+                    for item in items)
+        else:
+            raise TeacherRenderError("Clé QMD hors du sous-ensemble non exécutable.")
+        if not good:
+            raise TeacherRenderError("Valeur YAML QMD ambiguë ou non qualifiée.")
 
 
 def _preflight_objects(objects: list[tuple[str, str, str, int]], source: str) -> dict:
@@ -69,19 +142,11 @@ def _preflight_objects(objects: list[tuple[str, str, str, int]], source: str) ->
 
 
 def _source_preflight(repo: Path, commit: str, source: str) -> None:
-    # A lexical preflight of the page-specific YAML metadata. A trusted
-    # Quarto installation is still needed to determine effective semantics.
+    """Validate the pinned QMD metadata before any private Quarto execution."""
     raw = _git(repo, "show", f"{commit}:{source}")
     if len(raw) > 1024 * 1024:
         raise TeacherRenderError("Source Quarto trop volumineuse.")
-    if not raw.startswith(b"---\n"):
-        return
-    close = raw.find(b"\n---\n", 4)
-    if close == -1 or close > 65536:
-        raise TeacherRenderError("En-tête YAML QMD incomplet ou surdimensionné.")
-    meta = raw[4:close].decode("utf-8", "strict")
-    if FORBIDDEN_META.search(meta):
-        raise TeacherRenderError("Métadonnée QMD exécutable ou hors sous-ensemble admis.")
+    _validate_qmd_frontmatter(raw)
 
 
 def plan(repo: Path, repository_id: str, source: str, working_ref: str,
