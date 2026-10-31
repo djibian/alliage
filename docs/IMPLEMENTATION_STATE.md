@@ -608,3 +608,28 @@ de la politique CSP et du serveur HTTP, puis essai Firefox sur **fixture
 fictive seulement**. Aucune fusion des PR #13/#14 sans décision distincte,
 aucun essai sur HTML professeur réel, aucune publication élève, aucun accès
 IA ou Git depuis le navigateur.
+
+## P3.6B — observation Firefox de la fixture et correction CSS (31 octobre 2026)
+
+- **Observation Firefox humaine sur fixture fictive :** document professeur
+  HTML visible et sentinelle professeur affichée ; styles Quarto manquants.
+  Console : **deux refus CSP `style-src-elem` de feuilles
+  `data:text/css`** (projet fictif Quarto `embed-resources: true`).
+  La fenêtre privée utilisée partageait le Firefox habituel ; elle ne
+  constitue pas un profil isolé. Absence de preuve de trafic réseau nul ou
+  de fidélité interactive. Aucune capture ni URL de capacité ajoutée au dépôt.
+- **Correction limitée à P3.6B :** `style-src` autorise maintenant `data:`
+  en plus de `'self' 'unsafe-inline'`, sans autoriser JavaScript, connexion
+  externe ou nouvelle route. Tests des en-têtes HTTP et vérification
+  `data:text/css` sur HTML réellement produit par Quarto fictif.
+- **Code corrigé qualifié au commit
+  `d4e4bc9d62f4670fb6aeb74651fa9a1618548900` :** [CI Python
+  #41225105218](https://github.com/djibian/alliage/actions/runs/41225105218)
+  **129 tests, 11 ignorés, PASS** ; [CI Quarto
+  #41225105252](https://github.com/djibian/alliage/actions/runs/41225105252)
+  **11 tests PASS en 1.10.19 et en 1.10.20**.
+- **Porte suivante :** contrôler les CI du HEAD final de la PR puis
+  observer à nouveau le rendu CSS dans Firefox sur **la seule fixture
+  synthétique générée par le lanceur**. Les limites L1–L5 et le NO-GO
+  pour toute session professeur réelle restent inchangés ; les PR #13
+  et #14 sont encore Draft et non fusionnées.
