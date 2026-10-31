@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from quarto_teacher_render import (
     TeacherRenderError, plan, render, verify_session,
     _validate_qmd_frontmatter, _verify_tracked_copy,
+    _expected_quarto_gitignore,
 )
 from quarto_teacher_provenance import TeacherProvenanceError
 
@@ -71,6 +72,10 @@ class TeacherRenderTests(unittest.TestCase):
             "project:\n  output-dir: dist/eleve\n", encoding="utf-8")
         (self.repo / "publication/tim.css").write_text(
             "h2 { color: rebeccapurple; }\n", encoding="utf-8")
+        # Every real Quarto 1.10.x render must exercise its deterministic
+        # .gitignore housekeeping against a tracked fictitious input file.
+        (self.repo / ".gitignore").write_text(
+            "# Fictitious Git ignores\ndist/\n", encoding="utf-8")
         (self.repo / SOURCE).write_text(
             '---\ntitle: "Laboratoire fictif"\n---\n\n# Mission de test\n'
             "Texte commun.\n\n"
@@ -132,6 +137,56 @@ class TeacherRenderTests(unittest.TestCase):
         target.symlink_to(self.repo / "_quarto.yml")
         with self.assertRaisesRegex(TeacherRenderError, "SYMLINK"):
             _verify_tracked_copy(project, expected, diagnose_integrity=True)
+
+    def test_quarto_gitignore_exact_delta_allowed_and_recorded(self):
+        """Recognize Quarto's byte-exact housekeeping, not an exemption."""
+        project = self.home / "snap"
+        project.mkdir()
+        original = b"# Synthetic\ndist/\n"
+        initial_sha = hashlib.sha256(original).hexdigest()
+        expected = _expected_quarto_gitignore(original)
+        self.assertEqual(
+            expected,
+            original + b"\n/.quarto/\n**/*.quarto_ipynb\n",
+        )
+        self.assertNotEqual(expected, original)
+        path = project / ".gitignore"
+        path.write_bytes(expected)
+        mutation = _verify_tracked_copy(
+            project, {".gitignore": initial_sha}, original_gitignore=original)
+        self.assertEqual(len(mutation), 1)
+        self.assertEqual(mutation[0]["path"], ".gitignore")
+        self.assertEqual(mutation[0]["source_sha256"], initial_sha)
+        self.assertEqual(
+            mutation[0]["render_copy_sha256"],
+            hashlib.sha256(expected).hexdigest(),
+        )
+        self.assertIs(mutation[0]["source_bytes_preserved"], False)
+        # Without the *original bytes*, no exception to integrity is possible.
+        with self.assertRaises(TeacherRenderError):
+            _verify_tracked_copy(project, {".gitignore": initial_sha})
+
+    def test_quarto_gitignore_unexpected_change_still_refused(self):
+        project = self.home / "snap"
+        project.mkdir()
+        original = b"# Synthetic\ndist/\n"
+        expected = {".gitignore": hashlib.sha256(original).hexdigest()}
+        target = project / ".gitignore"
+        # Correct Quarto additions PLUS one injected line must be rejected.
+        target.write_bytes(_expected_quarto_gitignore(original) + b"secret/\n")
+        with self.assertRaises(TeacherRenderError):
+            _verify_tracked_copy(project, expected, original_gitignore=original)
+        target.write_bytes(original)
+        self.assertEqual(_verify_tracked_copy(
+            project, expected, original_gitignore=original), [])
+        # Already-complete ignore files must remain byte-for-byte unchanged.
+        already = _expected_quarto_gitignore(original)
+        target.write_bytes(already + b"\n")
+        with self.assertRaises(TeacherRenderError):
+            _verify_tracked_copy(
+                project, {".gitignore": hashlib.sha256(already).hexdigest()},
+                original_gitignore=already)
+        self.assertEqual(_expected_quarto_gitignore(already), already)
 
     def test_plan_never_executes_quarto_or_writes_source(self):
         before = (git(self.repo, "rev-parse", "HEAD"),
@@ -370,6 +425,12 @@ class TeacherRenderTests(unittest.TestCase):
                   git(self.repo, "status", "--porcelain"))
         result = render(*self.args(), self.output, trusted_quarto=True)
         self.assertEqual(result["status"], "PROFESSOR_RENDER_OBSERVED_LOCAL_ONLY")
+        self.assertFalse(result["tracked_source_bytes_all_preserved"])
+        self.assertEqual(len(result["tracked_source_mutations_accepted"]), 1)
+        self.assertEqual(
+            result["tracked_source_mutations_accepted"][0]["path"],
+            ".gitignore")
+
         self.assertTrue(result["teacher_html_verified"])
         self.assertFalse(result["render_profile_effective_verified"])
         self.assertFalse(result["publication_performed"])
@@ -377,6 +438,12 @@ class TeacherRenderTests(unittest.TestCase):
         self.assertTrue(result["rendered_html"]["path"].startswith("dist/professeur/"))
         self.assertEqual(verify_session(self.output)["status"],
                          "LOCAL_PROFESSOR_FILES_REHASHED")
+        # The source Git checkout stays unchanged; the temporary project's
+        # tracked .gitignore may only carry the exact audited housekeeping.
+        source_ignore = (self.repo / ".gitignore").read_bytes()
+        copy_ignore = (self.output / "project" / ".gitignore").read_bytes()
+        self.assertEqual(copy_ignore, _expected_quarto_gitignore(source_ignore))
+
         html_path = self.output / "project" / result["rendered_html"]["path"]
         html = html_path.read_text(encoding="utf-8")
         self.assertIn(TEACHER_ONLY, html)
