@@ -1,0 +1,332 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""P3.6A: opt-in isolated, single-document Quarto professor render from a pinned Git tree.
+
+NOT a sandbox, a browser URL, a teacher-content release or a student deployment.
+Never execute on an untrusted repository. No Git fetch/checkout/write.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+from quarto_historical_preview import (
+    MAX_BLOB, MAX_FILES, MAX_TOTAL, PreviewError, _git, _objects, _path,
+)
+from quarto_teacher_provenance import TeacherProvenanceError, probe
+
+
+class TeacherRenderError(ValueError):
+    """Explicitly refuse a misleading or unsafe proof."""
+
+
+MAX_RENDERED_FILES = 2000
+MAX_RENDERED_BYTES = 100 * 1024 * 1024
+MAX_HTML_BYTES = 20 * 1024 * 1024
+FORBIDDEN_META = re.compile(
+    r"(?m)^(?:\s*(?:pre-render|post-render|filters|filter|execute|"
+    r"include-in-header|include-before-body|include-after-body|"
+    r"metadata-files|format|project)\s*:)"
+)
+
+
+def _preflight_objects(objects: list[tuple[str, str, str, int]], source: str) -> dict:
+    """Reject Quarto configuration layers and generated output not qualified by P3.5.
+
+    Explicit --profile is not sufficient when other metadata/env overrides exist.
+    This guard is a conservative *syntax scope*, not a Quarto sandbox.
+    """
+    names = {name for name, _, _, _ in objects}
+    expected = {"_quarto.yml", "_quarto-professeur.yml", "_quarto-eleve.yml"}
+    if not expected.issubset(names) or source not in names:
+        raise TeacherRenderError("Source Quarto ou configurations requises absentes.")
+    for name, mode, _blob, size in objects:
+        leaf = PurePosixPath(name).name.lower()
+        if (name.startswith("dist/") or name == "dist"
+                or name.startswith(".quarto/") or name == ".quarto"
+                or leaf.startswith("_quarto") and name not in expected
+                or leaf.startswith("_metadata.")
+                or leaf.startswith("_environment")
+                or leaf == "quarto.yml" or leaf == "quarto.yaml"
+                or leaf == "quarto.lua" or leaf.endswith(".qmd.local")):
+            raise TeacherRenderError("Configuration ou sortie Quarto hors sous-ensemble sûr.")
+        if name in expected and mode != "100644":
+            raise TeacherRenderError("Configuration Quarto exécutable non admise.")
+        if name == source and size > 1024 * 1024:
+            raise TeacherRenderError("Source Quarto trop volumineuse.")
+    return {"tracked_count": len(objects),
+            "tracked_bytes": sum(item[3] for item in objects),
+            "profile": "professeur",
+            "source_path": source}
+
+
+def _source_preflight(repo: Path, commit: str, source: str) -> None:
+    # A lexical preflight of the page-specific YAML metadata. A trusted
+    # Quarto installation is still needed to determine effective semantics.
+    raw = _git(repo, "show", f"{commit}:{source}")
+    if len(raw) > 1024 * 1024:
+        raise TeacherRenderError("Source Quarto trop volumineuse.")
+    if not raw.startswith(b"---\n"):
+        return
+    close = raw.find(b"\n---\n", 4)
+    if close == -1 or close > 65536:
+        raise TeacherRenderError("En-tête YAML QMD incomplet ou surdimensionné.")
+    meta = raw[4:close].decode("utf-8", "strict")
+    if FORBIDDEN_META.search(meta):
+        raise TeacherRenderError("Métadonnée QMD exécutable ou hors sous-ensemble admis.")
+
+
+def plan(repo: Path, repository_id: str, source: str, working_ref: str,
+         expected_sha: str) -> dict:
+    """Read-only provenance + bounded complete Git inventory; no Quarto invocation."""
+    provenance = probe(repo, repository_id, source, working_ref, expected_sha)
+    repo = Path(repo).expanduser().resolve(strict=True)
+    objects = _objects(repo, expected_sha)
+    scope = _preflight_objects(objects, source)
+    _source_preflight(repo, expected_sha, source)
+    # The ref must still designate the same immutable Git commit.
+    if probe(repo, repository_id, source, working_ref, expected_sha)["working_tree_git_sha"] != provenance["working_tree_git_sha"]:
+        raise TeacherRenderError("Référence Git modifiée pendant le préflight.")
+    return {
+        "schema": "alliage.quarto-professor-render-plan.v0",
+        "status": "PINNED_SOURCE_AND_PROFILES_DECLARED_RENDER_NOT_RUN",
+        "resource_id": provenance["resource_id"],
+        "working_ref": working_ref,
+        "commit": expected_sha,
+        "project_tree": provenance["working_tree_git_sha"],
+        "source_sha256": provenance["source_sha256"],
+        "source_path": source,
+        "tracked_count": scope["tracked_count"],
+        "tracked_bytes": scope["tracked_bytes"],
+        "render_profile_requested": "professeur",
+        "render_profile_effective_verified": False,
+        "teacher_html_verified": False,
+        "teacher_output_exposure_authorized": False,
+        "browser_url_verified": False,
+        "student_deployment_verified": False,
+        "quarto_executed": False,
+        "publication_performed": False,
+        "read_only": True,
+        "external_effects": "NOT_APPLICABLE",
+    }
+
+
+def _safe_destination(repo: Path, dest: Path) -> Path:
+    repo = Path(repo).expanduser().resolve(strict=True)
+    dest = Path(dest).expanduser().absolute()
+    if dest.is_symlink() or dest.exists():
+        raise TeacherRenderError("Dossier de session déjà présent.")
+    if not dest.parent.is_dir() or dest.parent.is_symlink():
+        raise TeacherRenderError("Parent de sortie absent ou symbolique.")
+    parent = dest.parent.resolve(strict=True)
+    if repo == parent or repo in parent.parents or parent == repo.parent:
+        raise TeacherRenderError("Sortie à placer hors du dépôt source.")
+    if dest.name in (".", "..") or str(dest).startswith(str(repo) + os.sep):
+        raise TeacherRenderError("Sortie dans le dépôt source interdite.")
+    return parent / dest.name
+
+
+def _safe_tree_inventory(root: Path, subpath: Path) -> list[dict]:
+    """Inventory all regular files, refuse symlinks, cap output and rehash."""
+    files = []
+    amount = 0
+    target = root / subpath
+    if not target.is_dir() or target.is_symlink():
+        raise TeacherRenderError("Sortie professeur absente ou symbolique.")
+    visited = 0
+    for p in target.rglob("*"):
+        visited += 1
+        if visited > 4 * MAX_RENDERED_FILES or p.is_symlink():
+            raise TeacherRenderError("Sortie Quarto trop grande ou symbolique.")
+        if p.is_dir():
+            continue
+        if not p.is_file() or len(files) >= MAX_RENDERED_FILES:
+            raise TeacherRenderError("Sortie Quarto spéciale ou excessive.")
+        size = p.stat().st_size
+        amount += size
+        if size > MAX_BLOB or amount > MAX_RENDERED_BYTES:
+            raise TeacherRenderError("Fichiers générés excessifs.")
+        files.append({"path": p.relative_to(root).as_posix(),
+                      "bytes": size,
+                      "sha256": hashlib.sha256(p.read_bytes()).hexdigest()})
+    files.sort(key=lambda x: x["path"])
+    if not files:
+        raise TeacherRenderError("Sortie professeur vide.")
+    return files
+
+
+def verify_session(session: Path) -> dict:
+    """Re-verify output from disk; does NOT authenticate the original renderer."""
+    session = Path(session).expanduser().absolute()
+    if session.is_symlink() or not session.is_dir():
+        raise TeacherRenderError("Session absente ou symbolique.")
+    manifest = session / "manifest.json"
+    if not manifest.is_file() or manifest.is_symlink():
+        raise TeacherRenderError("Manifeste absent ou symbolique.")
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    if (data.get("schema") != "alliage.quarto-professor-render.v0"
+            or data.get("publication_performed") is not False
+            or data.get("student_deployment_verified") is not False):
+        raise TeacherRenderError("Manifeste Quarto non qualifié.")
+    project = session / "project"
+    output = Path("dist/professeur")
+    actual = _safe_tree_inventory(project, output)
+    if actual != data.get("rendered_files"):
+        raise TeacherRenderError("Intégrité des fichiers professeur perdue.")
+    html = data.get("rendered_html", {})
+    if not isinstance(html, dict) or html.get("path") not in [f["path"] for f in actual]:
+        raise TeacherRenderError("HTML professeur hors inventaire.")
+    if (html.get("bytes") != next(x["bytes"] for x in actual if x["path"] == html["path"])
+            or html.get("sha256") != next(x["sha256"] for x in actual if x["path"] == html["path"])):
+        raise TeacherRenderError("HTML professeur altéré.")
+    return {"status": "LOCAL_PROFESSOR_FILES_REHASHED",
+            "file_count": len(actual), "html_sha256": html["sha256"],
+            "publication_performed": False, "student_deployment_verified": False}
+
+
+def render(repo: Path, repository_id: str, source: str, working_ref: str,
+           expected_sha: str, out: Path, *, trusted_quarto: bool = False) -> dict:
+    """Execute trusted local Quarto once on a separate Git tree copy.
+
+    Deliberately not a sandbox. Privileged hooks/extensions can still access
+    the host, even with --no-execute. No claim of zero external side effects.
+    """
+    if not trusted_quarto:
+        raise TeacherRenderError("Opt-in explicite --trusted-quarto obligatoire.")
+    proof = plan(repo, repository_id, source, working_ref, expected_sha)
+    repo = Path(repo).expanduser().resolve(strict=True)
+    dest = _safe_destination(repo, out)
+    if not shutil.which("quarto"):
+        raise TeacherRenderError("Quarto indisponible : rendu réel non qualifié.")
+    stage = Path(tempfile.mkdtemp(prefix="alliage-p36-private-", dir=dest.parent))
+    stage.chmod(0o700)
+    try:
+        project = stage / "project"
+        project.mkdir(mode=0o700)
+        objects = _objects(repo, expected_sha)
+        _preflight_objects(objects, source)
+        expected: dict[str, str] = {}
+        for name, mode, blob, size in objects:
+            file = project / _path(name)
+            file.parent.mkdir(parents=True, exist_ok=True)
+            contents = _git(repo, "cat-file", "blob", blob)
+            if len(contents) != size or contents.startswith(b"version https://git-lfs.github.com/spec/v1\n"):
+                raise TeacherRenderError("Objet Git non conforme ou LFS non résolu.")
+            file.write_bytes(contents)
+            if mode == "100755":
+                file.chmod(0o700)
+            else:
+                file.chmod(0o600)
+            expected[name] = hashlib.sha256(contents).hexdigest()
+        # Profile and engine must be selected explicitly, regardless of ambient
+        # QUARTO_PROFILE. Sanitized child environment prevents inherited secrets.
+        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+               "HOME": str(stage), "XDG_CACHE_HOME": str(stage / "cache"),
+               "QUARTO_PROFILE": "professeur", "LANG": "C.UTF-8",
+               "GIT_NO_LAZY_FETCH": "1", "GIT_TERMINAL_PROMPT": "0"}
+        cmd = ["quarto", "render", source, "--to", "html",
+               "--profile", "professeur", "--no-execute"]
+        try:
+            result = subprocess.run(cmd, cwd=project, env=env,
+                                    capture_output=True, timeout=180)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise TeacherRenderError("Rendu Quarto échoué ou expiré.") from exc
+        if result.returncode != 0:
+            # Never leak the potentially private Quarto error log into public
+            # GitHub or the browser: data stay only in the private session.
+            raise TeacherRenderError("Rendu Quarto non réussi (diagnostic masqué).")
+        for name, digest in expected.items():
+            p = project / _path(name)
+            if p.is_symlink() or not p.is_file() or hashlib.sha256(p.read_bytes()).hexdigest() != digest:
+                raise TeacherRenderError("Fichier Git suivi modifié par Quarto.")
+        # The professor output must be the ONLY generated dist subtree.
+        dist = project / "dist"
+        if not dist.is_dir() or dist.is_symlink():
+            raise TeacherRenderError("Sortie dist absente ou redirigée.")
+        if sorted(x.name for x in dist.iterdir()) != ["professeur"]:
+            raise TeacherRenderError("Profil élève ou sortie Quarto inattendue.")
+        actual = _safe_tree_inventory(project, Path("dist/professeur"))
+        html_path = "dist/professeur/" + PurePosixPath(source).with_suffix(".html").as_posix()
+        html = [x for x in actual if x["path"].lower().endswith(".html")]
+        if len(html) != 1 or html[0]["path"] != html_path or html[0]["bytes"] > MAX_HTML_BYTES:
+            raise TeacherRenderError("HTML professeur unique non démontré.")
+        for p in project.rglob("*"):
+            if p.is_symlink():
+                raise TeacherRenderError("Lien symbolique créé pendant le rendu.")
+            if p.is_file():
+                rel = p.relative_to(project).as_posix()
+                if (rel not in expected and not rel.startswith("dist/professeur/")
+                        and not rel.startswith(".quarto/")):
+                    raise TeacherRenderError("Fichier créé hors sortie professeur.")
+        manifest = {**proof,
+                    "schema": "alliage.quarto-professor-render.v0",
+                    "status": "PROFESSOR_RENDER_OBSERVED_LOCAL_ONLY",
+                    "render_profile_requested": "professeur",
+                    "render_profile_effective_verified": False,
+                    "teacher_html_verified": True,
+                    "rendered_html": html[0],
+                    "rendered_files": actual,
+                    "quarto_executed": True,
+                    "read_only": False,
+                    "source_checkout_modified": "NOT_VERIFIED",
+                    "external_effects": "NOT_VERIFIED_NOT_SANDBOXED",
+                    "publication_performed": False,
+                    "student_deployment_verified": False}
+        (stage / "manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.chmod(stage / "manifest.json", 0o600)
+        os.replace(stage, dest)
+        return manifest
+    except BaseException:
+        shutil.rmtree(stage, ignore_errors=True)
+        raise
+
+
+def main(argv: list[str] | None = None) -> int:
+    cli = argparse.ArgumentParser(description="P3.6A Quarto professeur isolé ; jamais publié.")
+    cli.add_argument("--repo", required=True, type=Path)
+    cli.add_argument("--repository-id", required=True)
+    cli.add_argument("--source", required=True)
+    cli.add_argument("--working-ref", required=True)
+    cli.add_argument("--expected-sha", required=True)
+    mode = cli.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--render", action="store_true")
+    cli.add_argument("--out", type=Path)
+    cli.add_argument("--trusted-quarto", action="store_true")
+    args = cli.parse_args(argv)
+    if args.check and (args.out or args.trusted_quarto):
+        cli.error("--check ne permet ni --out ni --trusted-quarto")
+    if args.render and (not args.out or not args.trusted_quarto):
+        cli.error("--render exige --out ET --trusted-quarto")
+    try:
+        if args.check:
+            result = plan(args.repo, args.repository_id, args.source,
+                          args.working_ref, args.expected_sha)
+        else:
+            result = render(args.repo, args.repository_id, args.source,
+                            args.working_ref, args.expected_sha, args.out,
+                            trusted_quarto=True)
+    except (TeacherRenderError, TeacherProvenanceError, PreviewError,
+            OSError, UnicodeError, ValueError) as exc:
+        cli.exit(2, "REFUSED: " + str(exc) + "\n")
+    print(json.dumps(result if args.check else {
+        "status": result["status"], "commit": result["commit"],
+        "rendered_html_sha256": result["rendered_html"]["sha256"],
+        "session_path": str(args.out),
+        "render_profile_effective_verified": result["render_profile_effective_verified"],
+        "publication_performed": False, "student_deployment_verified": False
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
