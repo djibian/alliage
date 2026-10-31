@@ -257,3 +257,27 @@ l'inventaire et les refus d'intégrité restent inchangés.
 intégrant cette correction ; aucune autorisation implicite de rendu privé,
 d'exposition navigateur ou de fusion. Cette précision n'est pas une preuve que
 l'ensemble du code Quarto installé est sandboxé ou immuable.
+
+### Contre-revue indépendante G2 — liaison explicite du SHA Git (31 octobre 2026)
+
+La contre-revue du HEAD `e9c6f31b7968ca4829a14bf4b1dfd7d6e12d8d62`
+a conclu **CORRECTIONS REQUISES (G2 uniquement)** : un appel direct de
+`_verify_tracked_copy()` pouvait fournir des octets `original_gitignore`
+différents du SHA Git déclaré dans `expected[".gitignore"]`, puis faire
+accepter leur transformation prédite. Le parcours normal de `render()`
+fournissait déjà ces deux valeurs à partir des mêmes octets Git, mais
+l'invariant n'était pas imposé à la frontière du vérificateur.
+
+**Correction minimale :** lorsque `original_gitignore` est fourni, le
+vérificateur exige la présence de `.gitignore` dans `expected` et l'égalité
+de son SHA-256 avec celui des octets d'origine. Sinon, il refuse avant même
+de calculer une prédiction Quarto. Un test fictif de substitution des octets
+initiaux reproduit le contre-exemple et impose son refus ; un test d'entrée
+sans nom `.gitignore` vérifie le refus, tandis que la transformation légitime
+reste acceptée et tracée. Aucun autre fichier suivi ni mécanisme de rendu,
+de sortie, de publication ou de confidentialité n'est modifié.
+
+**Qualification requise :** CI Python, P3.5 et Quarto réel 1.10.19/1.10.20
+sur le HEAD corrigé, puis relecture indépendante ciblée G2.
+Les rendus pédagogiques privés restent soumis à une autorisation distincte ;
+le code Quarto demeure non sandboxé.
