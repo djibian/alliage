@@ -127,7 +127,7 @@ def _safe_destination(repo: Path, dest: Path) -> Path:
     if not dest.parent.is_dir() or dest.parent.is_symlink():
         raise TeacherRenderError("Parent de sortie absent ou symbolique.")
     parent = dest.parent.resolve(strict=True)
-    if repo == parent or repo in parent.parents or parent == repo.parent:
+    if repo == parent or repo in parent.parents:
         raise TeacherRenderError("Sortie à placer hors du dépôt source.")
     if dest.name in (".", "..") or str(dest).startswith(str(repo) + os.sep):
         raise TeacherRenderError("Sortie dans le dépôt source interdite.")
