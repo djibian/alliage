@@ -135,3 +135,46 @@ nouveau HEAD reste obligatoire.
 - Le rattachement à la page Firefox, l'historique V1/V2 et une
   éventuelle qualification de déploiement élève nécessitent des étapes
   séparées, après l'expertise de P3.6A.
+
+## Premier essai Ubuntu 1.10.19 — anomalie d'intégrité détectée (31 octobre 2026)
+
+Le propriétaire a obtenu `--check=PASS` avec les 542 objets Git suivis,
+puis a autorisé un premier `--render --trusted-quarto` sur **une copie privée**
+du commit pédagogique explicite.
+
+**Résultat observé : REFUSED — `Fichier Git suivi modifié par Quarto.`**
+Le moteur Quarto avait retourné `returncode=0`, mais au moins un fichier
+de la copie ne correspondait plus à son SHA-256 Git d'origine. Ce refus
+est une garantie de sûreté : **la sortie n'est pas qualifiée** et ne doit
+être ni acceptée ni publiée. Le programme efface son instantané de
+travail temporaire lors de cet échec ; le parent privé vide créé sur Ubuntu
+peut subsister. Aucun nom de fichier ni mécanisme causal particulier
+n'est actuellement établi par ce premier journal.
+
+L'essai local utilisait **Quarto 1.10.19**, tandis que les premiers tests
+Quarto en CI utilisaient **1.10.20**. Ce seul écart ne permet
+**pas** d'attribuer l'anomalie à une régression de Quarto. Un nouveau
+workflow sur **fixtures fictives uniquement** couvre désormais ces deux
+versions afin d'éviter de généraliser le résultat d'une seule version.
+
+### Diagnostic local optionnel et refus fermé inchangé
+
+Le paramètre `--diagnose-integrity` exige toujours `--render`,
+`--trusted-quarto`, un chemin de sortie privé et un commit Git attendu.
+En cas d'altération d'un fichier suivi, il ajoute exclusivement au message
+d'erreur local un compte, le **chemin relatif du premier fichier** et les
+SHA-256 attendu et observé, sans contenu de fichier. Sans cette option,
+le message de refus générique est **strictement inchangé**. Le répertoire
+de staging est nettoyé comme avant et aucun manifeste qualifié n'est créé.
+
+**Ce paramètre déclenche une nouvelle exécution Quarto**, non une inspection
+de l'ancienne session (déjà détruite). Ne le lancer qu'après l'examen
+indépendant du correctif diagnostic et une décision explicite du propriétaire.
+Les chemins privés ne doivent pas être publiés tels quels dans GitHub
+ou les journaux CI ; ne communiquer que le type d'anomalie et, si utile,
+une catégorie de fichier expurgée.
+
+Il est interdit d'assouplir le contrôle SHA-256 ou de supposer qu'un
+fichier Git modifié par Quarto est automatiquement acceptable.
+Après identification du fichier, rechercher la cause exacte puis
+corriger le mécanisme minimalement, avec une fixture reproductible.
