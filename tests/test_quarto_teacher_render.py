@@ -72,7 +72,7 @@ class TeacherRenderTests(unittest.TestCase):
         (self.repo / "publication/tim.css").write_text(
             "h2 { color: rebeccapurple; }\n", encoding="utf-8")
         (self.repo / SOURCE).write_text(
-            "---\ntitle: Laboratoire fictif\n---\n\n# Mission de test\n"
+            '---\ntitle: "Laboratoire fictif"\n---\n\n# Mission de test\n'
             "Texte commun.\n\n"
             '::: {.content-visible when-profile="professeur"}\n'
             + TEACHER_ONLY + "\n:::\n\n"
