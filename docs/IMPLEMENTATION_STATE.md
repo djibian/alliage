@@ -406,3 +406,38 @@ aucune publication, et aucune donnée source privée dans les commits publics.
 **À faire :** revérifier les CI sur le HEAD final puis demander une
 **seconde contre-revue ciblée B1** ; la PR reste Draft et non fusionnée.
 
+### PR #11 — seconde contre-revue B1-R1/R2 : scalaires YAML (31 octobre 2026)
+
+La seconde contre-revue indépendante sur `0661ee26f68a875a3233a21dc841d397aa2f633c`
+a établi que les ambiguïtés initiales B1 étaient corrigées, mais que
+certaines **valeurs de chemins YAML** pouvaient toujours être mal
+reconnues : `css: -` (syntaxe rejetée par les parseurs), `filters: / - -`
+(liste imbriquée au lieu d'un chemin), `css: true` (booléen),
+`filters: null` (null). Le verdict est resté
+**CORRECTIONS REQUISES**, limité à la grammaire des scalaires.
+
+**Correction ciblée :** `_plain_yaml_path()` accepte uniquement un
+scalaire de chemin relatif simple, débutant par une lettre ou un
+underscore, utilisant des caractères non ambigus, sans segments
+`.`, `..`, vides ou `.git`, et excluant les mots-clefs susceptibles
+d'être des booléens ou des nulls YAML 1.1/1.2
+(`true`, `false`, `null`, `yes`, `no`, `on`, `off`, `y`, `n`,
+insensibles à la casse). Les chemins `css`, `reference-doc` et
+les éléments de `filters` utilisent cette vérification ; les
+valeurs typées des autres options demeurent validées par leur
+ensemble exact autorisé. Aucune dépendance à un parseur YAML externe
+ni extension du moteur de rendu n'a été introduite.
+
+**Contre-épreuves :** B1-R1 et B1-R2, alternatives booléennes/nulles,
+nombres, formes imbriquées et traversées de chemin ; conservation d'une
+configuration positive fictive multiprofil avec CSS, modèle ODT,
+filtre et options typées. La reconnaissance est limitée à un
+sous-ensemble déclaré, **pas** une attestation de la sémantique
+effective Quarto ni d'un HTML enseignant.
+
+**À refaire sur le HEAD final :** CI générale et P3.5 dédiée,
+contre-revue indépendante ciblée B1-R1/R2 et, si nécessaire,
+requalification locale en lecture seule par le propriétaire.
+La PR reste Draft ; aucun `main`, rendu, données pédagogiques
+ni publication ne sont modifiés.
+
