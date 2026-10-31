@@ -178,3 +178,60 @@ Il est interdit d'assouplir le contrôle SHA-256 ou de supposer qu'un
 fichier Git modifié par Quarto est automatiquement acceptable.
 Après identification du fichier, rechercher la cause exacte puis
 corriger le mécanisme minimalement, avec une fixture reproductible.
+
+## Incident Ubuntu — transformation exacte de `.gitignore` par Quarto 1.10.19
+
+Le diagnostic privé du propriétaire a établi **une seule divergence sur 542
+fichiers** : `.gitignore`, classe `CONTENT_CHANGED`. Empreinte attendue
+`cf0f54c8350431d5e34fb232399852ee4e619c048a8fe47a2b45bff7164e3672`,
+empreinte de la copie après rendu
+`89280212b11b9ee18e893cb742f94db7374bbbbabe7226036c93718e3dc4d6c2`.
+**Aucun autre fichier suivi n'était divergent à cette porte.**
+Le rendu et les contrôles ultérieurs demeuraient non qualifiés, car
+le moteur s'était arrêté au premier refus.
+
+La recherche causale a identifié, dans le **code source exact de Quarto
+1.10.19 et 1.10.20**, l'appel à `ensureGitignore(context.dir)` pendant
+`renderProject()` ; la fonction
+`src/project/project-gitignore.ts` lit toutes les lignes de
+`.gitignore`, applique `trim()` et ajoute, si elles manquent,
+`/.quarto/` et `**/*.quarto_ipynb`, avant de réécrire le fichier
+avec les sauts de ligne attendus. Références :
+`quarto-dev/quarto-cli@v1.10.19:src/command/render/project.ts`,
+`src/project/project-gitignore.ts` et `src/core/lib/text.ts`.
+
+La reconstruction **hors du dépôt pédagogique** de cette transformation
+sur les octets Git initiaux reproduit **exactement** le SHA-256
+`89280212b11b9ee18e893cb742f94db7374bbbbabe7226036c93718e3dc4d6c2`
+observé sur Ubuntu. La cause est donc établie pour le fichier refusé :
+une écriture automatique déterministe de Quarto dans **la copie privée**,
+pas une mutation nécessaire du checkout canonique.
+
+### Correction causale bornée
+
+`_expected_quarto_gitignore(original)` calcule les **octets exacts**
+qu'un Quarto 1.10.19/1.10.20 doit produire en l'absence d'un fichier
+`_*.local` racine déclenchant une règle supplémentaire.
+`_verify_tracked_copy()` n'accepte cette unique mutation que si
+le nom est **exactement `.gitignore`**, que le fichier reste régulier
+et que son SHA-256 est **exactement** celui du contenu projeté.
+Une modification même d'un octet de plus, un fichier manquant,
+symbolique ou une modification d'un autre fichier suivi déclenchent
+toujours `REFUSED`.
+
+L'exception est **tracée** dans le manifeste par
+`tracked_source_mutations_accepted`, avec nom du fichier, raison,
+SHA-256 initial et observé, et
+`tracked_source_bytes_all_preserved=false`. Le rendu n'affirme donc
+**pas** que l'ensemble des fichiers suivis est demeuré byte-identique
+au commit pendant Quarto. La source Git canonique garde son identité
+et son SHA initiaux ; aucune écriture dans le checkout pédagogique.
+Aucune sortie publiée ni autorisation Firefox n'est introduite.
+
+**Tests obligatoires :** fixture fictive avec `.gitignore` suivi,
+rendu Quarto réel 1.10.19 et 1.10.20, confirmation que les octets
+post-rendu correspondent exactement au prédicat, contrôle des
+manifests, refus des mutations adversariales et non-régression P3.5.
+Le correctif ne doit être considéré comme qualifié qu'après ces CI
+et une contre-revue indépendante de cette exception ciblée.
+
