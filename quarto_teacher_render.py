@@ -299,8 +299,40 @@ def verify_session(session: Path) -> dict:
             "publication_performed": False, "student_deployment_verified": False}
 
 
+def _verify_tracked_copy(project: Path, expected: dict[str, str], *,
+                         diagnose_integrity: bool = False) -> None:
+    """Fail closed if Quarto rewrites a tracked blob in the throwaway copy.
+
+    Optional *local-only* incident detail records relative paths and hashes,
+    never file contents. It is NOT a permission to accept changed inputs.
+    """
+    anomalies: list[dict[str, str]] = []
+    for name, digest in expected.items():
+        target = project / _path(name)
+        if target.is_symlink():
+            kind, actual = "SYMLINK", None
+        elif not target.is_file():
+            kind, actual = "MISSING_OR_NONREGULAR", None
+        else:
+            actual = hashlib.sha256(target.read_bytes()).hexdigest()
+            kind = "CONTENT_CHANGED" if actual != digest else None
+        if kind is not None:
+            anomalies.append({"path": name, "kind": kind,
+                              "expected_sha256": digest,
+                              "observed_sha256": actual})
+    if anomalies:
+        message = "Fichier Git suivi modifié par Quarto."
+        if diagnose_integrity:
+            message += (" Diagnostic local privé (aucun contenu) : "
+                        + json.dumps({"count": len(anomalies),
+                                      "first": anomalies[0]},
+                                     ensure_ascii=True, sort_keys=True))
+        raise TeacherRenderError(message)
+
+
 def render(repo: Path, repository_id: str, source: str, working_ref: str,
-           expected_sha: str, out: Path, *, trusted_quarto: bool = False) -> dict:
+           expected_sha: str, out: Path, *, trusted_quarto: bool = False,
+           diagnose_integrity: bool = False) -> dict:
     """Execute trusted local Quarto once on a separate Git tree copy.
 
     Deliberately not a sandbox. Privileged hooks/extensions can still access
@@ -350,10 +382,7 @@ def render(repo: Path, repository_id: str, source: str, working_ref: str,
             # Never leak the potentially private Quarto error log into public
             # GitHub or the browser: data stay only in the private session.
             raise TeacherRenderError("Rendu Quarto non réussi (diagnostic masqué).")
-        for name, digest in expected.items():
-            p = project / _path(name)
-            if p.is_symlink() or not p.is_file() or hashlib.sha256(p.read_bytes()).hexdigest() != digest:
-                raise TeacherRenderError("Fichier Git suivi modifié par Quarto.")
+        _verify_tracked_copy(project, expected, diagnose_integrity=diagnose_integrity)
         # The professor output must be the ONLY generated dist subtree.
         dist = project / "dist"
         if not dist.is_dir() or dist.is_symlink():
@@ -406,9 +435,11 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--render", action="store_true")
     cli.add_argument("--out", type=Path)
     cli.add_argument("--trusted-quarto", action="store_true")
+    cli.add_argument("--diagnose-integrity", action="store_true",
+                     help="Afficher localement le chemin Git du premier fichier altéré, sans son contenu.")
     args = cli.parse_args(argv)
-    if args.check and (args.out or args.trusted_quarto):
-        cli.error("--check ne permet ni --out ni --trusted-quarto")
+    if args.check and (args.out or args.trusted_quarto or args.diagnose_integrity):
+        cli.error("--check ne permet ni --out, ni --trusted-quarto, ni diagnostic")
     if args.render and (not args.out or not args.trusted_quarto):
         cli.error("--render exige --out ET --trusted-quarto")
     try:
@@ -418,7 +449,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             result = render(args.repo, args.repository_id, args.source,
                             args.working_ref, args.expected_sha, args.out,
-                            trusted_quarto=True)
+                            trusted_quarto=True,
+                            diagnose_integrity=args.diagnose_integrity)
     except (TeacherRenderError, TeacherProvenanceError, PreviewError,
             OSError, UnicodeError, ValueError) as exc:
         cli.exit(2, "REFUSED: " + str(exc) + "\n")
