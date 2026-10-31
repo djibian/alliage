@@ -326,3 +326,118 @@ La garde ne repose désormais plus sur `Array.from(URLSearchParams.keys())`. Ell
 
 **À démontrer :** CI complètes sur le HEAD final, contre-revue indépendante du changement de surface localhost (notamment attaques web/CSRF/XS-Leaks et symlinks), puis *qualification humaine Firefox* sur la nouvelle URL HTTP, confirmant zéro erreur CORS Quarto, sommaire/ancres/comportements natifs, intégrité et absence de publication. Ne pas fusionner la PR #10 tant que ces conditions ne sont pas satisfaites. L'URL aléatoire réduit l'exposition depuis les sites tiers, mais un processus local compromis demeure hors du modèle de protection.
 
+### P3.5 — lecture de la source enseignante canonique : contrat d'entrée (30 octobre 2026)
+
+**Point de départ confirmé :** PR #10 fusionnée sur `main` par squash
+`4589ca2227d82345a8c5a3e572f5fa606640f4b4`.
+Les trois workflows de `main` sont `SUCCESS` après fusion.
+La navigation historique dans une sortie locale Quarto monopage est qualifiée
+Firefox, mais ne signifie **pas** qu'une véritable ressource professeur
+multipage/profilée est reliée à son origine Git.
+
+**Observation en lecture seule du dépôt pédagogique distinct :**
+le projet utilise deux profils Quarto `eleve` / `professeur`, des sorties
+déclarées `dist/eleve` / `dist/professeur` et un projet multipage.
+Le moteur P3.1 limité à `_site`, une ressource et aucun profil ne peut pas
+être généralisé par simple changement de chemin sans invalider ses garanties.
+
+**Incrément isolé sur branche P3.5 :** `quarto_teacher_provenance.py`
+lit une référence Git explicite et un SHA40 fixé, exige la racine exacte
+et un historique sans greffe ni shallow, vérifie la source `.qmd`,
+son blob, son hash SHA-256 et l'arbre Git complet. Il reconnaît un
+contrat de profil Quarto restreint, à partir des objets du commit uniquement ;
+une configuration modifiée ou incertaine est refusée. Il ne rend rien,
+ne lit aucun HTML professeur, ne fait aucun fetch, ne démarre aucun serveur
+et n'écrit pas dans le dépôt externe. Il **ne prouve pas** la sémantique
+effective YAML/Quarto, l'authenticité distante du nom du dépôt, le
+rattachement navigateur, la confidentialité des rendus ou le déploiement élève.
+
+**Tests synthétiques créés :** source/arbres SHA fixés, modification CSS
+sans modification de la source, profil dérivé incohérent, ref mobile,
+chemin source invalide, profil absent/symbolique, checkout non inspecté et absence
+d'écriture Git. **Statut CI et revue :** à vérifier sur le HEAD final
+de la PR P3.5 ; aucune approbation ni fusion anticipée.
+
+**Précision :** le contrôle P3.5 n'effectue volontairement aucun `git status` et ne lit pas le checkout mutable ; les champs `checkout_clean_at_observation` et `checkout_head_matches_ref` valent `null` plutôt que suggérer une preuve de correspondance de l'HTML affiché. Seuls les objets Git épinglés sont observés.
+
+**Suite nécessaire :** essai local non destructeur de ce contrôle, puis
+un rendu réel du **profil `professeur` isolé**, à moteur Quarto explicitement
+autorisé, avec inventaire et preuve de non-exposition de la projection élève.
+Ce sera un autre incrément et exigera une nouvelle qualification Firefox.
+Voir `docs/EXPERIMENT_TEACHER_SOURCE.md`.
+
+### PR #11 — contre-revue indépendante B1 : correction ciblée (31 octobre 2026)
+
+La première contre-revue indépendante du HEAD `50be9889ed49354e0d20273afde21cf56d636d45`
+a conclu **CORRECTIONS REQUISES** pour un défaut unique **B1** :
+`_verify_declarations()` cherchait deux fragments de configuration
+`_quarto.yml` mais pouvait accepter des clés `profile.default` ou
+`project.output-dir` répétées, un second groupe, des mappings compacts,
+des documents YAML invalides et des ancres/alias non reconnus.
+Les protections Git, les statuts de preuve non exagérés et l'absence de
+rendu ou de publication avaient été jugés conformes.
+
+**Correction :** `_recognize_root_config()` consomme désormais l'intégralité
+de la configuration racine et reconnaît uniquement un **sous-ensemble
+structurel Quarto borné**, sans parseur YAML général : déclarations
+`project`/`profile` exactement délimitées, listes de chemins entre
+guillemets, profil par défaut et groupe uniques, clés racine/format
+autorisées et non dupliquées, indentation/valeurs simples vérifiées.
+Toute extension syntaxique, commentaire, fusion YAML, alias, tag,
+déclaration compacte ou section supplémentaire est refusée en l'absence
+d'une qualification dédiée. Il ne reste plus de garde d'ancres fondé
+sur une expression régulière défaillante ; les syntaxes d'ancres et
+d'alias sont simplement **hors grammaire admise**. Les deux fichiers
+`_quarto-professeur.yml` / `_quarto-eleve.yml` restent comparés
+octet par octet à leur profil attendu.
+
+**Contre-épreuves ajoutées :** clés dupliquées, second groupe,
+déclaration concurrente compacte, YAML invalide, ancre et alias en
+position de valeur, document additionnel, indentation, autre format,
+option dupliquée, liste projet supplémentaire et autres mutations ;
+un projet fictif multiprofil représentatif des déclarations canoniques
+demeure reconnu. Les tests couvrent la **reconnaissance déclarative**
+uniquement, ni la sémantique effective Quarto, ni un rendu, ni une URL.
+
+**Périmètre préservé :** lecture des objets Git épinglés, aucune lecture
+du checkout, aucun `fetch`, aucun Quarto, aucune navigation Firefox,
+aucune publication, et aucune donnée source privée dans les commits publics.
+
+**À faire :** revérifier les CI sur le HEAD final puis demander une
+**seconde contre-revue ciblée B1** ; la PR reste Draft et non fusionnée.
+
+### PR #11 — seconde contre-revue B1-R1/R2 : scalaires YAML (31 octobre 2026)
+
+La seconde contre-revue indépendante sur `0661ee26f68a875a3233a21dc841d397aa2f633c`
+a établi que les ambiguïtés initiales B1 étaient corrigées, mais que
+certaines **valeurs de chemins YAML** pouvaient toujours être mal
+reconnues : `css: -` (syntaxe rejetée par les parseurs), `filters: / - -`
+(liste imbriquée au lieu d'un chemin), `css: true` (booléen),
+`filters: null` (null). Le verdict est resté
+**CORRECTIONS REQUISES**, limité à la grammaire des scalaires.
+
+**Correction ciblée :** `_plain_yaml_path()` accepte uniquement un
+scalaire de chemin relatif simple, débutant par une lettre ou un
+underscore, utilisant des caractères non ambigus, sans segments
+`.`, `..`, vides ou `.git`, et excluant les mots-clefs susceptibles
+d'être des booléens ou des nulls YAML 1.1/1.2
+(`true`, `false`, `null`, `yes`, `no`, `on`, `off`, `y`, `n`,
+insensibles à la casse). Les chemins `css`, `reference-doc` et
+les éléments de `filters` utilisent cette vérification ; les
+valeurs typées des autres options demeurent validées par leur
+ensemble exact autorisé. Aucune dépendance à un parseur YAML externe
+ni extension du moteur de rendu n'a été introduite.
+
+**Contre-épreuves :** B1-R1 et B1-R2, alternatives booléennes/nulles,
+nombres, formes imbriquées et traversées de chemin ; conservation d'une
+configuration positive fictive multiprofil avec CSS, modèle ODT,
+filtre et options typées. La reconnaissance est limitée à un
+sous-ensemble déclaré, **pas** une attestation de la sémantique
+effective Quarto ni d'un HTML enseignant.
+
+**À refaire sur le HEAD final :** CI générale et P3.5 dédiée,
+contre-revue indépendante ciblée B1-R1/R2 et, si nécessaire,
+requalification locale en lecture seule par le propriétaire.
+La PR reste Draft ; aucun `main`, rendu, données pédagogiques
+ni publication ne sont modifiés.
+
