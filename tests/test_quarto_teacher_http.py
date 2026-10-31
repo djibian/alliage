@@ -44,7 +44,7 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
             target.write_bytes(data)
         # Explicitly present private-looking source/manifest sentinels: neither
         # is part of the approved output inventory nor eligible for a route.
-        (project / "cours").mkdir()
+        (project / "cours").mkdir(exist_ok=True)
         (project / "cours/secret.qmd").write_text(
             "FICTIONAL_SOURCE_MUST_NOT_BE_SERVED")
         self.manifest = {
