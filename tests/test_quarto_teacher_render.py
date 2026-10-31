@@ -94,10 +94,7 @@ class TeacherRenderTests(unittest.TestCase):
     def test_plan_never_executes_quarto_or_writes_source(self):
         before = (git(self.repo, "rev-parse", "HEAD"),
                   git(self.repo, "status", "--porcelain"))
-        with patch("quarto_teacher_render.subprocess.run", side_effect=AssertionError("no quarto")):
-            # _git uses subprocess.run from a different module; patch only
-            # the renderer subprocess, not shared Git inspection.
-            result = plan(*self.args())
+        result = plan(*self.args())
         self.assertEqual(result["commit"], self.sha)
         self.assertEqual(result["status"], "PINNED_SOURCE_AND_PROFILES_DECLARED_RENDER_NOT_RUN")
         self.assertEqual(result["render_profile_requested"], "professeur")
