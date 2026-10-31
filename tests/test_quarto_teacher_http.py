@@ -218,10 +218,31 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
         report = verify_session(fixture.output)
         self.assertEqual(report["status"], "LOCAL_PROFESSOR_FILES_REHASHED")
         self.assertEqual(len(preview.routes), len(manifest["rendered_files"]))
-        html, mime = preview.get_asset(preview.html_route)
+        # Exercise the actual HTTP transport on the real Quarto fictional
+        # output, not merely the asset reader used by the HTTP handler.
+        server = make_server(preview)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            connection = http.client.HTTPConnection(
+                "127.0.0.1", server.server_port, timeout=5)
+            try:
+                connection.request("GET", preview.html_route)
+                reply = connection.getresponse()
+                html = reply.read()
+                self.assertEqual(reply.status, 200)
+                self.assertIn("script-src 'none'",
+                              dict(reply.getheaders())["Content-Security-Policy"])
+            finally:
+                connection.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
         self.assertIn(b"FICTIONAL_TEACHER_MARKER", html)
         self.assertNotIn(b"FICTIONAL_STUDENT_MARKER", html)
-        self.assertTrue(mime.startswith("text/html"))
+        self.assertEqual(html, (fixture.output / "project" /
+                                manifest["rendered_html"]["path"]).read_bytes())
 
 
 if __name__ == "__main__":
