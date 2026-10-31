@@ -35,6 +35,15 @@ PROFILE_CONTENT = {
 # duplicate keys, flow mappings, tags, anchors, aliases, and extra YAML
 # documents must fail closed rather than silently change profile semantics.
 _QUOTED_GLOB = re.compile(r'    - "[A-Za-z0-9_./*?-]+"')
+
+def _safe_quoted_glob(line: str) -> bool:
+    """Reject absolute/parent/empty Git-scoped globs before future Quarto runs."""
+    if _QUOTED_GLOB.fullmatch(line) is None:
+        return False
+    path = line[len('    - "'): -1]
+    return all(part not in ("", ".", "..", ".git") for part in path.split("/"))
+
+
 # Plain YAML path scalars are deliberately narrower than generic Quarto
 # values. A bare "-" changes YAML sequence semantics, numeric-only values
 # become numbers, and keywords like true/null/on can become bool/null.
@@ -95,9 +104,9 @@ def _recognize_root_config(root: bytes) -> None:
     project = sections["project"]
     if (len(project) != 6 or project[:3] !=
             ["  type: default", "  output-dir: dist", "  render:"] or
-            not _QUOTED_GLOB.fullmatch(project[3]) or
+            not _safe_quoted_glob(project[3]) or
             project[4] != "  resources:" or
-            not _QUOTED_GLOB.fullmatch(project[5])):
+            not _safe_quoted_glob(project[5])):
         raise TeacherProvenanceError("Structure project Quarto non reconnue.")
 
     if sections["profile"] != [

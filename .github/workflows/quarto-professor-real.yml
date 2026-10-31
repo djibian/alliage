@@ -1,0 +1,47 @@
+name: P3.6 — rendu Quarto professeur fictif (sans publication)
+
+on:
+  pull_request:
+    paths:
+      - 'quarto_teacher_render.py'
+      - 'quarto_teacher_provenance.py'
+      - 'quarto_historical_preview.py'
+      - 'tests/test_quarto_teacher_render.py'
+      - '.github/workflows/quarto-professor-real.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'quarto_teacher_render.py'
+      - 'quarto_teacher_provenance.py'
+      - 'tests/test_quarto_teacher_render.py'
+      - '.github/workflows/quarto-professor-real.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  professor-quarto-fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        quarto-version: ['1.10.19', '1.10.20']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Installer Quarto réel uniquement pour les fixtures publiques
+        uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: ${{ matrix.quarto-version }}
+      - name: Version de Quarto
+        run: quarto --version
+      - name: Vérifier les projets fictifs multiprofils
+        env:
+          ALLIAGE_TEST_REAL_QUARTO: '1'
+        run: |
+          python3 -m py_compile quarto_teacher_render.py
+          python3 -m unittest discover -s tests -p 'test_quarto_teacher_render.py' -v

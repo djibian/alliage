@@ -441,3 +441,133 @@ requalification locale en lecture seule par le propriétaire.
 La PR reste Draft ; aucun `main`, rendu, données pédagogiques
 ni publication ne sont modifiés.
 
+### P3.6A — premier rendu professeur isolé, fixtures uniquement (31 octobre 2026)
+
+**Départ vérifié :** `main=7231ac4fb54ec54aebd498e72d4bd588878e631e`,
+PR #11 fusionnée. Les trois CI de `main` ont réussi après squash
+(contrôle Git P3.5, Python général, Quarto réel du pilote précédent).
+La base P3.5 sait reconnaître la source et les profils au commit déclaré,
+mais **aucun HTML enseignant réel** n'était encore lié au commit.
+
+**Nouvel incrément en PR Draft** : `quarto_teacher_render.py` distingue
+`plan` (préflight strictement en lecture seule) et `render`
+(explicitement opt-in `--trusted-quarto`). Le projet Git complet est
+reconstitué dans une session locale privée à partir du SHA, sans checkout,
+sans téléchargement implicite et sans reprendre les fichiers mutables
+du clone. Le rendu cible un **fichier QMD** et le profil `professeur` ;
+Quarto est exécuté avec environnement réduit et `--no-execute`.
+Les sorties hors `dist/professeur` sont refusées ; les fichiers d'entrée
+suivis sont rehashés, le HTML attendu doit être unique et la sortie
+est inventoriée avec SHA-256 ; `verify_session` refait le contrôle.
+
+**Limites critiques :** Quarto reste non sandboxé, potentiellement capable
+d'effets externes ; la session contient une copie **privée complète**
+des sources et rendus. **Aucune preuve générale** de l'interprétation
+du profil ou de l'absence d'une fuite dans une vraie sortie élève
+n'est revendiquée. Les tests en CI n'utilisent **que des fixtures
+Git inventées**, avec sentinelles professeur/élève. Il n'existe
+encore ni serveur professeur, ni lien avec Firefox, ni publication.
+
+**À démontrer avant approbation :** exécution réelle Quarto sur fixture
+multipage/profilée, comportement de sortie, tests adversariaux et
+CI sur HEAD exact, contre-revue indépendante avant tout rendu
+d'un corpus pédagogique réel, puis qualification privée Ubuntu.
+Voir `docs/EXPERIMENT_PROFESSOR_RENDER.md` et issue #12.
+
+### PR #13 — correction des trois blocages du premier audit P3.6A (31 octobre 2026)
+
+La contre-revue indépendante sur le HEAD
+`a6e973e896ad93b47c1ecf69f75ee008a11099cb`
+a conclu **CORRECTIONS REQUISES**, uniquement pour :
+B1 (préflight de métadonnées YAML actif contournable par
+`"filters":` / `'filters':` / CRLF), B2 (redirection de
+`project/dist` par lien symbolique intermédiaire non détectée),
+B3 (manifest `rendered_html` substituable avec un asset non HTML).
+
+**B1 corrigé :** `_validate_qmd_frontmatter()` consomme toute la
+syntaxe YAML du document pilote dans un sous-ensemble borné à dix
+métadonnées et à leurs valeurs validées par type ; toute forme
+équivalente hors grammaire est refusée. Test adversarial avec
+fragments YAML fictifs, clés entre guillemets, CRLF, doublons,
+alias et métadonnées inconnues. Une **expérience Quarto réelle**
+sur deux documents fictifs confirme qu'un filtre Lua peut être
+activé avec une clé entre guillemets ou un frontmatter CRLF,
+y compris avec `--no-execute`; le préflight les refuse.
+
+**B2 corrigé :** contrôle des composants physiques `project`,
+`dist` et `professeur` avant l'inventaire ; refus du symlink
+intermédiaire vers un dossier externe même si le manifeste et les
+octets des fichiers restent cohérents.
+
+**B3 corrigé :** `_single_teacher_html()` impose la même
+unicité et identité du HTML pendant `render()` et
+`verify_session()` ; refus du manifeste qui désigne un
+fichier `asset.txt` ou change `source_path`.
+
+**Durcissement complémentaire :** rejet des segments `..`,
+`.`, vides et `.git` dans les globs `project.render` et
+`project.resources`, avec tests négatifs P3.5.
+
+**Garanties conservées :** aucune modification du dépôt pédagogique
+réel, aucun rendu réel des ressources privées, aucun serveur
+professeur, aucune publication, aucune prétention de sandbox
+ou de preuve de confidentialité générale. Les sessions restent
+confidentielles. Le statut `LOCAL_PROFESSOR_FILES_REHASHED`
+ne prouve ni l'authenticité cryptographique du manifeste ni
+l'intégrité ultérieure de tous les blobs Git.
+
+**CI :** après les premières corrections, le workflow Quarto réel
+avec 15 tests et les workflows Python/P3.5 sont passés. Le HEAD
+final après documentation doit être revérifié puis faire l'objet
+d'une seconde contre-revue ciblée B1/B2/B3. La PR reste Draft.
+
+
+## P3.6A — correction G2 de la provenance des mutations Quarto (31 octobre 2026)
+
+**PR #13 toujours Draft, non fusionnée.** Base GitHub :
+`7231ac4fb54ec54aebd498e72d4bd588878e631e`. Le candidat Python corrigé
+est attesté par les CI du commit `4d7749fa5de7c08f706dfd8684bf52f275950c34` ;
+la présente capitalisation documentaire se fait **après** cette qualification
+et exige de recontrôler le HEAD final de la PR avant reprise.
+
+**Acquis antérieurs conservés :** P3.5 lit en sécurité la source Git/profils
+déclarés ; P3.6A rend sous Quarto réel un projet multipage/profils **fictif**
+dans une copie privée épinglée ; B1/B2/B3 ont été corrigés ; Quarto 1.10.x
+modifie exactement `.gitignore` et Alliage accepte exclusivement cette mutation
+prévisible, comptabilisée dans `tracked_source_mutations_accepted`. Les
+contre-épreuves Unicode rendent la prédiction cohérente avec
+`String.trim()` ECMAScript. L'audit du HEAD
+`e9c6f31b7968ca4829a14bf4b1dfd7d6e12d8d62` a établi
+**CORRECTIONS REQUISES — G2 uniquement** : l'API interne pouvait accepter des
+octets `original_gitignore` dont le SHA ne correspondait pas au SHA de
+`expected[".gitignore"]`, même si le chemin normal de `render()` restait
+cohérent.
+
+**G2 corrigé :** `_verify_tracked_copy()` impose maintenant l'identité
+SHA-256 des octets d'origine avec le manifeste Git attendu, ou refuse si le
+nom `.gitignore` est absent, avant de prédire toute transformation.
+Contre-test reproductible sur fichiers entièrement fictifs : faux octets
+d'origine et fichier attendu absent refusés, véritable transformation
+acceptée. Aucun élargissement de la zone de mutation permise.
+
+**CI réellement vérifiées sur `4d7749fa5de7c08f706dfd8684bf52f275950c34` :**
+[Python #41211085507](https://github.com/djibian/alliage/actions/runs/41211085507)
+**118 tests, 9 ignorés** ;
+[P3.5 #41211085531](https://github.com/djibian/alliage/actions/runs/41211085531)
+**12 PASS** ;
+[Quarto réel #41211085526](https://github.com/djibian/alliage/actions/runs/41211085526)
+**22 PASS en 1.10.19 et 22 PASS en 1.10.20** ; vérification des journaux
+des jobs, incluant le nouveau contre-test G2. Aucun rendu du corpus privé
+n'a été relancé après le correctif.
+
+**Limites inchangées :** Quarto n'est pas sandboxé ; `--no-execute` ne
+neutralise ni hooks ni filtres ; `render_profile_effective_verified=false` ;
+manifestes locaux non signés ; sorties privées et non exposées en HTTP ;
+pas de fidélité Firefox sur le véritable HTML professeur ni de publication
+élèves attestée. La session contient l'intégralité des blobs Git du
+projet source : toute exposition demande une qualification distincte.
+
+**Prochaine porte :** contrôle des CI sur le HEAD final et contre-revue
+indépendante **ciblée G2**, puis décision humaine explicite sur un seul
+nouvel essai de rendu professeur privé local. **Aucune fusion, publication,
+URL Firefox professeur ou réexécution Quarto privée sans mandat.**

@@ -209,6 +209,12 @@ class TeacherSourceProbeTests(unittest.TestCase):
                 "  default: eleve\n", "  default: &choice eleve\n"),
             "merge key": ROOT.replace(
                 "  group:\n", "  <<: *profileAnchor\n  group:\n"),
+            "project render parent traversal": ROOT.replace(
+                '"cours/**/*.qmd"', '"../parent/**/*.qmd"'),
+            "project resources parent traversal": ROOT.replace(
+                '"cours/**/assets/**"', '"../../outside/**"'),
+            "project resources empty segment": ROOT.replace(
+                '"cours/**/assets/**"', '"cours//assets/**"'),
             "duplicate project type": ROOT.replace(
                 "  type: default\n", "  type: default\n  type: default\n"),
             "project additional output": ROOT.replace(
