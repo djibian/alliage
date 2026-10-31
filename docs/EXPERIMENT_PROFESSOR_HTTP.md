@@ -29,6 +29,13 @@ ni à une API IA ; il n'écrit ni ne publie de ressource.
 3. **Exclusions :** aucun accès aux blobs Git, `.qmd`, manifeste,
    `dist/eleve/`, sortie hors inventaire, traversal, symlinks de chemin ou
    méthode d'écriture. Pas de routes API et pas de logs du préfixe privé.
+   Un fichier source/configuration copié par Quarto **à l'intérieur** de
+   `dist/professeur/` n'acquiert pas pour autant un droit d'accès :
+   fichiers `.qmd`, `.md`, `.ipynb`, YAML, scripts Python/Lua/shell,
+   noms cachés et `manifest.json` provoquent le refus de la session entière,
+   même si leur SHA-256 figure dans l'inventaire. Cette liste n'est pas
+   une analyse sémantique de tous les actifs : le HTML et les ressources
+   publiables peuvent eux-mêmes contenir du texte réservé à l'enseignant.
 4. **HTTP navigateur :** contrôles stricts Host/Origin/Sec-Fetch-Site,
    `Cache-Control: no-store`, `nosniff`, CORP, COOP, X-Frame-Options,
    Referrer-Policy, désactivation DNS prefetch et CSP restrictive.
