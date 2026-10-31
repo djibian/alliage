@@ -16,7 +16,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from quarto_teacher_render import (
     TeacherRenderError, plan, render, verify_session,
-    _validate_qmd_frontmatter,
+    _validate_qmd_frontmatter, _verify_tracked_copy,
 )
 from quarto_teacher_provenance import TeacherProvenanceError
 
@@ -96,6 +96,42 @@ class TeacherRenderTests(unittest.TestCase):
 
     def args(self):
         return (self.repo, "fiction/laboratoire", SOURCE, "refs/heads/professeur", self.sha)
+
+    def test_integrity_failure_default_does_not_expose_private_paths(self):
+        """Routine refuses a changed Git blob without leaking a path."""
+        project = self.home / "private-project"
+        path = project / "private/illustrative-input.css"
+        path.parent.mkdir(parents=True)
+        path.write_bytes(b"original")
+        expected = {"private/illustrative-input.css":
+                    hashlib.sha256(b"original").hexdigest()}
+        _verify_tracked_copy(project, expected)
+        path.write_bytes(b"replaced")
+        with self.assertRaises(TeacherRenderError) as caught:
+            _verify_tracked_copy(project, expected)
+        self.assertEqual(str(caught.exception),
+                         "Fichier Git suivi modifié par Quarto.")
+        self.assertNotIn("illustrative-input", str(caught.exception))
+        with self.assertRaises(TeacherRenderError) as diagnosed:
+            _verify_tracked_copy(project, expected, diagnose_integrity=True)
+        self.assertIn('"kind": "CONTENT_CHANGED"', str(diagnosed.exception))
+        self.assertIn('"count": 1', str(diagnosed.exception))
+        self.assertIn('"path": "private/illustrative-input.css"',
+                      str(diagnosed.exception))
+        self.assertIn(hashlib.sha256(b"replaced").hexdigest(),
+                      str(diagnosed.exception))
+        self.assertNotIn("replaced", str(diagnosed.exception))
+
+    def test_integrity_diagnostic_keeps_missing_and_symlink_refused(self):
+        project = self.home / "private-project"
+        project.mkdir()
+        target = project / "fiction.txt"
+        expected = {"fiction.txt": hashlib.sha256(b"original").hexdigest()}
+        with self.assertRaisesRegex(TeacherRenderError, "MISSING_OR_NONREGULAR"):
+            _verify_tracked_copy(project, expected, diagnose_integrity=True)
+        target.symlink_to(self.repo / "_quarto.yml")
+        with self.assertRaisesRegex(TeacherRenderError, "SYMLINK"):
+            _verify_tracked_copy(project, expected, diagnose_integrity=True)
 
     def test_plan_never_executes_quarto_or_writes_source(self):
         before = (git(self.repo, "rev-parse", "HEAD"),
