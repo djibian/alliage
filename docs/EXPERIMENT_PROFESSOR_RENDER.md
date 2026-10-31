@@ -74,6 +74,55 @@ Le futur rendu professeur réel (avec consentement à l'exécution) prendra
 Les fichiers générés restent sur la machine, hors du dépôt, et ne sont
 **pas** rendus accessibles à Firefox par ce premier incrément.
 
+## Premier audit indépendant — trois blocages corrigés (31 octobre 2026)
+
+L'audit de la PR #13 sur le HEAD `a6e973e896ad93b47c1ecf69f75ee008a11099cb`
+a conclu **CORRECTIONS REQUISES**, avec trois défauts distincts.
+Le correctif préserve la séparation entre préflight, rendu opt-in et
+publication, ainsi que l'absence de sandbox.
+
+- **B1 — Métadonnées YAML QMD :** les recherches de clés interdites
+  par regex ont été remplacées par la lecture **exhaustive** d'un
+  sous-ensemble strict des métadonnées en tête de fichier. Il faut
+  un en-tête LF délimité, sans CRLF, sans alias, tag, bloc YAML,
+  mapping compact, clé entre guillemets, commentaire, doublon ou
+  clé inconnue. Les champs admis actuellement sont
+  `title`, `subtitle`, `activity-id`, `activity-order`,
+  `curriculum-unit`, `publication-status`, `duration`,
+  `official-refs`, `concepts` et `support-level`, avec valeurs
+  textuelles, numériques ou listes **selon leur clé**. Ce contrat
+  correspond à l'activité pilote inspectée, mais **n'est pas un
+  parseur général** : d'autres QMD valides peuvent être refusés.
+  Les essais réels Quarto sur **fixtures fictives** démontrent que
+  les filtres Lua associés à `"filters":` et aux fins de ligne CRLF
+  sont exécutables même avec `--no-execute` ; ces mêmes entrées sont
+  systématiquement refusées par le nouveau préflight.
+- **B2 — Liens symboliques intermédiaires :** `verify_session()`
+  refuse maintenant les liens sur `project`, `dist`,
+  `professeur`, vérifie les résolutions physiques sous la
+  racine du projet et refuse toute redirection même si les SHA-256
+  de fichiers externes correspondent au manifeste.
+- **B3 — Substitution d'identité HTML :** `render()` et
+  `verify_session()` réutilisent **la même règle** : chemin
+  `dist/professeur/<source>.html` issu d'une source QMD canonique,
+  **un seul** fichier HTML, taille bornée et entrée
+  `rendered_html` strictement égale à l'inventaire recalculé.
+  Un manifeste substituant `asset.txt` au HTML est refusé.
+
+**Durcissement additionnel borné :** les globs des entrées Quarto
+`project.render` et `project.resources` ne peuvent plus contenir
+les segments `..`, `.`, vides ou `.git`. Il n'est pas prétendu
+que le comportement Quarto aurait permis une fuite effective.
+
+**Limites inchangées :** aucune protection complète contre les
+courses avec un processus hostile ayant les mêmes droits ;
+les sorties et le manifeste local ne sont **pas authentifiés
+cryptographiquement** ; `verify_session()` ne revalide pas tout
+l'instantané Git, mais seulement l'inventaire de la sortie professeur.
+Aucune de ces preuves ne qualifie l'exécution d'un Quarto non fiable
+sur le véritable corpus privé. La contre-revue indépendante du
+nouveau HEAD reste obligatoire.
+
 ## Hypothèses ouvertes
 
 - Le modèle de sortie Quarto multipage appliqué à un document unique
