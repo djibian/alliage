@@ -166,6 +166,25 @@ class TeacherRenderTests(unittest.TestCase):
         with self.assertRaises(TeacherRenderError):
             _verify_tracked_copy(project, {".gitignore": initial_sha})
 
+    def test_quarto_gitignore_prediction_uses_ecmascript_trim(self):
+        """JS trim keeps NEL/FS but strips BOM; Python strip is different."""
+        rules = b"\n/.quarto/\n**/*.quarto_ipynb\n"
+        nel = "# Synthetic\u0085\nlocal-cache/\n".encode("utf-8")
+        self.assertEqual(
+            _expected_quarto_gitignore(nel),
+            "# Synthetic\u0085\nlocal-cache/".encode("utf-8") + rules,
+        )
+        fs = "# Synthetic\u001c\nlocal-cache/\n".encode("utf-8")
+        self.assertEqual(
+            _expected_quarto_gitignore(fs),
+            "# Synthetic\u001c\nlocal-cache/".encode("utf-8") + rules,
+        )
+        bom = "\ufeff# Synthetic\nlocal-cache/\n".encode("utf-8")
+        self.assertEqual(
+            _expected_quarto_gitignore(bom),
+            b"# Synthetic\nlocal-cache/" + rules,
+        )
+
     def test_quarto_gitignore_unexpected_change_still_refused(self):
         project = self.home / "snap"
         project.mkdir()
@@ -472,6 +491,26 @@ class TeacherRenderTests(unittest.TestCase):
         rendered = learner_html.read_text(encoding="utf-8")
         self.assertNotIn(TEACHER_ONLY, rendered)
         self.assertIn(STUDENT_ONLY, rendered)
+
+    @unittest.skipUnless(os.environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
+                         "Requires explicit Quarto real test job")
+    def test_real_quarto_gitignore_preserves_non_js_whitespace(self):
+        """Quarto's JS trim must preserve NEL, not Python-strip it."""
+        self.assertIsNotNone(shutil.which("quarto"))
+        original = "# Synthetic\u0085\nlocal-cache/\n".encode("utf-8")
+        (self.repo / ".gitignore").write_bytes(original)
+        self.commit("tracked synthetic gitignore with NEL")
+        self.sha = git(self.repo, "rev-parse", "HEAD")
+        git(self.repo, "update-ref", "refs/heads/professeur", self.sha)
+        result = render(*self.args(), self.output, trusted_quarto=True)
+        self.assertEqual(
+            (self.output / "project" / ".gitignore").read_bytes(),
+            _expected_quarto_gitignore(original),
+        )
+        self.assertEqual(
+            result["tracked_source_mutations_accepted"][0]["path"],
+            ".gitignore",
+        )
 
     @unittest.skipUnless(os.environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
                          "Requires explicit Quarto real test job")
