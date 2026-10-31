@@ -208,9 +208,22 @@ def _safe_tree_inventory(root: Path, subpath: Path) -> list[dict]:
     """Inventory all regular files, refuse symlinks, cap output and rehash."""
     files = []
     amount = 0
-    target = root / subpath
-    if not target.is_dir() or target.is_symlink():
-        raise TeacherRenderError("Sortie professeur absente ou symbolique.")
+    # Path.is_symlink() on the final directory misses a symlink at
+    # "project/dist". Refuse every intermediate component BEFORE walking.
+    root = Path(root).absolute()
+    if root.is_symlink() or not root.is_dir():
+        raise TeacherRenderError("Racine projet absente ou symbolique.")
+    current = root
+    if (subpath.is_absolute() or not subpath.parts or
+            any(part in ("", ".", "..") for part in subpath.parts)):
+        raise TeacherRenderError("Chemin de sortie non canonique.")
+    for component in subpath.parts:
+        current = current / component
+        if current.is_symlink() or not current.is_dir():
+            raise TeacherRenderError("Répertoire intermédiaire absent ou symbolique.")
+        if not current.resolve(strict=True).is_relative_to(root.resolve(strict=True)):
+            raise TeacherRenderError("Sortie Quarto hors racine physique.")
+    target = current
     visited = 0
     for p in target.rglob("*"):
         visited += 1
@@ -247,6 +260,10 @@ def verify_session(session: Path) -> dict:
             or data.get("student_deployment_verified") is not False):
         raise TeacherRenderError("Manifeste Quarto non qualifié.")
     project = session / "project"
+    if project.is_symlink() or not project.is_dir():
+        raise TeacherRenderError("Répertoire projet absent ou symbolique.")
+    if not project.resolve(strict=True).is_relative_to(session.resolve(strict=True)):
+        raise TeacherRenderError("Projet hors session physique.")
     output = Path("dist/professeur")
     actual = _safe_tree_inventory(project, output)
     if actual != data.get("rendered_files"):
