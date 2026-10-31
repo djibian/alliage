@@ -248,6 +248,67 @@ class TeacherSourceProbeTests(unittest.TestCase):
             self.inspect(expected_sha=latest)["status"],
             "SOURCE_PINNED_PROFILES_DECLARED_RENDER_NOT_VERIFIED")
 
+    def test_reject_yaml_path_type_confusion_b1_r1_r2(self):
+        """B1-R1/R2: YAML paths must be scalar strings, never syntax or typed values."""
+        root_html = ROOT.replace(
+            "    embed-resources: true\\n",
+            "    embed-resources: true\\n    css: CASE\\n",
+        )
+        root_odt = ROOT + (
+            "  odt:\\n"
+            "    filters:\\n"
+            "      - CASE\\n"
+        )
+        css_bad = (
+            "-", "true", "false", "null", "TRUE", "NULL", "Null",
+            "yes", "no", "on", "off", "y", "n",
+            "0", "12", "2.5", "1e3", "2026-10-31",
+            "- -", "a/../b.css", "a//b.css",
+            ".nan", "~", ".git/config",
+        )
+        filter_bad = (
+            "-", "true", "false", "null", "TRUE", "NULL", "Null",
+            "yes", "no", "on", "off", "y", "n",
+            "0", "123", "2.5", "- -",
+            "a/../b.lua", "a//b.lua", ".git/config",
+        )
+        cases = [(f"css:{value}", root_html.replace("CASE", value))
+                 for value in css_bad]
+        cases += [(f"filters:{value}", root_odt.replace("CASE", value))
+                  for value in filter_bad]
+        for label, root in cases:
+            with self.subTest(case=label):
+                (self.repo / "_quarto.yml").write_text(root, encoding="utf-8")
+                self.commit("ambiguous YAML path fixture")
+                latest = git(self.repo, "rev-parse", "HEAD")
+                git(self.repo, "update-ref", "refs/heads/enseignant", latest)
+                with self.assertRaises(TeacherProvenanceError):
+                    self.inspect(expected_sha=latest)
+
+    def test_valid_plain_path_scalars_and_typed_options_remain_recognized(self):
+        """Existing path-bearing Quarto config and explicit booleans remain valid."""
+        project = ROOT.replace(
+            "    embed-resources: true\\n",
+            "    toc: false\\n"
+            "    embed-resources: true\\n"
+            "    page-layout: full\\n"
+            "    css: publication/tim-4e.css\\n",
+        ) + (
+            "  odt:\\n"
+            "    page-width: 7\\n"
+            "    reference-doc: publication/tim-reference.odt\\n"
+            "    filters:\\n"
+            "      - publication/semantic-odt.lua\\n"
+        )
+        (self.repo / "_quarto.yml").write_text(project, encoding="utf-8")
+        self.commit("valid typed options and plain path scalars")
+        latest = git(self.repo, "rev-parse", "HEAD")
+        git(self.repo, "update-ref", "refs/heads/enseignant", latest)
+        result = self.inspect(expected_sha=latest)
+        self.assertEqual(result["status"],
+                         "SOURCE_PINNED_PROFILES_DECLARED_RENDER_NOT_VERIFIED")
+        self.assertFalse(result["profile_effective_render_verified"])
+
     def test_realistic_multiprofile_project_shape_remains_recognized(self):
         """Recognize actual Quarto *shape*, using only fictional paths."""
         project = ROOT + (
