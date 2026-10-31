@@ -40,7 +40,7 @@ _QUOTED_GLOB = re.compile(r'    - "[A-Za-z0-9_./*?-]+"')
 # become numbers, and keywords like true/null/on can become bool/null.
 # Paths in this qualified subset start with a letter or underscore; other
 # legitimate YAML spellings must be qualified separately, not guessed.
-_PATH_SCALAR = re.compile(r"[A-Za-z_][A-Za-z0-9_./-]*\\Z")
+_PATH_SCALAR = re.compile(r"[A-Za-z_][A-Za-z0-9_./-]*\Z")
 _YAML_NON_STRING_SCALARS = frozenset({
     "true", "false", "null", "yes", "no", "on", "off", "y", "n",
 })
