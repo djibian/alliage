@@ -251,13 +251,13 @@ class TeacherSourceProbeTests(unittest.TestCase):
     def test_reject_yaml_path_type_confusion_b1_r1_r2(self):
         """B1-R1/R2: YAML paths must be scalar strings, never syntax or typed values."""
         root_html = ROOT.replace(
-            "    embed-resources: true\\n",
-            "    embed-resources: true\\n    css: CASE\\n",
+            "    embed-resources: true\n",
+            "    embed-resources: true\n    css: CASE\n",
         )
         root_odt = ROOT + (
-            "  odt:\\n"
-            "    filters:\\n"
-            "      - CASE\\n"
+            "  odt:\n"
+            "    filters:\n"
+            "      - CASE\n"
         )
         css_bad = (
             "-", "true", "false", "null", "TRUE", "NULL", "Null",
@@ -288,17 +288,17 @@ class TeacherSourceProbeTests(unittest.TestCase):
     def test_valid_plain_path_scalars_and_typed_options_remain_recognized(self):
         """Existing path-bearing Quarto config and explicit booleans remain valid."""
         project = ROOT.replace(
-            "    embed-resources: true\\n",
-            "    toc: false\\n"
-            "    embed-resources: true\\n"
-            "    page-layout: full\\n"
-            "    css: publication/tim-4e.css\\n",
+            "    embed-resources: true\n",
+            "    toc: false\n"
+            "    embed-resources: true\n"
+            "    page-layout: full\n"
+            "    css: publication/tim-4e.css\n",
         ) + (
-            "  odt:\\n"
-            "    page-width: 7\\n"
-            "    reference-doc: publication/tim-reference.odt\\n"
-            "    filters:\\n"
-            "      - publication/semantic-odt.lua\\n"
+            "  odt:\n"
+            "    page-width: 7\n"
+            "    reference-doc: publication/tim-reference.odt\n"
+            "    filters:\n"
+            "      - publication/semantic-odt.lua\n"
         )
         (self.repo / "_quarto.yml").write_text(project, encoding="utf-8")
         self.commit("valid typed options and plain path scalars")
