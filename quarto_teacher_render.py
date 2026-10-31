@@ -246,6 +246,28 @@ def _safe_tree_inventory(root: Path, subpath: Path) -> list[dict]:
     return files
 
 
+def _single_teacher_html(files: list[dict], source_path: str,
+                         claimed_html: dict | None = None) -> dict:
+    """Reapply exactly the HTML identity and size requirements at every gate."""
+    from quarto_versions import VersionError, _safe_source
+    try:
+        canonical = _safe_source(source_path)
+    except (VersionError, TypeError) as exc:
+        raise TeacherRenderError("Source QMD du manifeste non canonique.") from exc
+    expected_html = ("dist/professeur/"
+                     + PurePosixPath(canonical).with_suffix(".html").as_posix())
+    html_files = [item for item in files
+                  if isinstance(item, dict)
+                  and isinstance(item.get("path"), str)
+                  and item["path"].lower().endswith(".html")]
+    if (len(html_files) != 1 or html_files[0]["path"] != expected_html
+            or not isinstance(html_files[0].get("bytes"), int)
+            or html_files[0]["bytes"] > MAX_HTML_BYTES
+            or (claimed_html is not None and claimed_html != html_files[0])):
+        raise TeacherRenderError("HTML professeur unique ou identité non conforme.")
+    return html_files[0]
+
+
 def verify_session(session: Path) -> dict:
     """Re-verify output from disk; does NOT authenticate the original renderer."""
     session = Path(session).expanduser().absolute()
@@ -268,14 +290,12 @@ def verify_session(session: Path) -> dict:
     actual = _safe_tree_inventory(project, output)
     if actual != data.get("rendered_files"):
         raise TeacherRenderError("Intégrité des fichiers professeur perdue.")
-    html = data.get("rendered_html", {})
-    if not isinstance(html, dict) or html.get("path") not in [f["path"] for f in actual]:
-        raise TeacherRenderError("HTML professeur hors inventaire.")
-    if (html.get("bytes") != next(x["bytes"] for x in actual if x["path"] == html["path"])
-            or html.get("sha256") != next(x["sha256"] for x in actual if x["path"] == html["path"])):
-        raise TeacherRenderError("HTML professeur altéré.")
+    html = data.get("rendered_html")
+    if not isinstance(html, dict):
+        raise TeacherRenderError("Manifeste HTML non conforme.")
+    verified = _single_teacher_html(actual, data.get("source_path"), html)
     return {"status": "LOCAL_PROFESSOR_FILES_REHASHED",
-            "file_count": len(actual), "html_sha256": html["sha256"],
+            "file_count": len(actual), "html_sha256": verified["sha256"],
             "publication_performed": False, "student_deployment_verified": False}
 
 
@@ -341,10 +361,7 @@ def render(repo: Path, repository_id: str, source: str, working_ref: str,
         if sorted(x.name for x in dist.iterdir()) != ["professeur"]:
             raise TeacherRenderError("Profil élève ou sortie Quarto inattendue.")
         actual = _safe_tree_inventory(project, Path("dist/professeur"))
-        html_path = "dist/professeur/" + PurePosixPath(source).with_suffix(".html").as_posix()
-        html = [x for x in actual if x["path"].lower().endswith(".html")]
-        if len(html) != 1 or html[0]["path"] != html_path or html[0]["bytes"] > MAX_HTML_BYTES:
-            raise TeacherRenderError("HTML professeur unique non démontré.")
+        html = _single_teacher_html(actual, source)
         for p in project.rglob("*"):
             if p.is_symlink():
                 raise TeacherRenderError("Lien symbolique créé pendant le rendu.")
@@ -359,7 +376,7 @@ def render(repo: Path, repository_id: str, source: str, working_ref: str,
                     "render_profile_requested": "professeur",
                     "render_profile_effective_verified": False,
                     "teacher_html_verified": True,
-                    "rendered_html": html[0],
+                    "rendered_html": html,
                     "rendered_files": actual,
                     "quarto_executed": True,
                     "read_only": False,
