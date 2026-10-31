@@ -1,0 +1,35 @@
+name: "P3.6B — HTTP professeur fictif (Quarto réel)"
+
+on:
+  pull_request:
+    paths:
+      - "quarto_teacher_http.py"
+      - "tests/test_quarto_teacher_http.py"
+      - ".github/workflows/p36b-fictional-professor-http.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fictional-http-quarto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        quarto: ["1.10.19", "1.10.20"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: ${{ matrix.quarto }}
+      - name: Vérifier la version de Quarto
+        run: quarto --version
+      - name: Tester le transport HTTP sur les seules fixtures fictives
+        env:
+          ALLIAGE_TEST_REAL_QUARTO: "1"
+        run: python3 -m unittest discover -s tests -p "test_quarto_teacher_http.py" -v

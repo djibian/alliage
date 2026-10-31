@@ -571,3 +571,65 @@ projet source : toute exposition demande une qualification distincte.
 indépendante **ciblée G2**, puis décision humaine explicite sur un seul
 nouvel essai de rendu professeur privé local. **Aucune fusion, publication,
 URL Firefox professeur ou réexécution Quarto privée sans mandat.**
+
+## P3.6B — lecteur HTTP fictif de sortie professeur (31 octobre 2026)
+
+**Branche expérimentale** `experiment/p36b-professor-fixture-http`, **PR #14 Draft
+empilée sur la PR #13**, dont le HEAD de base est
+`ff35a3884683be9fde4d968bc88e107b16ecd94e`. P3.6A a réussi
+son rendu privé réel le 31 octobre mais **aucune route HTTP privée n'est
+autorisée**, et la PR #13 n'est pas fusionnée.
+
+- `quarto_teacher_http.py` est un serveur de laboratoire limité explicitement
+  aux identités `quarto:fiction/...` : entrée `verify_session()`, URLs exactes
+  vers les seuls actifs enregistrés de `dist/professeur/`, rehash SHA-256
+  avant chaque GET, Host/Origin/Sec-Fetch-Site et capacité aléatoire sur
+  `127.0.0.1`, méthodes d'écriture refusées.
+- CSP **statique**, `script-src 'none'`, `connect-src 'none'`, sandbox HTTP,
+  aucune preuve d'interactivité Quarto ou de sûreté universelle d'un HTML
+  actif. Un manifeste local n'est pas signé ; le préfixe de capacité n'est
+  pas un système d'authentification ni une autorisation de la session privée.
+- `tests/test_quarto_teacher_http.py` : chemins illégaux, refus du manifeste,
+  des QMD et des sorties élèves, absence de route hors inventaire,
+  altération à taille identique, symlinks, hôtes et origines adversariaux.
+  Le test opt-in Quarto réel fabrique une session **100 % fictive** puis sert
+  le vrai HTML par HTTP local et compare ses octets au fichier rehashé.
+- **CI vérifiées sur le commit de code
+  `19c52a8d687cba9cca38f75081c4bada8e974b23`** :
+  [Python général #41221421730](https://github.com/djibian/alliage/actions/runs/41221421730)
+  **126 tests, 10 ignorés, PASS** ;
+  [Quarto réel #41221421727](https://github.com/djibian/alliage/actions/runs/41221421727)
+  **8 tests PASS en 1.10.19 et 8 tests PASS en 1.10.20**,
+  vérifiés dans les journaux. Cette capitalisation documentaire nécessite
+  de recontrôler les CI du HEAD définitif de la PR.
+
+**Prochaine porte :** contre-revue indépendante de l'admission des sessions,
+de la politique CSP et du serveur HTTP, puis essai Firefox sur **fixture
+fictive seulement**. Aucune fusion des PR #13/#14 sans décision distincte,
+aucun essai sur HTML professeur réel, aucune publication élève, aucun accès
+IA ou Git depuis le navigateur.
+
+## P3.6B — observation Firefox de la fixture et correction CSS (31 octobre 2026)
+
+- **Observation Firefox humaine sur fixture fictive :** document professeur
+  HTML visible et sentinelle professeur affichée ; styles Quarto manquants.
+  Console : **deux refus CSP `style-src-elem` de feuilles
+  `data:text/css`** (projet fictif Quarto `embed-resources: true`).
+  La fenêtre privée utilisée partageait le Firefox habituel ; elle ne
+  constitue pas un profil isolé. Absence de preuve de trafic réseau nul ou
+  de fidélité interactive. Aucune capture ni URL de capacité ajoutée au dépôt.
+- **Correction limitée à P3.6B :** `style-src` autorise maintenant `data:`
+  en plus de `'self' 'unsafe-inline'`, sans autoriser JavaScript, connexion
+  externe ou nouvelle route. Tests des en-têtes HTTP et vérification
+  `data:text/css` sur HTML réellement produit par Quarto fictif.
+- **Code corrigé qualifié au commit
+  `d4e4bc9d62f4670fb6aeb74651fa9a1618548900` :** [CI Python
+  #41225105218](https://github.com/djibian/alliage/actions/runs/41225105218)
+  **129 tests, 11 ignorés, PASS** ; [CI Quarto
+  #41225105252](https://github.com/djibian/alliage/actions/runs/41225105252)
+  **11 tests PASS en 1.10.19 et en 1.10.20**.
+- **Porte suivante :** contrôler les CI du HEAD final de la PR puis
+  observer à nouveau le rendu CSS dans Firefox sur **la seule fixture
+  synthétique générée par le lanceur**. Les limites L1–L5 et le NO-GO
+  pour toute session professeur réelle restent inchangés ; les PR #13
+  et #14 sont encore Draft et non fusionnées.
