@@ -170,8 +170,8 @@ class TeacherRenderTests(unittest.TestCase):
         """G2: reject direct calls with a substituted original Git blob."""
         project = self.home / "snap"
         project.mkdir()
-        authentic = b"# ORIGINAL\\nkeep/\\n"
-        substituted = b"# DIFFERENT\\nremove/\\n"
+        authentic = b"# ORIGINAL\nkeep/\n"
+        substituted = b"# DIFFERENT\nremove/\n"
         git_sha = hashlib.sha256(authentic).hexdigest()
         (project / ".gitignore").write_bytes(
             _expected_quarto_gitignore(substituted))
