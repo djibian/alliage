@@ -299,14 +299,47 @@ def verify_session(session: Path) -> dict:
             "publication_performed": False, "student_deployment_verified": False}
 
 
-def _verify_tracked_copy(project: Path, expected: dict[str, str], *,
-                         diagnose_integrity: bool = False) -> None:
-    """Fail closed if Quarto rewrites a tracked blob in the throwaway copy.
+_QUARTO_V110_IGNORE_RULES = ("/.quarto/", "**/*.quarto_ipynb")
 
-    Optional *local-only* incident detail records relative paths and hashes,
-    never file contents. It is NOT a permission to accept changed inputs.
+
+def _expected_quarto_gitignore(original: bytes) -> bytes | None:
+    """Reproduce ONLY the Quarto 1.10.19/1.10.20 automatic ignore edit.
+
+    Source: quarto-cli/src/project/project-gitignore.ts, plus core/lib/text.ts.
+    A file written by any other mechanism, or differently, must still refuse.
+    None means that no safe prediction is possible.
     """
-    anomalies: list[dict[str, str]] = []
+    if b"\x00" in original:
+        return None
+    try:
+        text = original.decode("utf-8", "strict")
+    except UnicodeError:
+        return None
+    lines = [line.strip() for line in re.split(r"\r\n?|\n", text)]
+    missing = [entry for entry in _QUARTO_V110_IGNORE_RULES
+               if entry not in lines]
+    if not missing:
+        return original
+    # Quarto includes any already-present trailing empty line when it joins
+    # the split lines, adding a blank before its generated ignore patterns.
+    return ("\n".join(lines + missing) + "\n").encode("utf-8")
+
+
+def _verify_tracked_copy(project: Path, expected: dict[str, str], *,
+                         diagnose_integrity: bool = False,
+                         original_gitignore: bytes | None = None) -> list[dict]:
+    """Require exact Git blobs except for ONE predicted Quarto housekeeping edit.
+
+    All other mutations fail closed. The accepted edit is *recorded* so no
+    downstream consumer can mistake the post-render copy for byte-for-byte
+    identical Git input.
+    """
+    predicted = (_expected_quarto_gitignore(original_gitignore)
+                 if original_gitignore is not None else None)
+    predicted_sha = (hashlib.sha256(predicted).hexdigest()
+                     if predicted is not None else None)
+    tolerated: list[dict] = []
+    anomalies: list[dict[str, str | None]] = []
     for name, digest in expected.items():
         target = project / _path(name)
         if target.is_symlink():
@@ -316,6 +349,18 @@ def _verify_tracked_copy(project: Path, expected: dict[str, str], *,
         else:
             actual = hashlib.sha256(target.read_bytes()).hexdigest()
             kind = "CONTENT_CHANGED" if actual != digest else None
+        if kind == "CONTENT_CHANGED" and name == ".gitignore" and (
+            predicted_sha is not None and predicted_sha != digest
+            and actual == predicted_sha
+        ):
+            tolerated.append({
+                "path": ".gitignore",
+                "reason": "QUARTO_1_10_AUTOMATIC_GITIGNORE_UPDATE_EXACT_SHA256",
+                "source_sha256": digest,
+                "render_copy_sha256": actual,
+                "source_bytes_preserved": False,
+            })
+            continue
         if kind is not None:
             anomalies.append({"path": name, "kind": kind,
                               "expected_sha256": digest,
@@ -328,6 +373,7 @@ def _verify_tracked_copy(project: Path, expected: dict[str, str], *,
                                       "first": anomalies[0]},
                                      ensure_ascii=True, sort_keys=True))
         raise TeacherRenderError(message)
+    return tolerated
 
 
 def render(repo: Path, repository_id: str, source: str, working_ref: str,
@@ -353,6 +399,7 @@ def render(repo: Path, repository_id: str, source: str, working_ref: str,
         objects = _objects(repo, expected_sha)
         _preflight_objects(objects, source)
         expected: dict[str, str] = {}
+        original_gitignore: bytes | None = None
         for name, mode, blob, size in objects:
             file = project / _path(name)
             file.parent.mkdir(parents=True, exist_ok=True)
@@ -365,6 +412,8 @@ def render(repo: Path, repository_id: str, source: str, working_ref: str,
             else:
                 file.chmod(0o600)
             expected[name] = hashlib.sha256(contents).hexdigest()
+            if name == ".gitignore":
+                original_gitignore = contents
         # Profile and engine must be selected explicitly, regardless of ambient
         # QUARTO_PROFILE. Sanitized child environment prevents inherited secrets.
         env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
@@ -382,7 +431,10 @@ def render(repo: Path, repository_id: str, source: str, working_ref: str,
             # Never leak the potentially private Quarto error log into public
             # GitHub or the browser: data stay only in the private session.
             raise TeacherRenderError("Rendu Quarto non réussi (diagnostic masqué).")
-        _verify_tracked_copy(project, expected, diagnose_integrity=diagnose_integrity)
+        accepted_input_updates = _verify_tracked_copy(
+            project, expected, diagnose_integrity=diagnose_integrity,
+            original_gitignore=original_gitignore,
+        )
         # The professor output must be the ONLY generated dist subtree.
         dist = project / "dist"
         if not dist.is_dir() or dist.is_symlink():
@@ -407,6 +459,8 @@ def render(repo: Path, repository_id: str, source: str, working_ref: str,
                     "teacher_html_verified": True,
                     "rendered_html": html,
                     "rendered_files": actual,
+                    "tracked_source_mutations_accepted": accepted_input_updates,
+                    "tracked_source_bytes_all_preserved": not accepted_input_updates,
                     "quarto_executed": True,
                     "read_only": False,
                     "source_checkout_modified": "NOT_VERIFIED",
