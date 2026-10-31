@@ -296,7 +296,8 @@ class TeacherRenderTests(unittest.TestCase):
                 project = self.home / ("quarto-" + mode)
                 shutil.copytree(self.repo, project,
                                 ignore=shutil.ignore_patterns(".git"))
-                (project / "audit-filter.lua").write_text(
+                # Quarto resolves a frontmatter filter path from its QMD directory.
+                (project / "cours/mission/audit-filter.lua").write_text(
                     'function Pandoc(doc)\n'
                     '  return pandoc.Pandoc({pandoc.Para("'
                     + sentinel + '")}, doc.meta)\n'
