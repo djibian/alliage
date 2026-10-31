@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import hashlib
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -12,7 +14,10 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from quarto_teacher_render import TeacherRenderError, plan, render, verify_session
+from quarto_teacher_render import (
+    TeacherRenderError, plan, render, verify_session,
+    _validate_qmd_frontmatter,
+)
 from quarto_teacher_provenance import TeacherProvenanceError
 
 SOURCE = "cours/mission/activite.qmd"
@@ -153,6 +158,132 @@ class TeacherRenderTests(unittest.TestCase):
                     plan(self.repo, "fiction/laboratoire", SOURCE,
                          "refs/heads/professeur", latest)
         (self.repo / SOURCE).write_text(base, encoding="utf-8")
+
+    def test_B1_quoted_keys_crlf_nested_yaml_and_aliases_refused(self):
+        """Actual frontmatter bypasses from the independent P3.6A audit."""
+        base = (self.repo / SOURCE).read_text(encoding="utf-8")
+        scenarios = {
+            "quoted filters double": 'title: "Fiction"\n"filters":\n  - demonstration.lua',
+            "quoted filters single": "title: 'Fiction'\n'filters':\n  - demonstration.lua",
+            "ordinary filters": "title: 'Fiction'\nfilters:\n  - demonstration.lua",
+            "CRLF executable header": 'title: "Fiction"\r\nfilters:\r\n  - demonstration.lua',
+            "CRLF benign header": 'title: "Fiction"\r\nsubtitle: "Notes fictives"',
+            "BOM prefix": "\ufeff---\ntitle: Fiction",
+            "duplicate title": 'title: "Fiction"\ntitle: "Malice"',
+            "alias": 'title: &title_anchor "Fiction"',
+            "composed map": 'title: "Fiction"\n<<: *alias',
+            "multiline": 'title: |\n  Fiction',
+            "unknown key": 'title: "Fiction"\nfilters-v2: demonstration.lua',
+            "quoted project key": '"project": {pre-render: demonstration.lua}',
+            "quoted execute key": '"execute": true',
+            "script key": "pre-render: demonstration.sh",
+            "nested metadata": "title: 'Fiction'\nformat:\n  html: default",
+            "invalid YAML": "title: [a,",
+            "implicit typed title": "title: true",
+            "missing frontmatter": "# Fictif\n",
+        }
+        for label, meta in scenarios.items():
+            with self.subTest(case=label):
+                if label == "missing frontmatter":
+                    source_bytes = meta.encode("utf-8")
+                elif label == "BOM prefix":
+                    source_bytes = (meta + "\n---\nFictif.\n").encode("utf-8")
+                else:
+                    source_bytes = ("---\n" + meta + "\n---\nFictif.\n").encode("utf-8")
+                with self.assertRaises(TeacherRenderError):
+                    _validate_qmd_frontmatter(source_bytes)
+        # The previously qualified fictitious valid single-title fixture must pass.
+        _validate_qmd_frontmatter(base.encode("utf-8"))
+
+    def test_B1_realistic_safe_qmd_metadata_still_recognized(self):
+        """Real-world metadata *shape*, entirely fictional values."""
+        qmd = (
+            "---\n"
+            'title: "Activité fictive : gestion de fichiers"\n'
+            "subtitle: 'Exercice fictif'\n"
+            "activity-id: TIM-FAKE-02\n"
+            "activity-order: 2\n"
+            "curriculum-unit: U12\n"
+            "publication-status: preparation\n"
+            "duration: 55 min\n"
+            'official-refs: ["REF-A", "REF-B"]\n'
+            "concepts: [organisation, repertoires]\n"
+            "support-level: simulation\n"
+            "---\n\n# Fictif\n"
+        )
+        _validate_qmd_frontmatter(qmd.encode("utf-8"))
+
+    def _fake_session(self):
+        """Minimal internally consistent fictitious session: no Quarto required."""
+        path = self.home / "session"
+        project = path / "project"
+        folder = project / "dist/professeur/cours/mission"
+        folder.mkdir(parents=True)
+        html = folder / "activite.html"
+        asset = folder / "asset.txt"
+        html.write_text("<html><body>Fictif</body></html>\n", encoding="utf-8")
+        asset.write_text("Actif fictif\n", encoding="utf-8")
+        files = []
+        for file in (html, asset):
+            data = file.read_bytes()
+            files.append({"path": file.relative_to(project).as_posix(),
+                          "bytes": len(data),
+                          "sha256": hashlib.sha256(data).hexdigest()})
+        files.sort(key=lambda item: item["path"])
+        html_entry = next(f for f in files if f["path"].endswith(".html"))
+        manifest = {
+            "schema": "alliage.quarto-professor-render.v0",
+            "source_path": SOURCE,
+            "rendered_files": files,
+            "rendered_html": html_entry,
+            "publication_performed": False,
+            "student_deployment_verified": False,
+        }
+        (path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        return path, manifest
+
+    def test_B2_symlink_intermediate_dist_is_rejected_even_with_valid_hashes(self):
+        """Audit B2: hashes alone cannot authorize external physical files."""
+        path, _ = self._fake_session()
+        self.assertEqual(verify_session(path)["status"],
+                         "LOCAL_PROFESSOR_FILES_REHASHED")
+        dist = path / "project/dist"
+        outside = self.home / "external-output"
+        dist.rename(outside)
+        dist.symlink_to(outside, target_is_directory=True)
+        with self.assertRaises(TeacherRenderError):
+            verify_session(path)
+
+    def test_B2_symlink_project_is_rejected(self):
+        path, _ = self._fake_session()
+        project = path / "project"
+        outside = self.home / "external-project"
+        project.rename(outside)
+        project.symlink_to(outside, target_is_directory=True)
+        with self.assertRaises(TeacherRenderError):
+            verify_session(path)
+
+    def test_B3_manifest_cannot_designate_asset_as_html(self):
+        path, manifest = self._fake_session()
+        self.assertEqual(verify_session(path)["status"],
+                         "LOCAL_PROFESSOR_FILES_REHASHED")
+        manifest["rendered_html"] = next(
+            file for file in manifest["rendered_files"]
+            if file["path"].endswith(".txt"))
+        (path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaises(TeacherRenderError):
+            verify_session(path)
+
+    def test_B3_manifest_cannot_change_source_or_html_identity(self):
+        for source in ("../hijack.qmd", "cours/autre.qmd", SOURCE + "/../fake.qmd"):
+            with self.subTest(source=source):
+                path, manifest = self._fake_session()
+                manifest["source_path"] = source
+                (path / "manifest.json").write_text(json.dumps(manifest),
+                                                     encoding="utf-8")
+                with self.assertRaises(TeacherRenderError):
+                    verify_session(path)
+                shutil.rmtree(path)
 
     @unittest.skipUnless(os.environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
                          "Requires explicit Quarto real test job")
