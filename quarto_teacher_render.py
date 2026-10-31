@@ -301,6 +301,14 @@ def verify_session(session: Path) -> dict:
 
 _QUARTO_V110_IGNORE_RULES = ("/.quarto/", "**/*.quarto_ipynb")
 
+# Match ECMAScript String.trim() used by Quarto 1.10.x exactly. Python's
+# str.strip() differs for U+0085/U+001C..U+001F and U+FEFF.
+_JS_TRIM_CHARS = (
+    "\t\n\v\f\r \u0020\u00a0\u1680"
+    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
+
 
 def _expected_quarto_gitignore(original: bytes) -> bytes | None:
     """Reproduce ONLY the Quarto 1.10.19/1.10.20 automatic ignore edit.
@@ -315,7 +323,7 @@ def _expected_quarto_gitignore(original: bytes) -> bytes | None:
         text = original.decode("utf-8", "strict")
     except UnicodeError:
         return None
-    lines = [line.strip() for line in re.split(r"\r\n?|\n", text)]
+    lines = [line.strip(_JS_TRIM_CHARS) for line in re.split(r"\r\n?|\n", text)]
     missing = [entry for entry in _QUARTO_V110_IGNORE_RULES
                if entry not in lines]
     if not missing:
