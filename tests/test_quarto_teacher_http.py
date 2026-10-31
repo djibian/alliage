@@ -106,8 +106,18 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
         code, headers, body = self.request(url.path)
         self.assertEqual(code, 200)
         self.assertEqual(body, self.assets[self.html_path])
-        self.assertIn("script-src 'none'", headers["Content-Security-Policy"])
-        self.assertIn("connect-src 'none'", headers["Content-Security-Policy"])
+        policy = headers["Content-Security-Policy"]
+        self.assertIn("script-src 'none'", policy)
+        self.assertIn("connect-src 'none'", policy)
+        # Quarto embed-resources emits data:text/css URLs, which are not
+        # authorized by 'unsafe-inline' alone. Permit CSS data: only.
+        self.assertIn("style-src 'self' 'unsafe-inline' data:", policy)
+        self.assertNotIn("script-src 'self'", policy)
+        self.assertNotIn("connect-src 'self'", policy)
+        style = next(part for part in policy.split(";")
+                     if part.strip().startswith("style-src ")).strip()
+        self.assertNotIn("https:", style)
+        self.assertNotIn("http:", style)
         self.assertIn("sandbox allow-same-origin",
                       headers["Content-Security-Policy"])
         self.assertEqual(headers["Cache-Control"], "no-store")
@@ -285,8 +295,9 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
                 reply = connection.getresponse()
                 html = reply.read()
                 self.assertEqual(reply.status, 200)
-                self.assertIn("script-src 'none'",
-                              dict(reply.getheaders())["Content-Security-Policy"])
+                policy = dict(reply.getheaders())["Content-Security-Policy"]
+                self.assertIn("script-src 'none'", policy)
+                self.assertIn("style-src 'self' 'unsafe-inline' data:", policy)
             finally:
                 connection.close()
         finally:
@@ -295,6 +306,9 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
             thread.join(timeout=5)
         self.assertIn(b"FICTIONAL_TEACHER_MARKER", html)
         self.assertNotIn(b"FICTIONAL_STUDENT_MARKER", html)
+        # Real Quarto embeds stylesheets as data: URLs in this fixture.
+        # The HTTP CSP must explicitly permit this static display path.
+        self.assertIn(b"data:text/css", html)
         self.assertEqual(html, (fixture.output / "project" /
                                 manifest["rendered_html"]["path"]).read_bytes())
 
