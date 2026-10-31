@@ -317,8 +317,10 @@ class TeacherRenderTests(unittest.TestCase):
                        "LANG": "C.UTF-8"}
                 result = subprocess.run(cmd, cwd=project, env=env,
                                         capture_output=True, timeout=180)
-                self.assertEqual(result.returncode, 0,
-                                 "Quarto fictif n'a pas pu rendre le document.")
+                self.assertEqual(
+                    result.returncode, 0,
+                    "Échec Quarto fixture fictive : "
+                    + (result.stdout + result.stderr).decode("utf-8", "replace")[-1400:])
                 html_path = project / "dist/professeur" / Path(SOURCE).with_suffix(".html")
                 self.assertTrue(html_path.is_file())
                 self.assertIn(sentinel, html_path.read_text(encoding="utf-8"))
