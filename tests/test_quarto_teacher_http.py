@@ -131,18 +131,47 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
         self.assertNotIn("Access-Control-Allow-Origin", headers)
         self.assertFalse(self.preview.prefix.startswith("/alliage-local-"))
 
-    def test_exact_css_and_js_asset_bytes_but_scripts_disabled_in_browser(self):
-        for name, data in self.assets.items():
-            url = (self.preview.prefix + "/" + name)
-            code, headers, body = self.request(url)
-            self.assertEqual(code, 200)
-            self.assertEqual(body, data)
-            self.assertIn("script-src 'none'", headers["Content-Security-Policy"])
-            if name.endswith(".css"):
-                self.assertTrue(headers["Content-Type"].startswith("text/css"))
-            if name.endswith(".js"):
-                self.assertTrue(headers["Content-Type"].startswith("text/javascript"))
-            self.assertEqual(self.request(url, method="HEAD")[2], b"")
+    def test_only_html_is_served_even_when_auxiliary_assets_are_valid(self):
+        # L2: the verified inventory is NOT a list of HTTP authorizations.
+        self.assertEqual(len(self.preview.routes), 1)
+        self.assertEqual(
+            list(self.preview.routes), [self.preview.html_route])
+        for name in (self.css_path, self.js_path):
+            route = self.preview.prefix + "/" + name
+            with self.subTest(name=name):
+                code, headers, body = self.request(route)
+                self.assertEqual(code, 404)
+                self.assertNotIn(self.assets[name], body)
+                self.assertEqual(self.request(route, method="HEAD")[0], 404)
+                with self.assertRaises(FileNotFoundError):
+                    self.preview.get_asset(route)
+        self.assertEqual(self.request(self.preview.html_route)[0], 200)
+        self.assertEqual(self.request(self.preview.html_route, method="HEAD")[0], 200)
+
+    def test_renamed_secret_in_output_stays_unavailable_over_http(self):
+        """A source disguised as a CSS/image stays inaccessible."""
+        name = "dist/professeur/cours/mission/teacher-secrets.css"
+        payload = b"FICTIONAL_RENAMED_SOURCE_NOT_FOR_HTTP"
+        target = self.session / "project" / name
+        target.write_bytes(payload)
+        self.manifest["rendered_files"].append({
+            "path": name, "bytes": len(payload),
+            "sha256": hashlib.sha256(payload).hexdigest()
+        })
+        self.manifest["rendered_files"].sort(key=lambda x: x["path"])
+        self.save_manifest()
+        # The P3.6A oracle validates this file's bytes; L2 forbids HTTP
+        # exposure even when a source is deliberately misnamed as an asset.
+        self.assertEqual(
+            verify_session(self.session)["status"],
+            "LOCAL_PROFESSOR_FILES_REHASHED")
+        preview = FictionalTeacherPreview(self.session)
+        self.assertEqual(len(preview.routes), 1)
+        url = preview.prefix + "/" + name
+        with self.assertRaises(FileNotFoundError):
+            preview.get_asset(url)
+        self.assertEqual(
+            preview.get_asset(preview.html_route)[0], self.assets[self.html_path])
 
     def test_refuse_paths_queries_unlisted_sources_and_methods(self):
         prefix = self.preview.prefix
@@ -184,21 +213,19 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
                 "Sec-Fetch-Site": "same-origin"}
         self.assertEqual(self.request(self.url().path, headers=good)[0], 200)
 
-    def test_post_start_mutation_and_symlink_do_not_change_sealed_bytes(self):
-        """A response is the admitted immutable snapshot, not mutable disk."""
-        asset = self.session / "project" / self.css_path
-        route = self.preview.prefix + "/" + self.css_path
+    def test_post_start_mutation_and_symlink_do_not_change_sealed_html(self):
+        """The only HTTP response is the original verified HTML snapshot."""
+        asset = self.session / "project" / self.html_path
+        route = self.preview.html_route
         original = asset.read_bytes()
         asset.write_bytes(b"x" * len(original))
         self.assertEqual(self.request(route)[0], 200)
         self.assertEqual(self.request(route)[2], original)
-        # A newly admitted preview must still detect altered bytes.
         with self.assertRaises(TeacherHTTPError):
             FictionalTeacherPreview(self.session)
         asset.unlink()
-        asset.symlink_to(self.session / "project" / self.html_path)
+        asset.symlink_to(self.session / "project" / self.css_path)
         self.assertEqual(self.request(route)[2], original)
-        # New admission rejects symlinks rather than silently following.
         with self.assertRaises(TeacherHTTPError):
             FictionalTeacherPreview(self.session)
 
@@ -393,7 +420,8 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
         preview = FictionalTeacherPreview(fixture.output)
         report = verify_session(fixture.output)
         self.assertEqual(report["status"], "LOCAL_PROFESSOR_FILES_REHASHED")
-        self.assertEqual(len(preview.routes), len(manifest["rendered_files"]))
+        self.assertEqual(len(preview.routes), 1)
+        self.assertGreater(len(manifest["rendered_files"]), 1)
         # Exercise the actual HTTP transport on the real Quarto fictional
         # output, not merely the asset reader used by the HTTP handler.
         server = make_server(preview)

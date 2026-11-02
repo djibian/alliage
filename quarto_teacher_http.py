@@ -14,7 +14,6 @@ import hashlib
 from types import MappingProxyType
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import mimetypes
 import os
 import stat
 from pathlib import Path
@@ -181,10 +180,16 @@ class FictionalTeacherPreview:
         if not isinstance(html, dict) or not isinstance(html.get("path"), str):
             raise TeacherHTTPError("HTML professeur non attesté.")
         object.__setattr__(self, "prefix", "/alliage-professor-fixture-" + secrets.token_hex(16))
-        # Freeze every eligible asset into immutable bytes BEFORE binding.
-        # Post-start writes, deletions or symlink swaps cannot alter responses.
+        # P3.6D: only the single verified HTML may have an HTTP route.
+        # Quarto's synthetic embed-resources HTML needs no external assets.
+        # Other output files are rehashed by verify_session, but cannot be
+        # loaded over HTTP even if renamed to an innocent-looking extension.
         routes: dict[str, tuple[bytes, str]] = {}
+        html_name = _asset_name(html["path"])
+        if not html_name.lower().endswith(".html"):
+            raise TeacherHTTPError("Identité HTML non admise.")
         total = 0
+        seen: set[str] = set()
         for item in files:
             if not isinstance(item, dict):
                 raise TeacherHTTPError("Entrée de manifeste invalide.")
@@ -195,23 +200,16 @@ class FictionalTeacherPreview:
                 raise TeacherHTTPError("Entrée de manifeste non vérifiable.")
             total += size
             if total > MAX_RENDERED_BYTES:
-                raise TeacherHTTPError("Budget de lecture Quarto dépassé.")
+                raise TeacherHTTPError("Budget de sortie Quarto dépassé.")
             route = self.prefix + "/" + quote(name, safe="/")
-            if route in routes:
-                raise TeacherHTTPError("Collision de routes professeur.")
-            data = _seal_asset(self.session, name, size, digest)
-            suffix = PurePosixPath(name).suffix.lower()
-            if suffix in (".js", ".mjs"):
-                mime = "text/javascript"
-            elif suffix == ".css":
-                mime = "text/css"
-            else:
-                mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
-            if mime.startswith("text/") or mime in ("application/json", "image/svg+xml"):
-                mime += "; charset=utf-8"
-            routes[route] = (data, mime)
-        html_route = self.prefix + "/" + quote(_asset_name(html["path"]), safe="/")
-        if html_route not in routes:
+            if route in seen:
+                raise TeacherHTTPError("Collision de chemins professeur.")
+            seen.add(route)
+            if name == html_name:
+                data = _seal_asset(self.session, name, size, digest)
+                routes[route] = (data, "text/html; charset=utf-8")
+        html_route = self.prefix + "/" + quote(html_name, safe="/")
+        if len(routes) != 1 or html_route not in routes:
             raise TeacherHTTPError("HTML professeur absent de l'inventaire.")
         # Detect a manifest swap during admission, without ever consuming it
         # for authorization. Later swaps cannot affect sealed route bytes.
