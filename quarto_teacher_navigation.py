@@ -37,6 +37,12 @@ _BANNED_REL = frozenset({
     "preconnect", "dns-prefetch", "prefetch", "prerender", "preload",
     "modulepreload", "pingback", "manifest",
 })
+# HTML5 tree recovery may discard navigation-related start tags without DOM
+# nodes (e.g. an <iframe> or <a> inside <select>). Inspect the whole
+# start-tag diagnostic family, never just one incidental error-code spelling.
+_DROPPED_NAVIGATION_TAGS = _BANNED_TAGS | frozenset({
+    "a", "area", "meta", "link",
+})
 
 
 def _require_unambiguous_markup(text: str) -> None:
@@ -162,12 +168,20 @@ def require_static_navigation(html: bytes) -> None:
         if any(code == "duplicate-attribute"
                for _, code, _ in parser.errors):
             raise NavigationAdmissionError("Attribut HTML dupliqué.")
-        # An invalid forbidden tag can be dropped by HTML5 tree recovery
-        # without creating a DOM node; fail closed instead of forgetting it.
-        if any(code == "unexpected-start-tag-ignored"
-               and info.get("name", "").lower() in _BANNED_TAGS
-               for _, code, info in parser.errors):
-            raise NavigationAdmissionError("Balise active écartée par HTML5.")
+        # Multiple html5lib 1.1 diagnostics signal a start tag ignored
+        # during tree recovery: unexpected-start-tag-ignored AND
+        # unexpected-start-tag-in-select, among others. An absent DOM node
+        # is not evidence that prohibited syntax was never encountered.
+        # Keep this an explicit, conservative fiction-only policy: tags
+        # listed here are refused even if they were inert in that context.
+        if any(
+            "start-tag" in code
+            and isinstance(info, dict)
+            and str(info.get("name", info.get("tagName", ""))).lower()
+            in _DROPPED_NAVIGATION_TAGS
+            for _, code, info in parser.errors
+        ):
+            raise NavigationAdmissionError("Balise de navigation écartée par HTML5.")
         for element in root.iter():
             _check_element(element)
     except (UnicodeError, ValueError, TypeError, KeyError) as exc:
