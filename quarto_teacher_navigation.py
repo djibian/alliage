@@ -84,12 +84,15 @@ def _check_element(element) -> None:
     href_attrs = []
     for qualified, value in element.attrib.items():
         attr_ns, local = _qualified_name(qualified)
-        key = ("xlink:" + local) if attr_ns == _XLINK else local
+        # HTML5 exposes xlink:href as a namespaced key in SVG, but may
+        # preserve a literal "xlink:href" key in HTML. Handle both.
+        key = ("xlink:" + local) if attr_ns == _XLINK else (
+            qualified.lower() if ":" in qualified and attr_ns == "" else local)
         if key in attributes:
             raise NavigationAdmissionError("Attribut HTML ambigu.")
         attributes[key] = value
-        if local == "href":
-            href_attrs.append((attr_ns, value))
+        if local == "href" or key.endswith(":href"):
+            href_attrs.append((key, value))
 
     if tag == "meta" and namespace == _HTML and (
         (attributes.get("http-equiv") or "").strip().lower() == "refresh"
@@ -109,8 +112,8 @@ def _check_element(element) -> None:
             raise NavigationAdmissionError("Navigation secondaire interdite.")
         if len(href_attrs) > 1:
             raise NavigationAdmissionError("Destinations ambiguës.")
-        for attr_ns, href in href_attrs:
-            if attr_ns not in ("", _XLINK) or not _FRAGMENT.fullmatch(href):
+        for key, href in href_attrs:
+            if key not in ("href", "xlink:href") or not _FRAGMENT.fullmatch(href):
                 raise NavigationAdmissionError("Navigation hors document.")
         return
 
@@ -118,7 +121,7 @@ def _check_element(element) -> None:
         rel = (attributes.get("rel") or "").lower().split()
         if set(rel) & _BANNED_REL:
             raise NavigationAdmissionError("Préchargement réseau interdit.")
-        if any(attr_ns != "" for attr_ns, _ in href_attrs):
+        if any(key != "href" for key, _ in href_attrs):
             raise NavigationAdmissionError("Destination de lien ambiguë.")
         if href_attrs and not (
             rel == ["stylesheet"]
@@ -153,6 +156,12 @@ def require_static_navigation(html: bytes) -> None:
         if any(code == "duplicate-attribute"
                for _, code, _ in parser.errors):
             raise NavigationAdmissionError("Attribut HTML dupliqué.")
+        # An invalid forbidden tag can be dropped by HTML5 tree recovery
+        # without creating a DOM node; fail closed instead of forgetting it.
+        if any(code == "unexpected-start-tag-ignored"
+               and info.get("name", "").lower() in _BANNED_TAGS
+               for _, code, info in parser.errors):
+            raise NavigationAdmissionError("Balise active écartée par HTML5.")
         for element in root.iter():
             _check_element(element)
     except (UnicodeError, ValueError, TypeError, KeyError) as exc:
