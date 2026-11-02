@@ -153,3 +153,140 @@ externe. Elle est acceptée comme **observation initiale fictive seulement**.
 
 Les observations navigateur et cette exception CSS ne lèvent **aucune**
 limite L1–L5 de l'audit, ni le NO-GO pour HTML professeur réel.
+
+## P3.6C — instantané mémoire et requêtes HTTP canoniques (2 novembre 2026)
+
+**PR #15 Draft empilée sur #14**, sans modification du contenu de la
+PR #14 et sans autorisation d'afficher le vrai HTML professeur.
+
+**Correction L5 partielle :** le lecteur fictif `FictionalTeacherPreview`
+utilise désormais `verify_session()`, puis lit une seule fois chaque actif
+inscrit dans l'inventaire, par un parcours POSIX de descripteurs de répertoires
+(`dir_fd`, `O_NOFOLLOW`, `O_DIRECTORY`). L'actif final est ouvert avec
+`O_NOFOLLOW` et `O_NONBLOCK`, vérifié par `fstat` sur le *même* descripteur,
+puis borné en taille et comparé au SHA-256 annoncé. Un OS ne disposant pas
+de ce mécanisme est refusé, sans repli sur un `read_bytes()` non atomique.
+
+Les octets ainsi contrôlés sont conservés en mémoire, avec le type MIME :
+GET et HEAD ne touchent **plus au système de fichiers**. La précédente
+sémantique « mutation du disque après démarrage -> HTTP 404 » est remplacée
+par « mutation du disque après démarrage -> **mêmes octets de l'instantané
+initial** ». Une nouvelle admission sur les fichiers modifiés doit toujours
+être refusée. Le budget total des sorties est borné par `MAX_RENDERED_BYTES`
+de P3.6A (100 Mio). Cette méthode évite la course de chemin dans la lecture
+HTTP après admission, mais ne rend **pas authentique** un manifeste local
+modifié par le propriétaire ou un processus déjà autorisé.
+
+**Correction L3 ciblée :** le request-target est observé avant la
+normalisation de `BaseHTTPRequestHandler` et les alias `//...`, les URI
+absolues et les chemins non canoniques sont refusés ; un seul `Host`
+exact est admis, zéro ou un `Origin` et `Sec-Fetch-Site`, sans doublon.
+Des requêtes HTTP brutes adversariales vérifient ces refus, en préservant
+les chemins normaux.
+
+**Réduction de L1, non résolution :** l'entrée CLI
+`python3 quarto_teacher_http.py --session ...` est désormais systématiquement
+refusée. Le seul lanceur prévu pour l'essai humain est
+`p36b_fictional_firefox_demo.py --trusted-fixture-quarto`, qui construit
+localement sa propre fixture connue. Un appel Python direct à
+`FictionalTeacherPreview(session)` reste toutefois possible et le marqueur
+`quarto:fiction/...` du manifeste demeure forgeable : **ne jamais le
+considérer comme une authentification ou une autorisation du vrai contenu**.
+
+**Limites bloquantes :** L1 identité et mandat non signés, L2 fichiers
+sources déguisés en actifs, L4 liens/navigations externes et exfiltration,
+absence d'attestation universelle de l'application du profil Quarto ;
+aucune habilitation à la session réelle, aucun JS activé et aucune
+publication. Le passage vers un vrai aperçu professeur nécessite un
+dispositif de consentement/provenance indépendant de ce laboratoire et
+un nouveau verdict de sécurité.
+
+**Validation attendue :** CI Python complète et Quarto 1.10.19/1.10.20
+sur le HEAD exact, puis revue indépendante centrée sur L3/L5 et les
+limites restantes. Une réussite synthétique n'est pas un test Firefox
+supplémentaire, ni une autorisation de fusion des PR #13/#14/#15.
+
+## P3.6C — contre-expertise C1/C2, frontière de preuve corrigée (2 novembre 2026)
+
+La [contre-expertise indépendante de P3.6C](https://github.com/djibian/alliage/pull/15#issuecomment-6578152166)
+a conclu **CORRECTIONS REQUISES** sur le HEAD
+`276035b2d0316606f35a29a51277ae3fb4e8ed87` :
+L3 est confirmé, mais C1 démontre une substitution de `manifest.json`
+entre le rehash `verify_session(session)` et la deuxième lecture JSON
+réalisée par `FictionalTeacherPreview`. Le vérificateur avait validé
+une première identité HTML alors que le lecteur pouvait admettre une
+entrée modifiée `rendered_html` et un actif ajouté. C2 note que le
+dictionnaire des routes demeurait mutable en mémoire par code Python,
+même si les valeurs `bytes` étaient immuables.
+
+**C1 corrigé sans modifier le protocole par défaut de P3.6A :**
+`verify_session(session, include_manifest=True)` retourne, **uniquement
+sur opt-in interne**, l'objet `verified_manifest` qui a été effectivement
+lu et vérifié, ainsi que son SHA-256 calculé sur les mêmes octets
+`manifest_raw`. L'appel ordinaire conserve son résultat limité
+`status/file_count/html_sha256/publication_performed/student_deployment_verified`.
+Le lecteur n'effectue **aucune seconde désérialisation JSON** : ses
+routes et l'identité HTML proviennent exclusivement de l'objet validé.
+Il détecte par un contrôle SHA-256 séparé, après la copie des actifs,
+une substitution ultérieure du manifeste et refuse d'ouvrir le
+serveur. Ce second contrôle est une **détection d'écart**, et non une
+revalidation ou une revendication d'atomicité temporelle totale :
+après admission, seule la première table validée est conservée.
+
+**C2 corrigé :** le lecteur construit les routes dans un dictionnaire
+local, puis publie seulement un `MappingProxyType` en lecture seule ;
+les valeurs restent des tuples `(bytes, type_mime)` et sont scellées
+avant toute écoute HTTP. Une tentative d'écriture ou de suppression
+de route par code interne lève `TypeError`.
+
+**Contre-épreuves :** une fixture publique modifie délibérément
+`manifest.json` **après** le vrai `verify_session` et avant
+l'admission HTTP ; l'admission doit refuser. L'état final est
+également refusé par le vérificateur initial. D'autres tests
+vérifient le résultat du mode facultatif et l'impossibilité
+de muter la table de routes. Les tests POSIX/HTTP L3/L5
+précédents restent actifs.
+
+**Limites inchangées :** ces preuves concernent exclusivement une
+fixture fictive, dans un modèle où un code malveillant de même privilège
+pourrait aussi modifier le processus. L1 (provenance/consentement réel),
+L2 (actif sensible déguisé), L4 (navigation externe/exfiltration),
+et la vérification exhaustive du profil Quarto restent bloquants
+pour l'usage réel. Aucune session privée, aucune ouverture Firefox
+réelle, aucun JS activé et aucune publication n'est autorisé.
+
+## P3.6C — réaffectation d'attribut C2 (2 novembre 2026)
+
+La [contre-expertise finale](https://github.com/djibian/alliage/pull/15#issuecomment-6578674893)
+du HEAD `f25b05c6d90ab685fde26de53a0552ef03ef93e7`
+confirme **C1 LEVÉE**, mais conclut **CORRECTIONS REQUISES sur C2** :
+`MappingProxyType` empêchait une modification par élément, sans empêcher
+la réaffectation ordinaire `preview.routes = {...}`. Un consommateur
+Python dans le même processus pouvait alors faire servir une nouvelle
+table non vérifiée par `get_asset` et le handler déjà ouvert. Aucun
+chemin d'écriture via HTTP n'a été identifié par l'audit.
+
+**Correctif C2 de périmètre minimal :** le lecteur est une
+`@dataclass(frozen=True, slots=True, init=False, eq=False, repr=False)`.
+Ses quatre attributs (`session`, `prefix`, `html_route`, `routes`)
+sont établis pendant l'admission uniquement par `object.__setattr__`,
+puis non réaffectables par les opérations Python ordinaires. L'inventaire
+est toujours construit localement, converti en `MappingProxyType`
+contenant des tuples `(bytes, MIME)`, avant tout démarrage HTTP.
+
+**Régression discriminante :** le test C2 tente désormais explicitement
+`preview.routes = {route: (b"FICTIONAL_UNVERIFIED", "text/html")}`,
+la suppression de `routes` et la réaffectation de l'identité HTML,
+du préfixe et du chemin de session. Il exige le refus et confirme
+la réponse du serveur HTTP déjà démarré depuis les octets scellés.
+
+**Portée exacte :** cette immutabilité est un contrat contre les
+*opérations ordinaires sur les instances Python*, non une barrière
+contre du code arbitraire déjà exécuté dans le processus :
+`object.__setattr__`, monkeypatch de classe/méthode ou mémoire
+modifiée sont hors de portée. Aucun changement de protocole,
+d'autorisation, de confidentialité, de politique CSP ou de
+publication. L1, L2 et L4 ainsi que l'attestation du profil
+Quarto restent ouvertes : **NO-GO pour toute ressource professeur
+réelle sur HTTP**. Qualification CI sur le HEAD final et
+nouvelle contre-revue ciblée nécessaires.

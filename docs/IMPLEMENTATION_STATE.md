@@ -633,3 +633,129 @@ IA ou Git depuis le navigateur.
   synthétique générée par le lanceur**. Les limites L1–L5 et le NO-GO
   pour toute session professeur réelle restent inchangés ; les PR #13
   et #14 sont encore Draft et non fusionnées.
+
+## P3.6C — sécurisation ciblée du lecteur HTTP fictif (2 novembre 2026)
+
+**PR #15 Draft**, `experiment/p36c-sealed-fixture-http`, empilée sur
+la PR #14 au HEAD `d6e906464ad14448d2e95a1c4429d94ef7237734`,
+elle-même empilée sur la PR #13 (`ff35a3884683be9fde4d968bc88e107b16ecd94e`).
+Aucune fusion, aucun rendu privé ni publication au cours de cet incrément.
+
+La contre-revue de #14 avait accordé **GO Firefox fictif seulement**
+et identifié cinq limites L1–L5. P3.6C traite deux d'entre elles dans
+le laboratoire existant :
+- **L3** : vérification du request-target brut avant normalisation CPython,
+  refus d'URI/chemins ambigus et des en-têtes Host/Origin/Sec-Fetch-Site
+  dupliqués. Scénarios de requêtes HTTP brutes intégrés.
+- **L5** : ouverture par descripteurs POSIX `dir_fd`/`O_NOFOLLOW` et
+  `fstat` du même descripteur, puis copie de tous les actifs vérifiés dans
+  un **snapshot mémoire borné à 100 Mio**. GET/HEAD servent uniquement
+  ces octets scellés. Une altération du disque *après admission* ne peut
+  plus modifier les réponses de cette instance ; une nouvelle admission
+  sur les fichiers altérés demeure refusée. La sémantique 404 post-start
+  de #14 est donc remplacée explicitement par le contenu initial figé.
+
+La CLI de lecture directe `--session` est désactivée pour réduire les
+accidents de lancement sur une vraie session. Le lanceur fictif contrôlé
+reste l'unique chemin opérateur prévu. Cette mesure ne prouve pas que
+`quarto:fiction/...` dans un manifeste est authentique.
+
+**Tests vérifiés sur le commit de code
+`9f24aa1c10cb35e94defcba9d66eb79f65b17e33` :**
+[CI Python #41448345043](https://github.com/djibian/alliage/actions/runs/41448345043)
+**131 tests, 11 ignorés, PASS** ;
+[CI Quarto #41448345028](https://github.com/djibian/alliage/actions/runs/41448345028)
+**13 tests PASS avec 1.10.19 et 13 PASS avec 1.10.20**.
+Les journaux confirment l'exécution des scénarios HTTP brut, de snapshot
+immuable et de CLI désactivée. Le présent commit documentaire demandera
+un contrôle distinct des CI de son HEAD final.
+
+**Limites ouvertes :** L1 authentification/provenance d'une vraie session,
+L2 contenu sensible déguisé sous des noms de fichiers autorisés, L4 navigation
+externe et exfiltration navigateur, profil effectif non attesté
+universellement. **NO-GO pour HTML professeur réel**. Maintenir les PR
+#13/#14/#15 Draft ; prochaine porte : contre-revue indépendante ciblée sur
+le HEAD final de #15 et expérimentation synthétique supplémentaire si
+une réfutation est trouvée. Aucune nouvelle manipulation de l'enseignant
+requise actuellement.
+
+## P3.6C — C1/C2 corrigés après contre-expertise (2 novembre 2026)
+
+**Audit indépendant de la PR #15, HEAD
+`276035b2d0316606f35a29a51277ae3fb4e8ed87` :**
+[verdict CORRECTIONS REQUISES](https://github.com/djibian/alliage/pull/15#issuecomment-6578152166).
+L3 des requêtes HTTP et la lecture POSIX ont été approuvés dans la portée
+étudiée. Le bloquant C1 démontre une substitution de manifeste entre
+`verify_session()` et la relecture JSON du lecteur ; C2 pointe une
+table des routes modifiable par du code Python de même processus.
+Aucune session réelle n'a été ouverte en HTTP.
+
+**Correctif C1 :** `verify_session(session, include_manifest=True)` offre
+un mode de retour opt-in du **même objet manifeste effectivement validé**
+et du SHA-256 de ses octets ; le résultat par défaut ne révèle toujours
+aucun manifeste et conserve le contrat `LOCAL_PROFESSOR_FILES_REHASHED`.
+Le lecteur ne relit plus le manifeste pour dériver les routes ; il ne
+consomme que cet objet validé, scelle les octets des actifs correspondants,
+puis détecte une substitution éventuelle par une lecture de comparaison
+SHA-256, sans exploiter ses données. Un test intercale de façon
+déterministe une altération du manifeste après le vrai `verify_session`
+et avant l'admission HTTP : **refus attendu**. La lecture comparative ne
+prouve pas l'immuabilité temporelle du fichier, mais la table admise ne
+peut jamais dériver d'un manifeste différent de celui validé.
+
+**Correctif C2 :** routes construites localement puis publiées via
+`MappingProxyType`, avec des valeurs `(bytes, MIME)` figées.
+Les tentatives de mutation de route depuis Python lèvent `TypeError`.
+Les protections L3, les lectures POSIX L5, la limite 100 Mio, le refus
+de la CLI arbitraire et la CSP statique restent en vigueur.
+
+**CI vérifiées sur le commit de code
+`68e6069f501cc2c9a0391f858727220dc603e9bd` :**
+[Python #41453225107](https://github.com/djibian/alliage/actions/runs/41453225107)
+**134 tests dont 11 ignorés, PASS** ;
+[Quarto HTTP fictif #41453225091](https://github.com/djibian/alliage/actions/runs/41453225091)
+**16 PASS en 1.10.19 et 16 PASS en 1.10.20** ;
+[Quarto P3.6A #41453225097](https://github.com/djibian/alliage/actions/runs/41453225097)
+**22 PASS en 1.10.19 et 22 PASS en 1.10.20**.
+Les journaux prouvent l'exécution des trois nouveaux contre-tests.
+
+**Avant toute conclusion finale :** contrôler le HEAD documentaire
+terminal et ses CI, solliciter une contre-revue **ciblée C1/C2**.
+L1 authentification/consentement de la session réelle, L2
+fichiers sensibles déguisés, L4 navigations/exfiltration et l'attestation
+complète du profil Quarto restent NON RÉSOLUS. Maintenir les PR #13/#14/#15
+Draft, sans merge, publication ni accès HTTP à une vraie session.
+
+## P3.6C — C1 validée, C2 réaffectation traitée (2 novembre 2026)
+
+La contre-expertise indépendante du HEAD
+`f25b05c6d90ab685fde26de53a0552ef03ef93e7`,
+[publiée sur la PR #15](https://github.com/djibian/alliage/pull/15#issuecomment-6578674893),
+a conclu : **C1 LEVÉE** (identité du manifeste validé préservée),
+**C2 CORRECTIONS REQUISES** (réaffectation de `preview.routes`
+encore possible par du code Python interne), sans vulnérabilité
+HTTP distante démontrée.
+
+Le correctif minimal laisse intacts le manifeste vérifié, le scellement
+POSIX des octets, les routes exactes HTTP et la CSP. L'instance
+`FictionalTeacherPreview` est désormais une dataclass figée à slots,
+initialisée par `object.__setattr__` uniquement pendant l'admission ;
+les opérations ordinaires `preview.routes = ...`, `del preview.routes`,
+ou la réaffectation d'identité de session/route sont rejetées.
+Les valeurs `bytes` et `MappingProxyType` restent inchangées.
+Le test couvre expressément la réaffectation incriminée et vérifie
+que la réponse du serveur déjà ouvert continue à retourner les
+octets fictifs scellés.
+
+**Limite :** cette protection n'empêche pas du code arbitraire
+s'exécutant dans le même processus de recourir à
+`object.__setattr__` ou de modifier la classe/mémoire ; aucune
+sécurité contre un processus compromis n'est revendiquée.
+La portée demeure **strictement fictive**.
+
+La CI Python et les deux matrices Quarto (P3.6A et HTTP fictif)
+doivent être contrôlées sur le HEAD final, puis solliciter une
+contre-revue indépendante **strictement C2**. PR #13/#14/#15
+toujours Draft et non fusionnées ; L1/L2/L4 et l'attestation
+complète du profil Quarto restent ouvertes. Aucun HTTP professeur
+réel, aucune publication ni activation JS.

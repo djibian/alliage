@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import contextlib
+from dataclasses import FrozenInstanceError
 import io
 import hashlib
 import http.client
 import json
 import os
+import socket
 from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from urllib.parse import urlsplit
 
 from quarto_teacher_http import (
@@ -181,17 +184,126 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
                 "Sec-Fetch-Site": "same-origin"}
         self.assertEqual(self.request(self.url().path, headers=good)[0], 200)
 
-    def test_post_start_mutation_and_symlink_fail_closed(self):
+    def test_post_start_mutation_and_symlink_do_not_change_sealed_bytes(self):
+        """A response is the admitted immutable snapshot, not mutable disk."""
         asset = self.session / "project" / self.css_path
         route = self.preview.prefix + "/" + self.css_path
         original = asset.read_bytes()
         asset.write_bytes(b"x" * len(original))
-        self.assertEqual(self.request(route)[0], 404)
-        asset.write_bytes(original)
         self.assertEqual(self.request(route)[0], 200)
+        self.assertEqual(self.request(route)[2], original)
+        # A newly admitted preview must still detect altered bytes.
+        with self.assertRaises(TeacherHTTPError):
+            FictionalTeacherPreview(self.session)
         asset.unlink()
         asset.symlink_to(self.session / "project" / self.html_path)
-        self.assertEqual(self.request(route)[0], 404)
+        self.assertEqual(self.request(route)[2], original)
+        # New admission rejects symlinks rather than silently following.
+        with self.assertRaises(TeacherHTTPError):
+            FictionalTeacherPreview(self.session)
+
+    def test_direct_session_cli_is_disabled_even_for_forged_fiction(self):
+        """An arbitrary manifest path is not authorization to serve HTTP."""
+        from quarto_teacher_http import main as direct_main
+        with contextlib.redirect_stderr(io.StringIO()):
+            for args in ([], ["--session", str(self.session)]):
+                with self.subTest(args=args):
+                    with self.assertRaises(SystemExit) as error:
+                        direct_main(args)
+                    self.assertEqual(error.exception.code, 2)
+
+    def test_manifest_switch_between_verification_and_admission_refused(self):
+        """C1: never admit a second manifesto after validating the first."""
+        original_verify = verify_session
+        name = "dist/professeur/cours/mission/added.txt"
+        payload = b"FICTIONAL_NOT_IN_PREVIOUSLY_VERIFIED_INVENTORY"
+        entry = {"path": name, "bytes": len(payload),
+                 "sha256": hashlib.sha256(payload).hexdigest()}
+
+        def verify_then_switch(session, **kwargs):
+            proof = original_verify(session, **kwargs)
+            (self.session / "project" / name).write_bytes(payload)
+            changed = dict(self.manifest)
+            changed["rendered_files"] = sorted(
+                [*self.manifest["rendered_files"], entry],
+                key=lambda item: item["path"])
+            changed["rendered_html"] = entry  # not a valid .html identity
+            (self.session / "manifest.json").write_text(json.dumps(changed))
+            return proof
+
+        with patch("quarto_teacher_http.verify_session",
+                   side_effect=verify_then_switch):
+            with self.assertRaisesRegex(TeacherHTTPError, "Manifeste changé"):
+                FictionalTeacherPreview(self.session)
+        with self.assertRaises(TeacherRenderError):
+            original_verify(self.session)  # changed manifest is INVALID
+        # Previously opened preview serves only the already sealed fixture.
+        code, _, body = self.request(self.url().path)
+        self.assertEqual(code, 200)
+        self.assertEqual(body, self.assets[self.html_path])
+
+    def test_route_mapping_cannot_be_mutated_after_admission(self):
+        """C2: immutable bytes, map AND preview attribute bindings."""
+        route = self.preview.html_route
+        with self.assertRaises(TypeError):
+            self.preview.routes[route] = (b"UNVERIFIED", "text/html")
+        with self.assertRaises(TypeError):
+            del self.preview.routes[route]
+        # Exact remaining auditor counterexample: replacing the field used
+        # by the already running HTTP handler must fail, not serve new bytes.
+        with self.assertRaises(FrozenInstanceError):
+            self.preview.routes = {route: (b"FICTIONAL_UNVERIFIED", "text/html")}
+        with self.assertRaises(FrozenInstanceError):
+            del self.preview.routes
+        for key, value in (
+            ("html_route", "/replaced"),
+            ("prefix", "/replaced"),
+            ("session", self.session.parent),
+        ):
+            with self.subTest(field=key):
+                with self.assertRaises(FrozenInstanceError):
+                    setattr(self.preview, key, value)
+        self.assertEqual(
+            self.preview.get_asset(route)[0], self.assets[self.html_path])
+        # Verify the in-flight handler continues to serve the sealed content.
+        self.assertEqual(self.request(route)[2], self.assets[self.html_path])
+
+    def test_manifest_proof_returns_same_validated_object_only_on_optin(self):
+        ordinary = verify_session(self.session)
+        self.assertNotIn("verified_manifest", ordinary)
+        self.assertNotIn("verified_manifest_sha256", ordinary)
+        detailed = verify_session(self.session, include_manifest=True)
+        self.assertEqual(detailed["verified_manifest"], self.manifest)
+        self.assertEqual(
+            detailed["verified_manifest_sha256"],
+            hashlib.sha256((self.session / "manifest.json").read_bytes()).hexdigest())
+
+    def test_raw_http_target_and_duplicate_security_headers_denied(self):
+        """Test what CPython normalizes BEFORE Handler.path is available."""
+        url = self.url()
+        port = self.server.server_port
+        host = f"127.0.0.1:{port}"
+        requests = [
+            (f"GET /{url.path} HTTP/1.1\r\nHost: {host}\r\n\r\n")
+                .encode("ascii"),
+            (f"GET http://{host}{url.path} HTTP/1.1\r\nHost: {host}\r\n\r\n")
+                .encode("ascii"),
+            (f"GET {url.path} HTTP/1.1\r\nHost: {host}\r\nHost: evil.example\r\n\r\n")
+                .encode("ascii"),
+            (f"GET {url.path} HTTP/1.1\r\nHost: {host}\r\n"
+             f"Origin: http://{host}\r\nOrigin: https://evil.example\r\n\r\n")
+                .encode("ascii"),
+            (f"GET {url.path} HTTP/1.1\r\nHost: {host}\r\n"
+             "Sec-Fetch-Site: none\r\nSec-Fetch-Site: cross-site\r\n\r\n")
+                .encode("ascii"),
+        ]
+        for payload in requests:
+            with self.subTest(request=payload.split(b"\r\n")[0]):
+                with socket.create_connection(("127.0.0.1", port), timeout=5) as peer:
+                    peer.sendall(payload)
+                    first = peer.recv(256).split(b"\r\n")[0]
+                self.assertIn(b" 403 ", first)
+        self.assertEqual(self.request(url.path)[0], 200)
 
     def test_invalid_manifest_rejected_before_server_start(self):
         self.manifest["resource_id"] = (
