@@ -58,6 +58,10 @@ class _NavigationGuard(HTMLParser):
                 "ping", "download", "target", "formaction",
             )):
                 raise NavigationAdmissionError("Navigation secondaire interdite.")
+            # In SVG, href and xlink:href may coexist. Never silently
+            # authorize one attribute while ignoring a second destination.
+            if "href" in properties and "xlink:href" in properties:
+                raise NavigationAdmissionError("Destinations ambiguës.")
             if "href" in properties or "xlink:href" in properties:
                 href = properties.get("href", properties.get("xlink:href"))
                 if not isinstance(href, str) or not _FRAGMENT.fullmatch(href):
