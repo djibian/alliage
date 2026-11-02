@@ -853,3 +853,42 @@ seulement la non-régression du projet existant.
 aucun déploiement, aucune ressource professeur réelle
 accessible par HTTP ; L1, L2, L4 de production et
 attestation du profil Quarto restent non résolus.
+
+## P3.6F1 — prototype d'interception simulée, Firefox réel non qualifié (2 novembre 2026)
+
+**Branche d'expérience indépendante :**
+`experiment/p36f1-firefox-global-deny-fixture`,
+empilée sur l'architecture F0 corrigée de PR #18,
+HEAD `e0043c54ddf67fa653a1b58618125eec75381f2d`,
+[approuvée architecturalement](https://github.com/djibian/alliage/pull/18#issuecomment-6587854448)
+**pour coder F1 fictif seulement**. PR #17 reste
+APPROUVABLE fictive/non fusionnée et non modifiée.
+
+Une WebExtension MV3 **distincte** est proposée sous
+`experiments/p36f-extension/`, avec une politique pure
+`CLOSED` / `ARMED` en mémoire, veto `webRequest` global,
+refus de tous les HTTP(S) effectivement interceptés sauf
+l'unique `GET/main_frame` à l'URL fictive exacte, depuis
+l'onglet pré-armé. Enregistrement synchrone de l'écouteur
+au top-level, même en état fermé. `webNavigation` sert
+seulement à noter les commits, jamais à les bloquer.
+
+Tests Node simulant les API de Firefox et serveur témoin
+double HTTP strictement `127.0.0.1`, avec tests Python
+de joignabilité/compteur. Permissions `<all_urls>`
+**uniquement dans la WebExtension de laboratoire**,
+jamais dans `extension/manifest.json` v0.4.
+Aucune donnée privée, aucun rendu professeur réel,
+aucune installation dans Firefox habituel.
+
+**Statut rigoureux : `F1_UNIT_ONLY / INTERCEPTION_UNPROVEN`.**
+Les résultats CI unitaires ne prouvent pas que Firefox
+réel appelle le listener, le bloque avant réception, ni
+l'absence de DNS, requêtes non HTTP ou égress externe.
+La prochaine porte indépendante porte sur l'API, les
+permissions et la logique des tests. Le micro-smoke
+Firefox n'est éligible qu'avec une isolation réelle
+sans sortie Internet **déjà attestée** avant lancement,
+et des témoins A/B positif/négatif. En son absence,
+rester `INTERCEPTION_UNPROVEN`. L1/L2/L4 globale
+et le profil réel Quarto restent fermés.
