@@ -46,3 +46,31 @@
 **Arbitrage ouvert :** la future topologie des branches par ressource et le registre d'attestations de publication ne sont pas imposés par P3.0. Expérimenter une branche dédiée sur un dépôt de test, puis décider à partir du parcours réel.
 
 **A013 — La chaîne de qualification n'est pas l'interface produit (26 octobre 2026).** Le scénario fictif V3→V4 a qualifié la composition explicite P3.3 (SHA Git observé) → P3.1 (aperçus Quarto réels) → P3.2 (navigation Firefox) sans publication. Pour l'incrément suivant, privilégier la réduction des manipulations au moyen d'une commande locale minimale, en conservant les identités et garanties vérifiables. Ni les commandes Python, ni les dossiers de sessions, ni `navigation.html` ne définissent le modèle produit définitif. L'objectif reste l'enseignant travaillant dans la ressource canonique, avec dialogue IA indépendant, historique de conception contextualisé et maîtrise explicite de la validation et de la publication. Ne pas imposer au navigateur le pilotage de Git/Quarto, de nouveau moteur IA ni d'infrastructure multiapplication avant une preuve de nécessité. Les mécanismes distincts de modification externe, de révision, de validation et de publication restent régis par A008–A012.
+
+
+## Décision de frontière de sécurité — 2 novembre 2026
+
+**A014 — Filtrage HTML expérimental, confinement Firefox non inféré.**
+La contre-expertise P3.6E a démontré qu'un document accepté par
+`HTMLParser` Python peut construire des liens MathML/SVG/SMIL actifs
+dans le navigateur après récupération HTML5 d'un commentaire malformé.
+Les règles lexicales restrictives et le filtre de balises actuels
+sont conservés **comme un refus anticipé dans le laboratoire fictif**,
+pas comme une barrière de sécurité complète pour une ressource
+professeur privée. Ils ne transforment jamais les octets Quarto vérifiés.
+
+**Orientation retenue :** chercher le confinement effectif des requêtes
+et navigations au **niveau Firefox** ou d'un contexte isolé, plutôt que
+poursuivre indéfiniment des listes de balises HTML interdites.
+Les candidats (WebExtension avec interception des requêtes, surface
+de navigation dédiée, etc.) restent des **hypothèses à tester**,
+notamment sur l'annulation de navigations de premier niveau et des
+sous-ressources, leurs permissions, les URL de capacité et les
+possibilités d'interférence d'autres extensions. Aucun de ces candidats
+n'est encore qualifié ni autorisé sur le contenu réel.
+
+**Restrictions inchangées :** L1 provenance et consentement explicites,
+L2 confidentialité du contenu HTML, L4 absence de fuite/navigations,
+attestation du profil professeur, interdiction de publication automatique.
+La PR #17 est expérimentale et ne crée aucun droit implicite
+d'ouverture HTTP de sessions pédagogiques privées.
