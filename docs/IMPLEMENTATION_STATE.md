@@ -759,3 +759,207 @@ contre-revue indépendante **strictement C2**. PR #13/#14/#15
 toujours Draft et non fusionnées ; L1/L2/L4 et l'attestation
 complète du profil Quarto restent ouvertes. Aucun HTTP professeur
 réel, aucune publication ni activation JS.
+
+
+## P3.6E — navigation statique sur fixture fictive (2 novembre 2026)
+
+**PR #17 Draft**, branche `experiment/p36e-static-navigation-fixture`,
+empilée sur #16 au HEAD `9f7a02d1b089a38b554af94aedaf8ca377da407a`
+(la PR #16 a réussi les CI, la contre-revue indépendante et l'observation
+Firefox statique sur sa fixture `embed-resources: true` ; voir
+[rapport humain expurgé](https://github.com/djibian/alliage/pull/16#issuecomment-6580720860)).
+PR #13–#16 toujours Draft/non fusionnées.
+
+La lecture de la [documentation MDN sur CSP sandbox](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/sandbox)
+montre que l'absence de `allow-top-navigation` **ne garantit pas
+l'interdiction de navigation du document de premier niveau lui-même**.
+La preuve Firefox de #16 ne comporte aucun clic de navigation
+malveillant. **L4 n'est pas levée.**
+
+**Petit incrément de recherche L4a :** `quarto_teacher_navigation.py`
+analyse le HTML **exactement scellé** après `verify_session`, sans
+réécriture des octets admis, avant l'ouverture du socket HTTP.
+Refus des ancres de navigation hors fragments `#...` du même document,
+des destinations HTML/SVG ambiguës, `target`, `ping`, `download`,
+`meta refresh`, `base`, formulaires, frames et liens head de
+préconnexion/préchargement. La CSS embarquée `data:text/css,`
+de la fixture Quarto reste admise. Un contenu refusé bloque entièrement
+l'admission HTTP, plutôt que de supprimer un lien dans le HTML.
+
+**Tests :** vecteurs synthétiques de navigation et attributs dupliqués,
+ajout de liens externes dans un HTML **par ailleurs vérifié par P3.6A**,
+assertion de refus ; les fragments internes et l'HTML Quarto fictif
+normal sont servis sans transformation. Rendu Quarto réel
+1.10.19 et 1.10.20, tests Python généraux et tests HTTP sont attendus
+sur le HEAD final de la PR #17.
+
+**Portée limitée :** `HTMLParser` Python ne démontre pas l'équivalence
+avec le parseur HTML5 de Firefox ; ce contrôle n'est pas une
+sanitisation générale. Les réseaux déclenchés par CSS, SVG,
+éléments non couverts, fonctionnalités du navigateur ou extensions,
+et les navigations ultérieures devront être mesurés séparément.
+L1 provenance/consentement, L2 contenu intégré au HTML, profil Quarto
+effectif et L4 complète restent ouverts. **Aucun HTTP professeur réel,
+aucun JS, aucune publication et aucune fusion.**
+
+## P3.6E — réfutations MathML/SMIL corrigées après revue (2 novembre 2026)
+
+La [contre-expertise de #17](https://github.com/djibian/alliage/pull/17#issuecomment-6581380069)
+a donné **CORRECTIONS REQUISES** sur le HEAD initial
+`a80982b97c7392c1ccf18950f36d3aac813df349`. Deux
+constructions fictives échappaient au filtre : liens `href` sur
+éléments MathML (`math` et `mi`), et animation SMIL du
+`href` SVG (`set` / `animate`) sans JavaScript.
+
+**Correction L4a ciblée sur la même PR #17 Draft** : refuser
+`href` / `xlink:href` sur les éléments non explicitement
+autorisés (`a`, `area`, `link`), refuser
+`xlink:href` sur `link`, refuser entièrement les tags
+SMIL `set`, `animate`, `animateMotion`,
+`animateTransform`, `animateColor`, `discard`.
+Le contrôle reste un **refus d'admission**, sans modifier
+le HTML scellé ni changer les routes/CSP.
+
+**Contre-tests ajoutés :** exemples MathML, SVG/SMIL statique
+et animé, variantes d'attributs (y compris `xlink:href`),
+et test d'intégration prouvant qu'un HTML **rehashé avec
+succès par P3.6A** est tout de même refusé par le lecteur.
+Les tests précédents de fragments internes, CSS Quarto
+intégré et conservation octet pour octet restent actifs.
+
+**Qualification en cours** sur le HEAD final : Python général
+et Quarto réel 1.10.19/1.10.20 ; ne pas déclarer de PASS
+sans consulter les journaux de cette révision.
+
+**Prochaine porte :** nouvelle revue indépendante strictement
+sur les deux réfutations et l'absence de régression L4a.
+Aucune ouverture réelle, aucun HTML professeur privé via
+HTTP, aucune fusion, aucun JS ni publication. L1/L2/L4
+général et l'attestation du profil restent ouverts.
+
+## P3.6E — divergence HTML5/HTMLParser, grammaire fictive resserrée (2 novembre 2026)
+
+La [deuxième contre-expertise indépendante de #17](https://github.com/djibian/alliage/pull/17#issuecomment-6582722330)
+sur le HEAD `84a9b567bd3844bde79f652580b9e03984bbe489`
+a conclu **CORRECTIONS REQUISES** : les interdictions MathML/SMIL
+étaient efficaces sur les balises visibles, mais des commentaires HTML
+malformés `<!----!>` ou déclarations `<![CDATA[>`
+pouvaient masquer au parseur Python des éléments restitués par HTML5.
+Les CI de ce HEAD ne couvraient pas ces écarts.
+
+Des tests fictifs ont été ajoutés **au parseur et à l'admission HTTP**,
+avec `verify_session()` PASS avant le refus attendu. Une première
+stratégie de refus de tous les commentaires a produit **CI Quarto rouge**
+(par refus sûr mais incompatible avec les commentaires Quarto normaux).
+Une stratégie de grammaire restreinte accepte ensuite le doctype HTML
+simple et les seuls commentaires bien terminés sans structures
+`<`, `>`, `--` internes ; les déclarations/CDATAs et commentaires
+ambigus restent refusés. Les octets du HTML restent intacts, et le
+serveur continue de ne publier qu'une seule route fictive.
+
+**Preuve CI sur le commit de code
+`079f5dc689aa600bced901d850df6c9d220e3705` :**
+[Python #41485105195](https://github.com/djibian/alliage/actions/runs/41485105195)
+**145 tests dont 11 ignorés, PASS** ;
+[Quarto + HTTP #41485105475](https://github.com/djibian/alliage/actions/runs/41485105475)
+**21 tests PASS sur 1.10.19 et 21 PASS sur 1.10.20**.
+Le compte rendu du HEAD final documentaire demandera un contrôle CI
+distinct avant nouvelle contre-revue indépendante.
+
+**Décision de limite :** refuser une construction syntaxique
+ambiguë dans ce *laboratoire fictif* ne prouve pas le confinement
+navigateur. Le contrôle L4 de production devra être pensé au niveau
+du navigateur/du contexte de navigation, pas comme l'accumulation
+de listes Python de balises interdites. Pas de tests Firefox adversariaux
+sur ce HEAD à ce stade ; aucun accès réel ni publication.
+L1, L2 du HTML, L4 général et le profil Quarto effectif restent
+non qualifiés. PR #13 à #17 Draft/non fusionnées.
+
+## P3.6E — résolution structurante de la divergence SVG/style (2 novembre 2026)
+
+La [troisième contre-expertise indépendante de P3.6E](https://github.com/djibian/alliage/pull/17#issuecomment-6583146348),
+sur le HEAD `707677dff3a9f79994ab6012e6bd77eab3d97156`,
+conclut **CORRECTIONS REQUISES** : sous `svg/style`,
+`svg/script`, `math/style`, l'ancienne API Python
+`HTMLParser` masquait des liens HTML et redirections que
+le parseur HTML5 d'un navigateur pouvait effectivement reconstruire.
+Les commentaires malformés de la revue précédente étaient déjà refusés,
+mais le filtre L4a restait contournable.
+
+**Correction architecturale de la seule branche fictive #17 :**
+le garde utilise désormais le DOM de **html5lib 1.1**, un parseur
+HTML5 tenant compte des espaces de noms SVG/MathML, et parcourt les
+éléments effectivement reconstruits. Les destinations `href`
+et `xlink:href` ne sont admises qu'avec les règles strictes
+sur les éléments HTML/SVG attendus. Les attributs HTML5 dupliqués
+sont refusés depuis les diagnostics du parseur ; les balises actives
+invalides supprimées de l'arbre sont refusées lorsqu'un diagnostic
+signale leur suppression. Le contrôle lexical additionnel des
+commentaires/déclarations ambigus demeure actif. **Le HTML source
+scellé n'est ni réécrit ni sérialisé.**
+
+La nouvelle dépendance `requirements-p36e.txt` versionne
+`html5lib==1.1` et ses dépendances directes utilisées en CI,
+installées uniquement dans les environnements de qualification.
+Un environnement sans ce parseur doit refuser l'admission plutôt que
+revenir implicitement à `HTMLParser`. Tests de régression :
+chaque variante SVG/MathML du rapport doit être refusée par
+le garde, puis par le lecteur HTTP, **après rehash réussi P3.6A**.
+Les anciens tests MathML/SMIL/commentaires, CSS Quarto et route unique
+sont conservés.
+
+**Porte de validation :** vérifier les deux workflows sur le HEAD
+documentaire final, y compris Quarto 1.10.19 et 1.10.20,
+puis demander une **contre-revue indépendante ciblée**
+de la nouvelle dépendance, de la reconstruction HTML5,
+des attributs namespacés et des diagnostics de parsing.
+Les tests Firefox sur fixtures synthétiques sont distincts ;
+aucune conclusion sur l'absence globale de fuite.
+
+**A014 reste la règle :** l'admission statique n'est pas le
+confinement du navigateur. L1 autorisation réelle, L2
+confidentialité du HTML, L4 trafic/navigations Firefox
+et attestation du profil professeur demeurent NON RÉSOLUS.
+PR #13–#17 Draft/non fusionnées. Aucun HTML professeur réel
+via HTTP, aucun JS, aucune publication élève.
+
+## P3.6E — diagnostics d'éléments écartés sous select (2 novembre 2026)
+
+La [quatrième contre-expertise indépendante](https://github.com/djibian/alliage/pull/17#issuecomment-6584277621)
+du HEAD `06491151a80a89228fcb42e6ffaf1a2c741cb626`
+conclut **CORRECTIONS REQUISES**, mais confirme que les divergences
+SVG/style et MathML/style précédentes sont levées sur les fixtures.
+L'objection restante : `html5lib` peut **ignorer** un start-tag
+interdit sous `select`, avec le diagnostic
+`unexpected-start-tag-in-select`, alors que le garde n'inspectait
+que `unexpected-start-tag-ignored`.
+
+Il ne s'agit **pas d'une fuite Firefox démontrée** : une balise
+supprimée du DOM peut être inerte. La correction cible le contrat
+expérimental plus strict de *refus de syntaxe interdite*. Le garde
+inspecte désormais la famille de diagnostics
+`unexpected-start-tag*` portant un nom de balise, et refuse
+les éléments interdits ainsi que les éléments conditionnels
+`a`, `area`, `meta`, `link` qui ont été écartés.
+Un diagnostic `expected-doctype-but-got-start-tag` ne constitue
+**pas** une suppression et ne doit pas provoquer de refus.
+
+**Preuves ajoutées :** onze fixtures de tags invalides sous
+`select`, y compris `iframe`, `form`, `set`, `meta refresh`,
+`link rel=preconnect` et lien externe ; intégration
+`verify_session()=PASS` → refus HTTP attendu ; sauvegarde du
+snapshot original. Les cas positifs `#fragment` et CSS Quarto
+intégrée sont conservés.
+
+**Régression CI documentée :** la première implémentation attrapait
+tous les codes contenant `start-tag`, dont le diagnostic innocent
+d'absence de doctype, et faisait échouer quatre tests positifs.
+La sélection a été ramenée aux diagnostics
+`unexpected-start-tag*`. Consulter les workflows du HEAD final
+avant d'affirmer la qualification.
+
+A014 demeure : le filtrage HTML, même via un parseur HTML5, est une
+protection **de laboratoire fictif**, non un confinement navigateur.
+L1/L2/L4 complète et l'attestation de profil restent ouverts.
+Aucune session professeur réelle via HTTP, aucun JS activé,
+aucune fusion ou publication élève. PR #13–#17 Draft.

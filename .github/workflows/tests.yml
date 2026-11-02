@@ -12,5 +12,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Installer le parseur HTML5 du laboratoire fictif
+        run: python3 -m pip install -r requirements-p36e.txt
       - name: Tests Python sans réseau ni Quarto réel
         run: python3 -m unittest discover -s tests -v

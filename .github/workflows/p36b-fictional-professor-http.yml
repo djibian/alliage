@@ -4,7 +4,10 @@ on:
   pull_request:
     paths:
       - "quarto_teacher_http.py"
+      - "quarto_teacher_navigation.py"
+      - "requirements-p36e.txt"
       - "tests/test_quarto_teacher_http.py"
+      - "tests/test_quarto_teacher_navigation.py"
       - ".github/workflows/p36b-fictional-professor-http.yml"
   workflow_dispatch:
 
@@ -29,6 +32,8 @@ jobs:
           version: ${{ matrix.quarto }}
       - name: Vérifier la version de Quarto
         run: quarto --version
+      - name: Installer le parseur HTML5 du laboratoire fictif
+        run: python3 -m pip install -r requirements-p36e.txt
       - name: Tester le transport HTTP sur les seules fixtures fictives
         env:
           ALLIAGE_TEST_REAL_QUARTO: "1"

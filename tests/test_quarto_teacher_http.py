@@ -213,6 +213,162 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
                 "Sec-Fetch-Site": "same-origin"}
         self.assertEqual(self.request(self.url().path, headers=good)[0], 200)
 
+    def test_navigation_active_but_verified_html_denied_at_admission(self):
+        """P3.6A validates identity, but must not authorize a navigable page."""
+        file = self.session / "project" / self.html_path
+        original = file.read_bytes()
+        for content in (
+            original + b'<a href="https://example.invalid/collect">Escape</a>',
+            original + b'<meta http-equiv="refresh" content="0;url=https://example.invalid/">',
+            original + b'<link rel="preconnect" href="//example.invalid">',
+        ):
+            with self.subTest(suffix=content[len(original):35+len(original)]):
+                file.write_bytes(content)
+                self.manifest["rendered_html"]["bytes"] = len(content)
+                self.manifest["rendered_html"]["sha256"] = hashlib.sha256(content).hexdigest()
+                self.save_manifest()
+                # The P3.6A rehash cannot infer browser navigation safety.
+                self.assertEqual(
+                    verify_session(self.session)["status"],
+                    "LOCAL_PROFESSOR_FILES_REHASHED",
+                )
+                with self.assertRaisesRegex(TeacherHTTPError, "Navigation"):
+                    FictionalTeacherPreview(self.session)
+        # No change to an existing HTTP snapshot already admitted.
+        self.assertEqual(self.request(self.preview.html_route)[2], original)
+
+    def test_auditor_mathml_and_smil_pass_rehash_but_refuse_http(self):
+        """The P3.6A integrity oracle is not a navigation authorization."""
+        file = self.session / "project" / self.html_path
+        original = file.read_bytes()
+        html_additions = (
+            b'<math href="https://example.invalid/fiction">'
+            b'<mi>Cliquer</mi></math>',
+            b'<math><mi href="/outside">Cliquer</mi></math>',
+            b'<svg><a href="#safe"><set attributeName="href" '
+            b'to="/outside" begin="0s" fill="freeze"/></a></svg>',
+            b'<svg><a href="#safe"><animate attributeName="href" '
+            b'values="#safe;/outside" dur="0.05s"/></a></svg>',
+        )
+        for suffix in html_additions:
+            with self.subTest(suffix=suffix[:85]):
+                content = original + suffix
+                file.write_bytes(content)
+                self.manifest["rendered_html"]["bytes"] = len(content)
+                self.manifest["rendered_html"]["sha256"] = hashlib.sha256(
+                    content).hexdigest()
+                self.save_manifest()
+                self.assertEqual(
+                    verify_session(self.session)["status"],
+                    "LOCAL_PROFESSOR_FILES_REHASHED",
+                )
+                with self.assertRaisesRegex(TeacherHTTPError, "Navigation"):
+                    FictionalTeacherPreview(self.session)
+        # Already admitted HTTP instance still serves the ORIGINAL immutable
+        # HTML: rejected modifications never replace its sealed snapshot.
+        self.assertEqual(self.request(self.preview.html_route)[2], original)
+
+    def test_auditor_html5_comments_cannot_hide_mathml_or_smil(self):
+        """HTML5 recovery differs from Python callbacks; refuse admission."""
+        file = self.session / "project" / self.html_path
+        original = file.read_bytes()
+        additions = (
+            b'<!----!><math href="https://example.invalid/fiction">'
+            b'<mi>Cliquer</mi></math><!---->',
+            b'<!----!><svg><a href="#safe"><set attributeName="href" '
+            b'to="/outside" begin="0s" fill="freeze"/></a></svg><!---->',
+            b'<![CDATA[><math><mi href="/outside">Cliquer</mi></math>',
+        )
+        for suffix in additions:
+            with self.subTest(suffix=suffix[:85]):
+                content = original + suffix
+                file.write_bytes(content)
+                self.manifest["rendered_html"]["bytes"] = len(content)
+                self.manifest["rendered_html"]["sha256"] = hashlib.sha256(
+                    content).hexdigest()
+                self.save_manifest()
+                self.assertEqual(
+                    verify_session(self.session)["status"],
+                    "LOCAL_PROFESSOR_FILES_REHASHED",
+                )
+                with self.assertRaisesRegex(TeacherHTTPError, "Navigation"):
+                    FictionalTeacherPreview(self.session)
+        self.assertEqual(self.request(self.preview.html_route)[2], original)
+
+    def test_html5_foreign_content_rehashed_but_refused_before_http(self):
+        """The HTML5 parser catches browser-created links missing in HTMLParser."""
+        file = self.session / "project" / self.html_path
+        original = file.read_bytes()
+        suffixes = (
+            b'<svg><style><p><a href="https://example.invalid/a">'
+            b'EXTERNAL</a></p></style></svg>',
+            b'<svg><script><div><a href="/outside">EXTERNAL</a>'
+            b'</div></script></svg>',
+            b'<math><style><p><a href="/outside">EXTERNAL</a>'
+            b'</p></style></math>',
+            b'<svg><style><meta http-equiv="refresh" '
+            b'content="50;url=https://example.invalid/a"></style></svg>',
+        )
+        for suffix in suffixes:
+            with self.subTest(prefix=suffix[:70]):
+                content = original + suffix
+                file.write_bytes(content)
+                self.manifest["rendered_html"]["bytes"] = len(content)
+                self.manifest["rendered_html"]["sha256"] = hashlib.sha256(
+                    content).hexdigest()
+                self.save_manifest()
+                self.assertEqual(
+                    verify_session(self.session)["status"],
+                    "LOCAL_PROFESSOR_FILES_REHASHED",
+                )
+                with self.assertRaisesRegex(TeacherHTTPError, "Navigation"):
+                    FictionalTeacherPreview(self.session)
+        # Previously admitted HTTP instance must remain byte-for-byte stable.
+        self.assertEqual(self.request(self.preview.html_route)[2], original)
+
+    def test_dropped_forbidden_select_tags_rehashed_but_refused(self):
+        """P3.6A validates integrity; HTML5 recovery must not grant HTTP."""
+        file = self.session / "project" / self.html_path
+        original = file.read_bytes()
+        suffixes = (
+            b'<select><iframe src="https://example.invalid/fiction">'
+            b'</iframe></select>',
+            b'<select><form action="/outside"></form></select>',
+            b'<select><meta http-equiv="refresh" '
+            b'content="0;url=https://example.invalid/"></select>',
+            b'<select><link rel="preconnect" '
+            b'href="https://example.invalid/"></select>',
+            b'<select><a href="https://example.invalid/">Go</a></select>',
+        )
+        for suffix in suffixes:
+            with self.subTest(suffix=suffix[:95]):
+                content = original + suffix
+                file.write_bytes(content)
+                self.manifest["rendered_html"]["bytes"] = len(content)
+                self.manifest["rendered_html"]["sha256"] = hashlib.sha256(
+                    content).hexdigest()
+                self.save_manifest()
+                self.assertEqual(
+                    verify_session(self.session)["status"],
+                    "LOCAL_PROFESSOR_FILES_REHASHED",
+                )
+                with self.assertRaisesRegex(TeacherHTTPError, "Navigation"):
+                    FictionalTeacherPreview(self.session)
+        self.assertEqual(self.request(self.preview.html_route)[2], original)
+
+    def test_navigation_safe_html_remains_byte_identical(self):
+        path = self.session / "project" / self.html_path
+        content = path.read_bytes() + b'<a href="#chapter">Same document</a>'
+        path.write_bytes(content)
+        self.manifest["rendered_html"]["bytes"] = len(content)
+        self.manifest["rendered_html"]["sha256"] = hashlib.sha256(content).hexdigest()
+        self.save_manifest()
+        self.assertEqual(verify_session(self.session)["status"],
+                         "LOCAL_PROFESSOR_FILES_REHASHED")
+        preview = FictionalTeacherPreview(self.session)
+        self.assertEqual(preview.get_asset(preview.html_route)[0], content)
+        self.assertEqual(len(preview.routes), 1)
+
     def test_post_start_mutation_and_symlink_do_not_change_sealed_html(self):
         """The only HTTP response is the original verified HTML snapshot."""
         asset = self.session / "project" / self.html_path
