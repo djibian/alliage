@@ -58,6 +58,35 @@ class StaticNavigationAdmissionTests(unittest.TestCase):
                 with self.assertRaises(NavigationAdmissionError):
                     require_static_navigation(html)
 
+    def test_auditor_counterexamples_mathml_href_and_svg_smil(self):
+        # Two independent auditor blockers: namespace-agnostic URL-bearing
+        # MathML and script-free SVG SMIL mutation of effective a.href.
+        counterexamples = (
+            b'<!doctype html><math href="https://example.invalid/fiction">'
+            b'<mi>Cliquer</mi></math>',
+            b'<math><mi href="/outside">Cliquer</mi></math>',
+            b'<math><mi xlink:href="//example.invalid/">Lien</mi></math>',
+            b'<svg width="200" height="50"><a href="#safe">'
+            b'<set attributeName="href" to="/outside" begin="0s" '
+            b'fill="freeze"/><text x="10" y="30">Cliquer</text></a></svg>',
+            b'<svg><a href="#safe"><animate attributeName="href" '
+            b'values="#safe;/outside" dur="0.05s" fill="freeze"/></a></svg>',
+            b'<svg><a href="#safe"><animateTransform attributeName="transform" '
+            b'type="rotate" from="0" to="90" dur="1s"/></a></svg>',
+            b'<svg><a href="#safe"><animateMotion dur="1s"/></a></svg>',
+            b'<svg><a href="#safe"><set attributeName="href" '
+            b'to="https://example.invalid/fiction"/></a></svg>',
+            b'<svg><use href="#safe"/></svg>',
+            b'<svg><image xlink:href="#safe"/></svg>',
+            b'<div href="#safe">Unrecognized href-bearing element</div>',
+            b'<link rel="stylesheet" href="data:text/css,%0A" '
+            b'xlink:href="https://example.invalid/">',
+        )
+        for html in counterexamples:
+            with self.subTest(html=html[:125]):
+                with self.assertRaises(NavigationAdmissionError):
+                    require_static_navigation(html)
+
     def test_rejects_non_utf8_and_non_bytes(self):
         for content in (b"\xff", "not bytes", bytearray(b"<html>")):
             with self.subTest(value=type(content).__name__):
