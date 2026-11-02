@@ -254,3 +254,39 @@ L2 (actif sensible déguisé), L4 (navigation externe/exfiltration),
 et la vérification exhaustive du profil Quarto restent bloquants
 pour l'usage réel. Aucune session privée, aucune ouverture Firefox
 réelle, aucun JS activé et aucune publication n'est autorisé.
+
+## P3.6C — réaffectation d'attribut C2 (2 novembre 2026)
+
+La [contre-expertise finale](https://github.com/djibian/alliage/pull/15#issuecomment-6578674893)
+du HEAD `f25b05c6d90ab685fde26de53a0552ef03ef93e7`
+confirme **C1 LEVÉE**, mais conclut **CORRECTIONS REQUISES sur C2** :
+`MappingProxyType` empêchait une modification par élément, sans empêcher
+la réaffectation ordinaire `preview.routes = {...}`. Un consommateur
+Python dans le même processus pouvait alors faire servir une nouvelle
+table non vérifiée par `get_asset` et le handler déjà ouvert. Aucun
+chemin d'écriture via HTTP n'a été identifié par l'audit.
+
+**Correctif C2 de périmètre minimal :** le lecteur est une
+`@dataclass(frozen=True, slots=True, init=False, eq=False, repr=False)`.
+Ses quatre attributs (`session`, `prefix`, `html_route`, `routes`)
+sont établis pendant l'admission uniquement par `object.__setattr__`,
+puis non réaffectables par les opérations Python ordinaires. L'inventaire
+est toujours construit localement, converti en `MappingProxyType`
+contenant des tuples `(bytes, MIME)`, avant tout démarrage HTTP.
+
+**Régression discriminante :** le test C2 tente désormais explicitement
+`preview.routes = {route: (b"FICTIONAL_UNVERIFIED", "text/html")}`,
+la suppression de `routes` et la réaffectation de l'identité HTML,
+du préfixe et du chemin de session. Il exige le refus et confirme
+la réponse du serveur HTTP déjà démarré depuis les octets scellés.
+
+**Portée exacte :** cette immutabilité est un contrat contre les
+*opérations ordinaires sur les instances Python*, non une barrière
+contre du code arbitraire déjà exécuté dans le processus :
+`object.__setattr__`, monkeypatch de classe/méthode ou mémoire
+modifiée sont hors de portée. Aucun changement de protocole,
+d'autorisation, de confidentialité, de politique CSP ou de
+publication. L1, L2 et L4 ainsi que l'attestation du profil
+Quarto restent ouvertes : **NO-GO pour toute ressource professeur
+réelle sur HTTP**. Qualification CI sur le HEAD final et
+nouvelle contre-revue ciblée nécessaires.
