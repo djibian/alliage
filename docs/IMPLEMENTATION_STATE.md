@@ -892,3 +892,28 @@ sans sortie Internet **déjà attestée** avant lancement,
 et des témoins A/B positif/négatif. En son absence,
 rester `INTERCEPTION_UNPROVEN`. L1/L2/L4 globale
 et le profil réel Quarto restent fermés.
+
+### P3.6F1 — qualification unitaire du code (2 novembre 2026)
+
+**Code HEAD testé : `541c6d69b3b95c3ee734553797f9798a8aeedb8f`.**
+- [CI de laboratoire #41522605859](https://github.com/djibian/alliage/actions/runs/41522605859),
+  `completed/success` : **11 tests Node**, 11 PASS/0 FAIL ;
+  test Python du double serveur HTTP loopback PASS ;
+  vérification du manifeste expérimental PASS.
+- [CI générale #41522605917](https://github.com/djibian/alliage/actions/runs/41522605917),
+  `completed/success` : **136 tests Python, 11 ignorés**.
+- Une première CI a détecté le masque accidentel du statut
+  `OPEN_ATTEMPTED_FICTION_ONLY` par le statut générique
+  `F1_UNIT_POLICY_ONLY`. Ordre de composition corrigé dans
+  `background.js` ; test de régression maintenu. **Aucun
+  test Firefox réel n'a été lancé.**
+
+**Verdict actuel : `F1_UNIT_ONLY / INTERCEPTION_UNPROVEN`.**
+Le code est soumis à une nouvelle contre-revue indépendante :
+l'extension de laboratoire n'est pas encore une barrière
+validée et ne doit pas être installée dans le Firefox
+quotidien. Le micro-smoke Firefox nécessite d'abord
+un environnement réellement sans sortie Internet et un
+profil jetable ; la qualification complète OS et des
+services hôtes demeure F3. Aucune modification de
+`extension/` v0.4, de #17 ou de #18.
