@@ -268,6 +268,33 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
         # HTML: rejected modifications never replace its sealed snapshot.
         self.assertEqual(self.request(self.preview.html_route)[2], original)
 
+    def test_auditor_html5_comments_cannot_hide_mathml_or_smil(self):
+        """HTML5 recovery differs from Python callbacks; refuse admission."""
+        file = self.session / "project" / self.html_path
+        original = file.read_bytes()
+        additions = (
+            b'<!----!><math href="https://example.invalid/fiction">'
+            b'<mi>Cliquer</mi></math><!---->',
+            b'<!----!><svg><a href="#safe"><set attributeName="href" '
+            b'to="/outside" begin="0s" fill="freeze"/></a></svg><!---->',
+            b'<![CDATA[><math><mi href="/outside">Cliquer</mi></math>',
+        )
+        for suffix in additions:
+            with self.subTest(suffix=suffix[:85]):
+                content = original + suffix
+                file.write_bytes(content)
+                self.manifest["rendered_html"]["bytes"] = len(content)
+                self.manifest["rendered_html"]["sha256"] = hashlib.sha256(
+                    content).hexdigest()
+                self.save_manifest()
+                self.assertEqual(
+                    verify_session(self.session)["status"],
+                    "LOCAL_PROFESSOR_FILES_REHASHED",
+                )
+                with self.assertRaisesRegex(TeacherHTTPError, "Navigation"):
+                    FictionalTeacherPreview(self.session)
+        self.assertEqual(self.request(self.preview.html_route)[2], original)
+
     def test_navigation_safe_html_remains_byte_identical(self):
         path = self.session / "project" / self.html_path
         content = path.read_bytes() + b'<a href="#chapter">Same document</a>'
