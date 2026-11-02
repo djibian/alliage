@@ -1,41 +1,50 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""P3.6E: reject known navigation mechanisms in *fictional* Quarto HTML.
+"""P3.6E: fictional HTML5-DOM admission guard, not browser confinement.
 
-This is an admission guard, NOT an HTML sanitizer, general browser parser,
-or proof of absent exfiltration. No bytes are changed. CSP and Firefox
-must still be tested independently. Never enable real professor sessions.
+Inspect the DOM built by an HTML5 parser, including SVG/MathML namespaces.
+Do not modify the P3.6A-verified bytes. This cannot prevent all network
+requests/navigation and MUST NEVER authorize a real professor session.
 """
 from __future__ import annotations
 
-from html.parser import HTMLParser
 import re
+
+try:
+    import html5lib
+except ImportError as exc:
+    raise RuntimeError(
+        "P3.6E requiert html5lib 1.1 : refus sans analyse HTML5."
+    ) from exc
 
 
 class NavigationAdmissionError(ValueError):
-    """A known browser navigation or eager-load trigger was detected."""
+    """A navigation-capable construction was found in fictitious HTML."""
 
 
-# Allow only same-document fragments, with deliberately small ASCII slugs.
-# This is more restrictive than normal Quarto and may refuse valid content.
 _FRAGMENT = re.compile(r"#[A-Za-z0-9_.:~-]*\Z", re.ASCII)
-# P3.6E is a restricted laboratory dialect, not an HTML5 validator.
-# Python's HTMLParser and HTML5 browsers disagree on broken comments such
-# as <!----!> and malformed CDATA. Reject the WHOLE markup-declaration
-# family before running HTMLParser, except one exact HTML doctype at start.
-# This deliberately refuses legal HTML comments too; preserving the original
-# Quarto bytes takes precedence over silently "repairing" HTML input.
 _INITIAL_DOCTYPE = re.compile(r"\A\s*<!doctype\s+html\s*>", re.IGNORECASE)
 _DECLARATION_OPENER = re.compile(r"<!|<\?|<%", re.IGNORECASE)
+_HTML = "http://www.w3.org/1999/xhtml"
+_SVG = "http://www.w3.org/2000/svg"
+_MATHML = "http://www.w3.org/1998/Math/MathML"
+_XLINK = "http://www.w3.org/1999/xlink"
+_BANNED_TAGS = frozenset({
+    "base", "form", "iframe", "frame", "frameset", "object", "embed",
+    "portal", "fencedframe", "set", "animate", "animatemotion",
+    "animatetransform", "animatecolor", "discard",
+})
+_BANNED_REL = frozenset({
+    "preconnect", "dns-prefetch", "prefetch", "prerender", "preload",
+    "modulepreload", "pingback", "manifest",
+})
 
 
 def _require_unambiguous_markup(text: str) -> None:
-    """Admit only one initial HTML doctype and structurally simple comments.
+    """Restricted fiction-only syntax; Quarto's simple comments are allowed.
 
-    A strict, SMALL lexical subset: Quarto can emit ordinary HTML comments.
-    Python HTMLParser misses some malformed-comment recovery performed by
-    Firefox. Reject ALL markup declarations other than the optional doctype
-    and simple well-terminated comments without nested '<', '>', or '--'.
-    This is not an HTML5 validator; other parser divergences remain possible.
+    This is a conservative supplementary check, not the DOM parser. Forbid
+    ambiguous comments/declarations because HTML5 recovery can differ across
+    browser/parser versions even when the DOM library is standards-oriented.
     """
     doctype = _INITIAL_DOCTYPE.match(text)
     offset = doctype.end() if doctype else 0
@@ -53,103 +62,90 @@ def _require_unambiguous_markup(text: str) -> None:
         if "<" in body or ">" in body or "--" in body:
             raise NavigationAdmissionError("Commentaire HTML ambigu.")
         offset = end + 3
-_BANNED_TAGS = frozenset({
-    "base", "form", "iframe", "frame", "frameset", "object", "embed",
-    "portal", "fencedframe",
-    # SMIL can change the browser's effective SVG navigation destination
-    # (a.href.animVal) without any JavaScript. Static inspection of a[href]
-    # is NOT sufficient: reject these tags entirely in the static lab.
-    "set", "animate", "animatemotion", "animatetransform", "animatecolor",
-    "discard",
-})
-_BANNED_REL = frozenset({
-    "preconnect", "dns-prefetch", "prefetch", "prerender",
-    "preload", "modulepreload", "pingback", "manifest",
-})
 
 
-class _NavigationGuard(HTMLParser):
-    """Reject only the explicitly enumerated dangerous HTML constructs."""
+def _qualified_name(name: str) -> tuple[str, str]:
+    if name.startswith("{"):
+        namespace, _, local = name[1:].partition("}")
+        return namespace, local.lower()
+    return "", name.lower()
 
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
 
-    def handle_startendtag(self, tag, attrs):
-        self.handle_starttag(tag, attrs)
+def _check_element(element) -> None:
+    if not isinstance(element.tag, str):
+        return  # HTML5 comment node; lexical preflight validated its shape.
+    namespace, tag = _qualified_name(element.tag)
+    if namespace not in (_HTML, _SVG, _MATHML):
+        raise NavigationAdmissionError("Espace de noms HTML non admis.")
+    if tag in _BANNED_TAGS:
+        raise NavigationAdmissionError("Élément de navigation actif.")
 
-    def handle_starttag(self, tag, attrs):
-        tag = tag.lower()
-        if tag in _BANNED_TAGS:
-            raise NavigationAdmissionError("Élément de navigation actif.")
-        properties: dict[str, str | None] = {}
-        for name, value in attrs:
-            name = name.lower()
-            if name in properties:
-                # Ambiguous browser attribute precedence must not grant access.
-                raise NavigationAdmissionError("Attribut HTML dupliqué.")
-            properties[name] = value
+    attributes = {}
+    href_attrs = []
+    for qualified, value in element.attrib.items():
+        attr_ns, local = _qualified_name(qualified)
+        key = ("xlink:" + local) if attr_ns == _XLINK else local
+        if key in attributes:
+            raise NavigationAdmissionError("Attribut HTML ambigu.")
+        attributes[key] = value
+        if local == "href":
+            href_attrs.append((attr_ns, value))
 
-        if tag == "meta" and (
-            (properties.get("http-equiv") or "").strip().lower() == "refresh"
-        ):
-            raise NavigationAdmissionError("Redirection meta refresh.")
-        if tag in ("a", "area"):
-            if any(name in properties for name in (
-                "ping", "download", "target", "formaction",
-            )):
-                raise NavigationAdmissionError("Navigation secondaire interdite.")
-            # In SVG, href and xlink:href may coexist. Never silently
-            # authorize one attribute while ignoring a second destination.
-            if "href" in properties and "xlink:href" in properties:
-                raise NavigationAdmissionError("Destinations ambiguës.")
-            if "href" in properties or "xlink:href" in properties:
-                href = properties.get("href", properties.get("xlink:href"))
-                if not isinstance(href, str) or not _FRAGMENT.fullmatch(href):
-                    raise NavigationAdmissionError("Navigation hors document.")
-        if "formaction" in properties:
-            raise NavigationAdmissionError("Formulaire dynamique interdit.")
+    if tag == "meta" and namespace == _HTML and (
+        (attributes.get("http-equiv") or "").strip().lower() == "refresh"
+    ):
+        raise NavigationAdmissionError("Redirection meta refresh.")
+    if "formaction" in attributes:
+        raise NavigationAdmissionError("Formulaire dynamique interdit.")
 
-        # The href attribute is a MathML GLOBAL attribute and can also occur
-        # on SVG elements other than <a>. Allow destinations only on the
-        # explicitly evaluated HTML/SVG a/area and CSS link elements.
-        # Namespaces are not faithfully reconstructed by HTMLParser: fail
-        # closed rather than interpreting unknown href-bearing elements.
-        if tag not in ("a", "area", "link") and (
-                "href" in properties or "xlink:href" in properties):
-            raise NavigationAdmissionError("Destination hors liste autorisée.")
-        if tag == "link" and "xlink:href" in properties:
+    is_anchor = ((tag == "a" and namespace in (_HTML, _SVG))
+                 or (tag == "area" and namespace == _HTML))
+    is_stylesheet_link = tag == "link" and namespace == _HTML
+
+    if is_anchor:
+        if any(key in attributes for key in (
+            "ping", "download", "target", "formaction",
+        )):
+            raise NavigationAdmissionError("Navigation secondaire interdite.")
+        if len(href_attrs) > 1:
+            raise NavigationAdmissionError("Destinations ambiguës.")
+        for attr_ns, href in href_attrs:
+            if attr_ns not in ("", _XLINK) or not _FRAGMENT.fullmatch(href):
+                raise NavigationAdmissionError("Navigation hors document.")
+        return
+
+    if is_stylesheet_link:
+        rel = (attributes.get("rel") or "").lower().split()
+        if set(rel) & _BANNED_REL:
+            raise NavigationAdmissionError("Préchargement réseau interdit.")
+        if any(attr_ns != "" for attr_ns, _ in href_attrs):
             raise NavigationAdmissionError("Destination de lien ambiguë.")
+        if href_attrs and not (
+            rel == ["stylesheet"]
+            and href_attrs[0][1].lower().startswith("data:text/css,")
+        ):
+            raise NavigationAdmissionError("Lien head non autorisé.")
+        return
 
-        if tag == "link":
-            rel = (properties.get("rel") or "").lower().split()
-            if set(rel) & _BANNED_REL:
-                raise NavigationAdmissionError("Préchangement réseau interdit.")
-            href = properties.get("href")
-            if href is not None:
-                # Embedded Quarto CSS is allowed without introducing hosts.
-                # The browser CSP decides whether this passive resource loads.
-                if not (rel == ["stylesheet"]
-                        and href.lower().startswith("data:text/css,")):
-                    raise NavigationAdmissionError("Lien head non autorisé.")
+    if href_attrs:
+        # MathML global href, SVG use/image and unknown href-bearing tags.
+        raise NavigationAdmissionError("Destination hors liste autorisée.")
 
 
 def require_static_navigation(html: bytes) -> None:
-    """Refuse a selected class of navigation features; never rewrite bytes.
+    """Check the browser-shaped HTML5 DOM; refuse, never rewrite, any bytes.
 
-    HTMLParser is not specified to match Firefox's HTML5 error recovery.
-    This check cannot establish the absence of all network exfiltration.
+    The preflight and HTML5 DOM validation are NOT a sanitizer, a complete
+    network policy or proof of equivalence to Firefox. Only fictional input.
     """
     if type(html) is not bytes:
         raise NavigationAdmissionError("Octets HTML invalides.")
     try:
         text = html.decode("utf-8", errors="strict")
-        # Lexical preflight is independent of HTMLParser callbacks.
-        # Quarto's ordinary comments are admitted only in the simple syntax
-        # that both parsers agree on; HTML5 malformed-comment recovery is
-        # rejected without rewriting any byte of the verified output.
         _require_unambiguous_markup(text)
-        parser = _NavigationGuard()
-        parser.feed(text)
-        parser.close()
-    except (UnicodeError, ValueError) as exc:
+        root = html5lib.parse(
+            text, treebuilder="etree", namespaceHTMLElements=True)
+        for element in root.iter():
+            _check_element(element)
+    except (UnicodeError, ValueError, TypeError, KeyError) as exc:
         raise NavigationAdmissionError("HTML non admis.") from exc
