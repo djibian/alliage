@@ -34,6 +34,8 @@ class StaticNavigationAdmissionTests(unittest.TestCase):
             b'<a href="#frag" download>Download</a>',
             b'<a href="#frag" href="https://example.invalid/">Duplicate attr</a>',
             b'<area xlink:href="https://example.invalid/">SVG map</area>',
+            b'<svg><a href="#safe" xlink:href="https://example.invalid/">X</a></svg>',
+            b'<svg><a href="#safe" xlink:href="#other">Ambiguous</a></svg>',
             b'<meta http-equiv="refresh" content="0;url=https://example.invalid/">',
             b'<META HTTP-EQUIV="ReFrEsH" CONTENT="0; URL=//example.invalid/">',
             b'<base href="https://example.invalid/">',
