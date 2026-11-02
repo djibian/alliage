@@ -1,0 +1,5 @@
+# P3.6E fictional HTML5 admission only. Install in an isolated venv.
+# Explicit direct and transitive versions for reproducible CI runs.
+html5lib==1.1
+six==1.17.0
+webencodings==0.5.1
