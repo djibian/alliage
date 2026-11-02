@@ -190,7 +190,7 @@ def make_handler(preview: FictionalTeacherPreview):
             self._noncanonical_target = (
                 len(raw) != 3 or not raw[1].startswith(b"/")
                 or raw[1].startswith(b"//")
-                or b"\\\\" in raw[1] or b"\x00" in raw[1]
+                or b"\\" in raw[1] or b"\x00" in raw[1]
             )
             return super().parse_request()
 
@@ -268,24 +268,12 @@ def make_server(preview: FictionalTeacherPreview) -> ThreadingHTTPServer:
 
 
 def main(argv: list[str] | None = None) -> int:
-    cli = argparse.ArgumentParser(description="P3.6B : aperçu HTTP fictif UNIQUEMENT.")
-    cli.add_argument("--session", required=True, type=Path)
-    args = cli.parse_args(argv)
-    try:
-        preview = FictionalTeacherPreview(args.session)
-        server = make_server(preview)
-    except (TeacherHTTPError, OSError, ValueError) as exc:
-        cli.exit(2, "REFUSED: " + str(exc) + "\n")
-    try:
-        print("Alliage — laboratoire FICTIF P3.6B (Ctrl+C pour arrêter).", flush=True)
-        print("URL fictive : " + preview.browser_url(server.server_port), flush=True)
-        print("Aucun script autorisé ; aucun contenu professeur réel admis.", flush=True)
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        server.server_close()
-    return 0
+    # No caller-selected --session: manifest's 'fiction' label is forgeable.
+    # The ONLY supported entry point creates public fixtures in this process.
+    cli = argparse.ArgumentParser(
+        description="P3.6C: ne pas importer de session Quarto arbitraire.")
+    cli.parse_args(argv)
+    cli.error("Accès direct refusé : lancer p36b_fictional_firefox_demo.py.")
 
 
 if __name__ == "__main__":
