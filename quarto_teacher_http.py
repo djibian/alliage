@@ -9,6 +9,7 @@ No Git, Quarto, writes, Firefox extension or publication actions.
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import hashlib
 from types import MappingProxyType
 from http import HTTPStatus
@@ -144,11 +145,21 @@ def _assert_verified_manifest_unchanged(session: Path, expected_sha256: str) -> 
         raise TeacherHTTPError("Manifeste changé après vérification.")
 
 
+@dataclass(frozen=True, slots=True, init=False, eq=False, repr=False)
 class FictionalTeacherPreview:
-    """Verified professor-output assets, restricted to fictional sessions."""
+    """Frozen professor-output snapshot; public fields cannot be reassigned.
+
+    Dataclass freezing protects ordinary consumers, not arbitrary Python code
+    using object.__setattr__, monkeypatching methods or process memory.
+    """
+    session: Path
+    prefix: str
+    html_route: str
+    routes: MappingProxyType
+
 
     def __init__(self, session: Path):
-        self.session = Path(session).expanduser().absolute()
+        object.__setattr__(self, "session", Path(session).expanduser().absolute())
         # verify_session checks the real P3.6A HTML identity, symlinks, exact
         # inventory and SHA-256. The manifest is local, NOT signed or trusted.
         try:
@@ -169,7 +180,7 @@ class FictionalTeacherPreview:
             raise TeacherHTTPError("Inventaire P3.6A invalide.")
         if not isinstance(html, dict) or not isinstance(html.get("path"), str):
             raise TeacherHTTPError("HTML professeur non attesté.")
-        self.prefix = "/alliage-professor-fixture-" + secrets.token_hex(16)
+        object.__setattr__(self, "prefix", "/alliage-professor-fixture-" + secrets.token_hex(16))
         # Freeze every eligible asset into immutable bytes BEFORE binding.
         # Post-start writes, deletions or symlink swaps cannot alter responses.
         routes: dict[str, tuple[bytes, str]] = {}
@@ -205,8 +216,8 @@ class FictionalTeacherPreview:
         # Detect a manifest swap during admission, without ever consuming it
         # for authorization. Later swaps cannot affect sealed route bytes.
         _assert_verified_manifest_unchanged(self.session, manifest_sha256)
-        self.html_route = html_route
-        self.routes = MappingProxyType(routes)
+        object.__setattr__(self, "html_route", html_route)
+        object.__setattr__(self, "routes", MappingProxyType(routes))
 
     def browser_url(self, port: int) -> str:
         return f"http://{BIND}:{port}{self.html_route}"
