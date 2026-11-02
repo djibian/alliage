@@ -200,6 +200,16 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
         with self.assertRaises(TeacherHTTPError):
             FictionalTeacherPreview(self.session)
 
+    def test_direct_session_cli_is_disabled_even_for_forged_fiction(self):
+        """An arbitrary manifest path is not authorization to serve HTTP."""
+        from quarto_teacher_http import main as direct_main
+        with contextlib.redirect_stderr(io.StringIO()):
+            for args in ([], ["--session", str(self.session)]):
+                with self.subTest(args=args):
+                    with self.assertRaises(SystemExit) as error:
+                        direct_main(args)
+                    self.assertEqual(error.exception.code, 2)
+
     def test_raw_http_target_and_duplicate_security_headers_denied(self):
         """Test what CPython normalizes BEFORE Handler.path is available."""
         url = self.url()
