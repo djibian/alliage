@@ -725,3 +725,37 @@ L1 authentification/consentement de la session réelle, L2
 fichiers sensibles déguisés, L4 navigations/exfiltration et l'attestation
 complète du profil Quarto restent NON RÉSOLUS. Maintenir les PR #13/#14/#15
 Draft, sans merge, publication ni accès HTTP à une vraie session.
+
+## P3.6C — C1 validée, C2 réaffectation traitée (2 novembre 2026)
+
+La contre-expertise indépendante du HEAD
+`f25b05c6d90ab685fde26de53a0552ef03ef93e7`,
+[publiée sur la PR #15](https://github.com/djibian/alliage/pull/15#issuecomment-6578674893),
+a conclu : **C1 LEVÉE** (identité du manifeste validé préservée),
+**C2 CORRECTIONS REQUISES** (réaffectation de `preview.routes`
+encore possible par du code Python interne), sans vulnérabilité
+HTTP distante démontrée.
+
+Le correctif minimal laisse intacts le manifeste vérifié, le scellement
+POSIX des octets, les routes exactes HTTP et la CSP. L'instance
+`FictionalTeacherPreview` est désormais une dataclass figée à slots,
+initialisée par `object.__setattr__` uniquement pendant l'admission ;
+les opérations ordinaires `preview.routes = ...`, `del preview.routes`,
+ou la réaffectation d'identité de session/route sont rejetées.
+Les valeurs `bytes` et `MappingProxyType` restent inchangées.
+Le test couvre expressément la réaffectation incriminée et vérifie
+que la réponse du serveur déjà ouvert continue à retourner les
+octets fictifs scellés.
+
+**Limite :** cette protection n'empêche pas du code arbitraire
+s'exécutant dans le même processus de recourir à
+`object.__setattr__` ou de modifier la classe/mémoire ; aucune
+sécurité contre un processus compromis n'est revendiquée.
+La portée demeure **strictement fictive**.
+
+La CI Python et les deux matrices Quarto (P3.6A et HTTP fictif)
+doivent être contrôlées sur le HEAD final, puis solliciter une
+contre-revue indépendante **strictement C2**. PR #13/#14/#15
+toujours Draft et non fusionnées ; L1/L2/L4 et l'attestation
+complète du profil Quarto restent ouvertes. Aucun HTTP professeur
+réel, aucune publication ni activation JS.
