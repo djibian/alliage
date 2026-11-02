@@ -237,6 +237,37 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
         # No change to an existing HTTP snapshot already admitted.
         self.assertEqual(self.request(self.preview.html_route)[2], original)
 
+    def test_auditor_mathml_and_smil_pass_rehash_but_refuse_http(self):
+        """The P3.6A integrity oracle is not a navigation authorization."""
+        file = self.session / "project" / self.html_path
+        original = file.read_bytes()
+        html_additions = (
+            b'<math href="https://example.invalid/fiction">'
+            b'<mi>Cliquer</mi></math>',
+            b'<math><mi href="/outside">Cliquer</mi></math>',
+            b'<svg><a href="#safe"><set attributeName="href" '
+            b'to="/outside" begin="0s" fill="freeze"/></a></svg>',
+            b'<svg><a href="#safe"><animate attributeName="href" '
+            b'values="#safe;/outside" dur="0.05s"/></a></svg>',
+        )
+        for suffix in html_additions:
+            with self.subTest(suffix=suffix[:85]):
+                content = original + suffix
+                file.write_bytes(content)
+                self.manifest["rendered_html"]["bytes"] = len(content)
+                self.manifest["rendered_html"]["sha256"] = hashlib.sha256(
+                    content).hexdigest()
+                self.save_manifest()
+                self.assertEqual(
+                    verify_session(self.session)["status"],
+                    "LOCAL_PROFESSOR_FILES_REHASHED",
+                )
+                with self.assertRaisesRegex(TeacherHTTPError, "Navigation"):
+                    FictionalTeacherPreview(self.session)
+        # Already admitted HTTP instance still serves the ORIGINAL immutable
+        # HTML: rejected modifications never replace its sealed snapshot.
+        self.assertEqual(self.request(self.preview.html_route)[2], original)
+
     def test_navigation_safe_html_remains_byte_identical(self):
         path = self.session / "project" / self.html_path
         content = path.read_bytes() + b'<a href="#chapter">Same document</a>'
