@@ -124,6 +124,39 @@ class StaticNavigationAdmissionTests(unittest.TestCase):
         )
         self.assertIsNone(require_static_navigation(safe))
 
+    def test_html5_foreign_raw_text_exposes_real_dom_navigation(self):
+        """Auditor: HTMLParser hid active HTML recovered from foreign style."""
+        fixtures = (
+            b'<!doctype html><svg><style><p><a '
+            b'href="https://example.invalid/a">EXTERNAL</a></p>'
+            b'</style></svg>',
+            b'<!doctype html><svg><style><div><a '
+            b'href="https://example.invalid/a">EXTERNAL</a></div>'
+            b'</style></svg>',
+            b'<!doctype html><svg><script><div><a '
+            b'href="https://example.invalid/a">EXTERNAL</a></div>'
+            b'</script></svg>',
+            b'<!doctype html><math><style><p><a '
+            b'href="https://example.invalid/a">EXTERNAL</a></p>'
+            b'</style></math>',
+            b'<!doctype html><svg><style><meta http-equiv="refresh" '
+            b'content="50;url=https://example.invalid/a"></style></svg>',
+        )
+        for html in fixtures:
+            with self.subTest(data=html[:90]):
+                with self.assertRaises(NavigationAdmissionError):
+                    require_static_navigation(html)
+
+    def test_html5_duplicate_destination_still_refused(self):
+        fixtures = (
+            b'<a href="#safe" HREF="https://example.invalid/a">bad</a>',
+            b'<svg><a href="#safe" href="/outside">bad</a></svg>',
+        )
+        for html in fixtures:
+            with self.subTest(data=html[:80]):
+                with self.assertRaises(NavigationAdmissionError):
+                    require_static_navigation(html)
+
     def test_rejects_non_utf8_and_non_bytes(self):
         for content in (b"\xff", "not bytes", bytearray(b"<html>")):
             with self.subTest(value=type(content).__name__):
