@@ -86,8 +86,14 @@ def _check_element(element) -> None:
         attr_ns, local = _qualified_name(qualified)
         # HTML5 exposes xlink:href as a namespaced key in SVG, but may
         # preserve a literal "xlink:href" key in HTML. Handle both.
-        key = ("xlink:" + local) if attr_ns == _XLINK else (
-            qualified.lower() if ":" in qualified and attr_ns == "" else local)
+        if attr_ns == _XLINK:
+            key = "xlink:" + local
+        elif attr_ns:
+            key = "{" + attr_ns + "}" + local  # never treat unknown NS as href
+        elif ":" in qualified:
+            key = qualified.lower()
+        else:
+            key = local
         if key in attributes:
             raise NavigationAdmissionError("Attribut HTML ambigu.")
         attributes[key] = value
