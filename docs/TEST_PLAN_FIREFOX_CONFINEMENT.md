@@ -3,7 +3,7 @@
 **Statut : plan proposé, non exécuté.** Voir
 [`ARCHITECTURE_FIREFOX_CONFINEMENT.md`](ARCHITECTURE_FIREFOX_CONFINEMENT.md).
 Base PR #16, SHA `9f7a02d1b089a38b554af94aedaf8ca377da407a`.
-PR #17 en contre-revue **parallèle**, aucune dépendance implicite.
+PR #17 **APPROUVABLE uniquement pour la fixture fictive** au HEAD `b7bd1f7820dd72f45cb22dbf592ad0eb0d250192` ; la branche F0 reste indépendante de ses modifications, sans dépendance de fusion implicite.
 
 ## Règles de preuve
 
@@ -14,8 +14,9 @@ PR #17 en contre-revue **parallèle**, aucune dépendance implicite.
   cible **et** le navigateur ; distinguer « bloqué par extension »
   de « inaccessible par la barrière OS ».
 - Un `webNavigation.onBeforeNavigate` observé ne bloque **rien**.
-  Un veto n'est acquis que si le point de contrôle annule la requête
-  **avant** que le serveur piège ne la reçoive.
+  Une invalidation de session déclenchée APRÈS une transition n'est
+  pas un blocage de navigation. Un veto n'est attesté que par
+  **`DENY` corrélé avant réception** et témoin local joignable.
 - Les requêtes `data:`/`blob:`/`file:` ne relèvent pas des mêmes
   événements que HTTP(S). Toute revendication hors du périmètre mesuré
   doit être explicitement classée `UNPROVEN`.
@@ -40,39 +41,53 @@ n'est jamais relié à une session P3.6A réelle. La fixture d'attaque
 peut être volontairement refusée par P3.6E : **ne jamais affaiblir le
 filtre P3.6E pour tester le navigateur**.
 
-**Serveur leurre :** deuxième adresse `127.0.0.1:AUTRE_PORT`,
-compteur `requests_received`, zéro collecte de secrets. Une
-requête interdite doit être visible dans le témoin négatif
-(sans veto, mais toujours hors Internet) et absente avec le veto.
+**Serveurs leurres HTTP et HTTPS :** autres ports/origines
+loopback, compteurs de réception sans collecte de secrets.
+Chaque destination doit être **effectivement joignable** en
+témoin négatif sans veto (profil isolé, toujours hors Internet)
+puis non contactée lorsque le veto est armé.
+Le HTTPS emploie un certificat de test que **seul le profil
+jetable** sait vérifier (aucune autorité installée dans
+le Firefox quotidien). Un échec de certificat sans veto
+n'est PAS une preuve de blocage `webRequest`.
 
 **Trace navigateur :** événements `webRequest` et `webNavigation`
 convertis en événements structurés expurgés, avec codes
-`ALLOW_MAIN`, `DENY_HTTP`, `NAVIGATION_OBSERVED`,
-`BLOCKER_NOT_READY`, `PERMISSION_MISSING`, `SESSION_CLOSED`.
+`ALLOW_MAIN`, `DENY_HTTP`, `NAVIGATION_COMMITTED`,
+`SESSION_INVALIDATED`, `BLOCKER_NOT_READY`,
+`PERMISSION_MISSING`, `OS_EGRESS_DENIED`,
+`UNOBSERVABLE`, `SESSION_CLOSED`.
+Ne jamais compter `SESSION_INVALIDATED` comme un refus
+pré-réseau. Inclure la génération du banc et un identifiant
+de tentative non sensible pour corréler veto et serveur témoin.
 Éviter de publier les URL complètes ; un hash d'URL n'est pas une
 mesure universelle d'anonymisation et n'est pas requis.
 
-**Trace OS :** liste d'interfaces et routes, namespace de chaque
-processus, preuve que le serveur et Firefox partagent la même
-identité de namespace et qu'aucune route externe n'existe,
-résultats de test local et test externe. Les logs doivent exclure
-le répertoire privé de P3.6A.
+**Trace OS :** identité `/proc/<pid>/ns/net` du véritable
+processus Firefox, de ses enfants réseau, des serveurs et leurres ;
+interfaces et routes IPv4+IPv6, `veth`, proxies,
+sockets hérités, sockets Unix liés à des chemins, canaux
+IPC/mount vers l'hôte et éventuels relais de services.
+Publier séparément `NO_IP_EGRESS_FROM_TEST_NAMESPACE`
+et `NO_EXTERNAL_EGRESS_VIA_HOST_SERVICES` ;
+en cas d'hypothèse non vérifiée, afficher `UNPROVEN`.
+Exclure les chemins ou données privés des journaux.
 
 ## 2. Scénarios bloquants (F1/F2/F3)
 
 | Test | Stimulus synthétique | Oracle Firefox | Oracle leurre | Verdict attendu |
 | --- | --- | --- | --- | --- |
-| N00 | Ouvrir l'URL unique sous listener armé | une requête principale autorisée, HTTP 200 | 0 | PASS |
+| N00 | Onglet neutre créé, extension `CLOSED` puis `ARMED` ; requête initiale autorisée exactement une fois | `main_frame` GET exact + tabId/génération ; HTTP 200 | 0 | PASS limité |
 | N01 | Lien `#section` dans le même document | pas de nouvelle requête HTTP | 0 | PASS |
 | N02 | Clic sur `http://127.0.0.1:AUTRE_PORT/escape` | veto bloquant, aucune navigation engagée | 0 | PASS |
 | N03 | Clic sur autre chemin du **même port** | veto ; la navigation ne quitte pas l'HTML | 0 | PASS |
-| N04 | Lien HTTP(S) vers une origine externe fictive | veto observable, aucune navigation commise | 0 | PASS |
-| N05 | `window.open` / clic avec `target=_blank` | nouvel onglet refusé ou session invalidée ; ne pas prétendre neutralisation anticipée sans preuve | 0 | PASS borné |
-| N06 | Redirection HTTP 302 vers autre origine | destination bloquée au nouvel `onBeforeRequest` (à confirmer) | 0 | PASS |
-| N07 | Sous-ressource `img`/`link`/`iframe` HTTP(S) | veto avec type correct et origine du document | 0 | PASS |
-| N08 | Une requête `ws:`/`wss:` fictive | vérifier couverture réelle, sinon UNPROVEN | 0 | PASS ou NO_GO |
-| N09 | `data:`, `blob:`, `file:`, `about:` | vérification comportement/navigations sans inférer veto webRequest | 0 | NO_GO si scénario sensible non confiné |
-| N10 | Navigation par menu, adresse ou historique | refus ou invalidation observée de la session sensible | 0 | PASS borné |
+| N04 | Deux leurres **HTTP et HTTPS loopback joignables** avec origine/port distincts | témoin sans veto reçu ; avec veto `DENY` corrélé, aucune navigation commise | 0 avec veto | PASS borné HTTP(S) |
+| N05 | `target=_blank` HTML sans JS ; `window.open` uniquement fixture hostile JS séparée | refus GLOBAL du profil depuis nouveau `tabId`, `DENY` ; une invalidation tardive = NO_GO | 0 | PASS si veto anticipé |
+| N06 | Redirect HTTP 302 vers leurre joignable, URL autorisée ne conférant pas l'accès à la destination | `DENY` sur requête de destination, aucun accord implicite sur redirect | 0 | PASS conditionnel |
+| N07 | Sous-ressource `img`/`link`/`iframe` HTTP(S), nouveaux frames, `tabId` ambigu | veto global, quelle que soit la provenance, permissions origine ET destination confirmées | 0 | PASS borné |
+| N08 | WebSocket `ws:`/`wss:` fictif vers serveur local ; aucune activation JS dans la page professeur | séparer veto du handshake HTTP, trames et couverture réelle ; si non couvert `UNPROVEN` | 0 | PASS seulement si vérifié |
+| N09 | `data:`, `blob:`, `file:`, `about:`, protocol handlers | `webRequest` non présumé couvrant ; observer commits et contamination | 0 | `UNOBSERVABLE` ⇒ NO_GO global |
+| N10 | Navigation par menu, barre d'adresse ou historique ; nouvel onglet | distinguer transition `NAVIGATION_COMMITTED`, veto réel ou invalidation APRÈS ; cette dernière ne vaut pas PASS | 0 | PASS seulement avec prévention attestée |
 | N11 | `meta refresh` externe, scripts de page coupés | pas de transition ; le banc hostile peut tester séparément le mécanisme sans JS | 0 | PASS |
 | N12 | CSS/SVG contenant URLs de chargement fictives | veto des HTTP(S) générées ; risques de parsers/CSP explicités | 0 | PASS |
 | N13 | Fermeture / retour arrière / restauration | aucun jeton réarmé ; pas de page sensible restaurée | 0 | PASS |
@@ -89,12 +104,12 @@ un serveur tiers réel pour tester des fuites.
 | P00 | Permissions hôtes non accordées | aucun onglet d'essai lancé, `NO_GO` |
 | P01 | `webRequestBlocking` absent | listener impossible → `NO_GO` |
 | P02 | Listener non enregistré / tardif | `ARMED` impossible → `NO_GO` |
-| P03 | Extension redémarrée / contexte MV3 évincé | pas de réarmement implicite ; re-handshake obligatoire |
-| P04 | Permission révoquée pendant l'essai | session invalide ; vérifier l'absence de sortie réelle |
+| P03 | Extension redémarrée / contexte MV3 évincé **après chargement** | écouteur top-level ré-enregistré, `CLOSED`, aucune ancienne génération réarmée ; barrière OS indépendante |
+| P04 | Permission révoquée **après chargement**, puis clic externe | invalidation potentiellement tardive ; prouver indépendamment absence de livraison OS ; pas de PASS du veto si listener absent |
 | P05 | Onglet fermé/remplacé, `tabId` réutilisé | ancienne autorisation non récupérable |
 | P06 | Extension concurrente simulant redirection | le serveur leurre reste à zéro ; sinon NO_GO |
 | P07 | URL de capacité réutilisée après fermeture | refus par le serveur et/ou invalidation de session |
-| P08 | `webRequest` manque une catégorie de requête | pas d'affirmation « absence de fuite » sans preuve OS |
+| P08 | `webRequest` manque une catégorie de requête | `UNOBSERVABLE` pour le veto, test OS indépendant obligatoire |
 | P09 | Journaux / événements d'extension | aucun token, sélection, HTML ou URL sensible exporté |
 | P10 | Fenêtre habituelle Firefox déjà ouverte | le lanceur doit prouver le **profil distinct** |
 | P11 | Tentative de restauration de session au redémarrage | refuser toute ancienne capacité non réarmée |
@@ -111,13 +126,19 @@ L'isolation Ubuntu est une **obligation de qualification F3**,
 - un processus Firefox et le serveur de fixture **dans le même
   namespace réseau** ; des namespaces différents casseraient la
   communication vers `127.0.0.1` ;
-- uniquement l'interface `lo` active, aucune route réseau externe,
-  pas de connectivité ni résolution DNS externe opérationnelle ;
-- une preuve négative par un navigateur **sans** listener, toujours
-  dans le namespace : la page peut joindre le serveur piège
-  loopback mais ne peut pas joindre Internet ;
-- une preuve positive avec listener : ni navigation interdite,
-  ni connexion au serveur piège ;
+- uniquement `lo` dans ce namespace, aucune route externe
+  IPv4/IPv6, aucun `veth` ou proxy donnant accès à l'hôte ;
+  démontrer l'absence de sortie IP sans aucune requête publique ;
+- un témoin négatif **sans veto**, toujours isolé :
+  la page atteint réellement les leurres HTTP **et HTTPS**
+  locaux (en veillant au certificat de test) ;
+- un témoin positif avec veto : `DENY` corrélé, aucune
+  réception par le leurre, absence de navigation commise ;
+- vérifier les sockets de fichiers accessibles, les
+  descripteurs hérités, les proxies, IPC et relais éventuels
+  de services de l'hôte ; un simple namespace réseau peut
+  être insuffisant. Si nécessaire, isoler aussi mount/IPC
+  et l'environnement des processus sous revue spécifique ;
 - arrêt de tous les processus et suppression du profil jetable.
 
 Si les namespaces réseau sans privilège sont bloqués par
@@ -148,10 +169,13 @@ La réussite des tests doit inclure un contrôle positif
 (requête vers le leurre visible sans veto).
 Aucune requête privée dans les logs.
 
-**F3 — isolement OS** : preuve de namespace, routes et interfaces,
-contact autorisé entre serveur et Firefox, impossibilité
-d'accès Internet, vérification que le veto navigateur ne remplace
-pas la barrière système.
+**F3 — isolement OS** : deux verdicts distincts :
+`NO_IP_EGRESS_FROM_TEST_NAMESPACE` si la preuve des interfaces,
+routes, namespaces et processus est complète ; et
+`NO_EXTERNAL_EGRESS_VIA_HOST_SERVICES` uniquement si
+les canaux IPC/Unix/FD/proxy ont eux aussi été neutralisés
+et leurs preuves contrôlées. Sinon `UNPROVEN`
+pour cette propriété plus forte.
 
 **F4 — composition et décision** : rapport
 `GO_FICTIONAL_NETWORK_LAB` ou `NO_GO` avec exceptions précises ;
@@ -173,3 +197,66 @@ et attestation réelle du profil Quarto restent non satisfaits.
 
 **Aucune exécution Firefox ou commande réseau n'est demandée
 au propriétaire pendant F0.**
+
+## 7. Amendements opposables issus de l'audit F0
+
+Source : [contre-expertise indépendante #18](https://github.com/djibian/alliage/pull/18#issuecomment-6585166865).
+
+### Test initial, génération et permissions (C1/C2)
+
+- Contrôler les permissions réellement accordées par Firefox
+  (`permissions.contains`) pour les deux origines (initiateur,
+  destination), pas seulement le texte du manifeste ;
+  consigner la version Firefox MV3 exacte.
+- Enregistrer le listener **global au profil** et le maintenir
+  présent dans l'état `CLOSED` : il ne laisse passer
+  aucune requête HTTP(S) interceptée. Pas de `tabId` dans
+  le filtre du listener.
+- Un onglet neutre est créé puis lié à un `tabId`, à une URL
+  de capacité exacte et à une génération. Une seule requête
+  `GET/main_frame` est autorisée ; permission consommée
+  avant réponse. Un deuxième chargement, une destination
+  après redirection ou une requête depuis un autre onglet
+  est refusée.
+- Tester l'arrêt/désactivation/révocation *après chargement*,
+  pas uniquement avant l'ouverture. Sans extension,
+  aucun veto extension n'est encore possible :
+  `OS_EGRESS_DENIED` et expiration serveur sont des preuves
+  distinctes, et le DOM déjà chargé n'est pas effacé.
+- Vérifier qu'une reprise de l'event page MV3 ne restaure
+  ni l'ancien tabId ni une ancienne génération d'armement.
+
+### Oracles non confondus (C3/C4)
+
+Chaque cas annonce séparément les états :
+`BLOCKED_HTTP_REQUEST`, `NAVIGATION_COMMITTED`,
+`SESSION_INVALIDATED`, `OS_EGRESS_DENIED`,
+`UNOBSERVABLE`. Une invalidation après une navigation
+commise est une **détection tardive**, jamais un
+`BLOCKED_HTTP_REQUEST`.
+
+Le témoin de blocage HTTP(S) exige une destination locale
+JOIGNABLE (compteur > 0 sans veto), puis `DENY`
+de la demande correspondant au même stimulus et compteur = 0
+avec veto. La simple erreur DNS de `example.invalid`
+ne démontre rien. Chaque cas HTTPS requiert une configuration
+TLS de test complète sans modifier la configuration du
+Firefox quotidien. La paire IP-only / relais services-hôte
+produit deux conclusions indépendantes.
+
+### Couverture additionnelle obligatoire
+
+- `tabId=-1`, requêtes `speculative` et autres origines ;
+- `target=_blank` sans JS, puis `window.open` uniquement
+  dans une fixture hostile distincte activant JS ;
+- HTTP 302, HTTPS, sous-frame, IPv6 loopback, WebSocket
+  (handshake vs données), et schémas non HTTP ;
+- proxies actifs/configurations navigateur, permissions révoquées,
+  listeners absents, session expirée/restaurée, profils concurrents ;
+- réseau et processus réels en namespace, sockets Unix liés à
+  des fichiers accessibles depuis l'environnement Firefox,
+  descripteurs hérités et relais IPC vers l'hôte.
+
+**Toute preuve incomplète ⇒ `UNPROVEN` et pas de GO général.**
+L1/L2, attestation du profil Quarto, accès réel professeur et
+publication élèves restent toujours interdits.
