@@ -175,7 +175,7 @@ def require_static_navigation(html: bytes) -> None:
         # Keep this an explicit, conservative fiction-only policy: tags
         # listed here are refused even if they were inert in that context.
         if any(
-            "start-tag" in code
+            code.startswith("unexpected-start-tag")
             and isinstance(info, dict)
             and str(info.get("name", info.get("tagName", ""))).lower()
             in _DROPPED_NAVIGATION_TAGS
