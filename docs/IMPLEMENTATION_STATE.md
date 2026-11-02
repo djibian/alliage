@@ -922,3 +922,44 @@ confidentialité du HTML, L4 trafic/navigations Firefox
 et attestation du profil professeur demeurent NON RÉSOLUS.
 PR #13–#17 Draft/non fusionnées. Aucun HTML professeur réel
 via HTTP, aucun JS, aucune publication élève.
+
+## P3.6E — diagnostics d'éléments écartés sous select (2 novembre 2026)
+
+La [quatrième contre-expertise indépendante](https://github.com/djibian/alliage/pull/17#issuecomment-6584277621)
+du HEAD `06491151a80a89228fcb42e6ffaf1a2c741cb626`
+conclut **CORRECTIONS REQUISES**, mais confirme que les divergences
+SVG/style et MathML/style précédentes sont levées sur les fixtures.
+L'objection restante : `html5lib` peut **ignorer** un start-tag
+interdit sous `select`, avec le diagnostic
+`unexpected-start-tag-in-select`, alors que le garde n'inspectait
+que `unexpected-start-tag-ignored`.
+
+Il ne s'agit **pas d'une fuite Firefox démontrée** : une balise
+supprimée du DOM peut être inerte. La correction cible le contrat
+expérimental plus strict de *refus de syntaxe interdite*. Le garde
+inspecte désormais la famille de diagnostics
+`unexpected-start-tag*` portant un nom de balise, et refuse
+les éléments interdits ainsi que les éléments conditionnels
+`a`, `area`, `meta`, `link` qui ont été écartés.
+Un diagnostic `expected-doctype-but-got-start-tag` ne constitue
+**pas** une suppression et ne doit pas provoquer de refus.
+
+**Preuves ajoutées :** onze fixtures de tags invalides sous
+`select`, y compris `iframe`, `form`, `set`, `meta refresh`,
+`link rel=preconnect` et lien externe ; intégration
+`verify_session()=PASS` → refus HTTP attendu ; sauvegarde du
+snapshot original. Les cas positifs `#fragment` et CSS Quarto
+intégrée sont conservés.
+
+**Régression CI documentée :** la première implémentation attrapait
+tous les codes contenant `start-tag`, dont le diagnostic innocent
+d'absence de doctype, et faisait échouer quatre tests positifs.
+La sélection a été ramenée aux diagnostics
+`unexpected-start-tag*`. Consulter les workflows du HEAD final
+avant d'affirmer la qualification.
+
+A014 demeure : le filtrage HTML, même via un parseur HTML5, est une
+protection **de laboratoire fictif**, non un confinement navigateur.
+L1/L2/L4 complète et l'attestation de profil restent ouverts.
+Aucune session professeur réelle via HTTP, aucun JS activé,
+aucune fusion ou publication élève. PR #13–#17 Draft.
