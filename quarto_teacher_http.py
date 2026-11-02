@@ -14,13 +14,16 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import mimetypes
+import os
+import stat
 from pathlib import Path
 from pathlib import PurePosixPath
 import secrets
 from urllib.parse import quote
 
-from quarto_navigation import NavigationError, _regular_within
-from quarto_teacher_render import TeacherRenderError, verify_session
+from quarto_teacher_render import (
+    MAX_RENDERED_BYTES, TeacherRenderError, verify_session,
+)
 
 BIND = "127.0.0.1"
 PREFIX = "dist/professeur/"
@@ -66,6 +69,47 @@ def _asset_name(value: object) -> str:
     return value
 
 
+def _seal_asset(session: Path, name: str, size: int, digest: str) -> bytes:
+    """Read a single verified file through O_NOFOLLOW dirfds, once at admission.
+
+    Pin directories and the final regular file by open file descriptors. A
+    concurrent rename cannot redirect the read to a later symlink target.
+    This is POSIX-only; unsupported platforms refuse rather than fall back.
+    """
+    if os.name != "posix" or not hasattr(os, "O_NOFOLLOW"):
+        raise TeacherHTTPError("Lecture atomique non prise en charge.")
+    dir_flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY
+    data_flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+    parts = ("project", *name.split("/"))
+    directory = None
+    try:
+        directory = os.open(session, dir_flags)
+        for component in parts[:-1]:
+            nextfd = os.open(component, dir_flags, dir_fd=directory)
+            os.close(directory)
+            directory = nextfd
+        fd = os.open(parts[-1], data_flags, dir_fd=directory)
+        try:
+            st = os.fstat(fd)
+            if not stat.S_ISREG(st.st_mode) or st.st_size != size:
+                raise TeacherHTTPError("Actif Quarto non régulier ou altéré.")
+            # fdopen closes exactly the verified descriptor on all outcomes.
+            with os.fdopen(fd, "rb", closefd=True) as stream:
+                fd = -1
+                data = stream.read(size + 1)
+        finally:
+            if fd != -1:
+                os.close(fd)
+    except OSError as exc:
+        raise TeacherHTTPError("Lecture sûre de l'actif refusée.") from exc
+    finally:
+        if directory is not None:
+            os.close(directory)
+    if len(data) != size or hashlib.sha256(data).hexdigest() != digest:
+        raise TeacherHTTPError("SHA-256 d'actif professeur modifié.")
+    return data
+
+
 class FictionalTeacherPreview:
     """Verified professor-output assets, restricted to fictional sessions."""
 
@@ -90,7 +134,10 @@ class FictionalTeacherPreview:
         if not isinstance(html, dict) or not isinstance(html.get("path"), str):
             raise TeacherHTTPError("HTML professeur non attesté.")
         self.prefix = "/alliage-professor-fixture-" + secrets.token_hex(16)
-        self.routes: dict[str, tuple[str, int, str]] = {}
+        # Freeze every eligible asset into immutable bytes BEFORE binding.
+        # Post-start writes, deletions or symlink swaps cannot alter responses.
+        self.routes: dict[str, tuple[bytes, str]] = {}
+        total = 0
         for item in files:
             if not isinstance(item, dict):
                 raise TeacherHTTPError("Entrée de manifeste invalide.")
@@ -99,10 +146,23 @@ class FictionalTeacherPreview:
             digest = item.get("sha256")
             if type(size) is not int or size < 0 or not isinstance(digest, str):
                 raise TeacherHTTPError("Entrée de manifeste non vérifiable.")
+            total += size
+            if total > MAX_RENDERED_BYTES:
+                raise TeacherHTTPError("Budget de lecture Quarto dépassé.")
             route = self.prefix + "/" + quote(name, safe="/")
             if route in self.routes:
                 raise TeacherHTTPError("Collision de routes professeur.")
-            self.routes[route] = (name, size, digest)
+            data = _seal_asset(self.session, name, size, digest)
+            suffix = PurePosixPath(name).suffix.lower()
+            if suffix in (".js", ".mjs"):
+                mime = "text/javascript"
+            elif suffix == ".css":
+                mime = "text/css"
+            else:
+                mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
+            if mime.startswith("text/") or mime in ("application/json", "image/svg+xml"):
+                mime += "; charset=utf-8"
+            self.routes[route] = (data, mime)
         html_route = self.prefix + "/" + quote(_asset_name(html["path"]), safe="/")
         if html_route not in self.routes:
             raise TeacherHTTPError("HTML professeur absent de l'inventaire.")
@@ -115,31 +175,24 @@ class FictionalTeacherPreview:
         asset = self.routes.get(path)
         if asset is None:
             raise FileNotFoundError("Route non autorisée.")
-        name, size, digest = asset
-        try:
-            file = _regular_within(self.session / "project", name)
-            if file.stat().st_size != size:
-                raise TeacherHTTPError("Taille d'actif modifiée.")
-            data = file.read_bytes()
-        except (NavigationError, OSError) as exc:
-            raise TeacherHTTPError("Actif professeur indisponible.") from exc
-        if len(data) != size or hashlib.sha256(data).hexdigest() != digest:
-            raise TeacherHTTPError("SHA-256 d'actif professeur modifié.")
-        if file.suffix.lower() in (".js", ".mjs"):
-            mime = "text/javascript"
-        elif file.suffix.lower() == ".css":
-            mime = "text/css"
-        else:
-            mime = mimetypes.guess_type(file.name)[0] or "application/octet-stream"
-        if mime.startswith("text/") or mime in ("application/json", "image/svg+xml"):
-            mime += "; charset=utf-8"
-        return data, mime
+        return asset  # sealed immutable bytes; no filesystem access on GET/HEAD
 
 
 def make_handler(preview: FictionalTeacherPreview):
     class Handler(BaseHTTPRequestHandler):
         server_version = "AlliageFictionalTeacher/0"
         sys_version = ""
+
+        def parse_request(self):
+            # CPython normalizes request-targets starting with // to /.
+            # Keep a verdict on the *raw* target before its normalization.
+            raw = self.raw_requestline.rstrip(b"\r\n").split(b" ")
+            self._noncanonical_target = (
+                len(raw) != 3 or not raw[1].startswith(b"/")
+                or raw[1].startswith(b"//")
+                or b"\\\\" in raw[1] or b"\x00" in raw[1]
+            )
+            return super().parse_request()
 
         def log_message(self, *_args):
             # Neither URL capability nor private filesystem information.
@@ -166,14 +219,17 @@ def make_handler(preview: FictionalTeacherPreview):
                 self.wfile.write(data)
 
         def authorized(self) -> bool:
+            if self._noncanonical_target:
+                return False
             port = self.server.server_port
-            if self.headers.get("Host") != f"{BIND}:{port}":
+            host = self.headers.get_all("Host", [])
+            if host != [f"{BIND}:{port}"]:
                 return False
-            origin = self.headers.get("Origin")
-            if origin is not None and origin != f"http://{BIND}:{port}":
+            origins = self.headers.get_all("Origin", [])
+            if len(origins) > 1 or (origins and origins[0] != f"http://{BIND}:{port}"):
                 return False
-            if self.headers.get("Sec-Fetch-Site") not in (
-                    None, "none", "same-origin"):
+            sites = self.headers.get_all("Sec-Fetch-Site", [])
+            if len(sites) > 1 or (sites and sites[0] not in ("none", "same-origin")):
                 return False
             return True
 
