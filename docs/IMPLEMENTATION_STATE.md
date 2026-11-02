@@ -759,3 +759,97 @@ contre-revue indépendante **strictement C2**. PR #13/#14/#15
 toujours Draft et non fusionnées ; L1/L2/L4 et l'attestation
 complète du profil Quarto restent ouvertes. Aucun HTTP professeur
 réel, aucune publication ni activation JS.
+
+## P3.6F — architecture de confinement Firefox (proposition, 2 novembre 2026)
+
+**Branche indépendante de conception**
+`design/p36f-firefox-network-containment`, issue du HEAD
+**approuvé** de la PR #16
+`9f7a02d1b089a38b554af94aedaf8ca377da407a`.
+Elle avance **en parallèle** de la contre-revue P3.6E (#17)
+sans modifier ni fusionner la PR #17. La présente branche
+ne prétend donc pas contenir ses correctifs successifs.
+
+Deux documents de conception, sans aucun nouveau code d'extension,
+réseau ou navigateur :
+- [architecture](ARCHITECTURE_FIREFOX_CONFINEMENT.md) :
+  séparation de l'intégrité Git/Quarto/HTTP, du veto
+  `webRequest` et de la barrière réseau OS indépendante ;
+- [matrice de qualification](TEST_PLAN_FIREFOX_CONFINEMENT.md) :
+  tests de navigation, blocages, pannes, permissions, profils,
+  faux serveur leurre et preuves du réseau.
+
+**Choix provisoire :** pour le laboratoire Quarto **fictif**
+seulement, créer ultérieurement une WebExtension de banc
+distincte de la v0.4, dans un Firefox à profil jetable.
+Une permission étendue éventuelle `<all_urls>` n'est
+**ni demandée ni ajoutée ici** ; elle doit être auditée
+avant tout code et jamais étendue par défaut à l'extension
+Alliage quotidienne. L'essai OS sans egress requiert que
+serveur local et Firefox soient dans **le même namespace
+réseau**, avec loopback seulement. Si la plateforme ne
+permet pas cette isolation, refuser d'en revendiquer le GO.
+
+**État F0 : conception publiée, NON QUALIFIÉE.**
+Aucun `webRequest` n'a encore été enregistré, aucun
+namespace créé, aucun navigateur lancé, aucun test réseau
+exécuté et aucune capacité réelle autorisée. Une CI
+éventuellement verte sur ce commit documentaire n'est
+pas une preuve de confinement. Première porte : revue
+architecturale indépendante des risques et permissions,
+puis seulement implémentation expérimentale F1.
+La PR #17 et ses contre-revues restent indépendantes.
+
+**Restrictions :** PR #13–#17 non fusionnées ; aucun HTML
+professeur réel via HTTP, aucune modification/push sur
+le dépôt pédagogique, aucun JS de page activé, aucune
+publication élève. L1, L2, L4 complète et profil Quarto
+effectif continuent à bloquer un accès réel.
+
+## P3.6E approuvable ; P3.6F/F0 revu et amendé — 2 novembre 2026
+
+**P3.6E — fin des itérations d'analyse HTML statique** :
+la [contre-expertise finale #17](https://github.com/djibian/alliage/pull/17#issuecomment-6584857246)
+conclut **APPROUVABLE dans le seul périmètre expérimental** sur
+le HEAD `b7bd1f7820dd72f45cb22dbf592ad0eb0d250192`
+(CI Python 150 tests dont 11 ignorés et Quarto HTTP 23 tests
+par version 1.10.19/1.10.20). Les diagnostics `unexpected-start-tag*`
+refusent le cas `select/iframe`. Un sur-refus de HTML malformé
+est accepté dans le laboratoire fictif. Aucun confinement Firefox
+général ni exposition réelle n'en découle.
+**PR #17 reste Draft et non fusionnée**.
+
+**P3.6F/F0 — première revue indépendante** :
+[verdict CORRECTIONS REQUISES #18](https://github.com/djibian/alliage/pull/18#issuecomment-6585166865)
+sur le HEAD initial `e8b834ddee229173ac5e48cc88d17edb15408dbf`
+pour quatre obligations :
+- C1 : veto `webRequest` **global** à toutes les requêtes
+  HTTP(S) interceptées du profil jetable, et non à un seul
+  onglet ; unique ouverture initiale `main_frame` autorisée.
+- C2 : listener permanent `CLOSED` par défaut, autorisation
+  temporaire liée à une génération, handshake non assimilé
+  à une preuve d'absence de fuite si l'extension est arrêtée.
+- C3 : distinguer `NO_IP_EGRESS_FROM_TEST_NAMESPACE` et
+  `NO_EXTERNAL_EGRESS_VIA_HOST_SERVICES` ; inventorier
+  les canaux IPC, sockets Unix liés à des chemins,
+  descripteurs hérités et relais/proxies de l'hôte.
+- C4 : prouver la **cause du veto** via leurres HTTP et
+  HTTPS locaux *réellement joignables* sans veto, puis
+  `DENY` corrélé/zéro réception avec veto, sans solliciter
+  Internet. Séparer `BLOCKED_HTTP_REQUEST`,
+  `NAVIGATION_COMMITTED`, `SESSION_INVALIDATED`,
+  `OS_EGRESS_DENIED`, `UNOBSERVABLE`.
+
+Les deux documents
+[architecture](ARCHITECTURE_FIREFOX_CONFINEMENT.md) et
+[tests](TEST_PLAN_FIREFOX_CONFINEMENT.md) ont été corrigés
+sur la **même branche documentaire sœur de #17**.
+Le prochain contrôle est une contre-revue de F0 corrigé
+avant F1. **Aucun code d'extension ou d'isolation réseau
+n'a été écrit ni exécuté.** La CI documentaire prouve
+seulement la non-régression du projet existant.
+
+**Gouvernance :** PR #13–#18 Draft/non fusionnées,
+aucun déploiement, aucune ressource professeur réelle
+accessible par HTTP ; L1, L2, L4 de production et
+attestation du profil Quarto restent non résolus.
