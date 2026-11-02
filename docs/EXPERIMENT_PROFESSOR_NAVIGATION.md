@@ -120,3 +120,55 @@ de provenance. L1, L2, L4 général et l'attestation de profil réel
 restent des portes fermées à l'exposition professeur.
 La PR #17 reste Draft et doit recevoir une nouvelle contre-revue
 indépendante sur son HEAD corrigé avant tout essai Firefox adversarial.
+
+## Deuxième contre-expertise — écarts de reconstruction HTML5 (2 novembre 2026)
+
+La [nouvelle contre-expertise indépendante](https://github.com/djibian/alliage/pull/17#issuecomment-6582722330)
+du HEAD `84a9b567bd3844bde79f652580b9e03984bbe489`
+conclut **CORRECTIONS REQUISES**. Le refus MathML/SMIL fonctionne
+lorsque les balises sont vues par `HTMLParser`, mais **certaines
+déclarations ou commentaires HTML malformés empêchent ces callbacks**
+alors que le parseur HTML5 du navigateur restitue les éléments actifs.
+Les fixtures adversariales `<!----!>` et `<![CDATA[>` sont
+entièrement fictives. Une observation Chromium sur un DOM restauré
+ne remplace pas une qualification Firefox.
+
+**Tentative infructueuse documentée :** le rejet de *tous* les
+commentaires/déclarations HTML a correctement fermé ces vecteurs,
+mais a aussi refusé la fixture Quarto **réel** (CI
+[Python](https://github.com/djibian/alliage/actions/runs/41484653791)
+et [Quarto 1.10.19/1.10.20](https://github.com/djibian/alliage/actions/runs/41484653706)).
+Ce résultat démontre qu'un refus excessif n'est pas un produit
+fonctionnel et ne doit pas être présenté comme un GO.
+
+**Grammaire expérimentale resserrée, sans réécriture :**
+- au plus un doctype HTML simple au début ;
+- accepter seulement les commentaires simples `<!-- ... -->`
+  terminés par `-->` sans `<`, `>` ou `--` intérieur ;
+- refuser toutes les autres introductions de déclaration,
+  CDATA, commentaires ambigus et instructions `<?...`;
+- appliquer ensuite les contrôles existants sur les balises
+  réellement signalées par le `HTMLParser`.
+
+Ce préfiltre lexical ne dépend pas des callbacks perdus du
+parseur Python, mais ne constitue **ni un parseur HTML5 complet,
+ni une preuve de concordance exhaustive entre les moteurs**.
+La compatibilité avec le rendu Quarto fictif réel est testée
+explicitement en CI 1.10.19 et 1.10.20 ; le HTML admis reste
+**identique bit à bit** au fichier déjà rehashé par P3.6A.
+
+**Décision de conception :** arrêter les ajouts opportunistes
+de balises interdites en tant que prétendue barrière générale.
+La voie vers l'aperçu réel devra comparer, sur fixtures fictives,
+un contrôle de navigation **dans Firefox**, par exemple une extension
+avec `webRequest.onBeforeRequest` et permissions bornées, ou un contexte
+d'affichage isolé. Le contrôle au navigateur nécessitera à son tour des
+tests de requêtes principales, sous-ressources, changements de contexte,
+extensions concurrentes et permissions. Aucun de ces moyens n'est
+encore implémenté ni approuvé.
+
+Les limites L1 provenance/consentement, L2 contenu intégré dans
+l'unique HTML, L4 générale et la vérification du profil Quarto
+continuent de **bloquer toute exposition de la session réelle**.
+La PR #17 reste Draft jusqu'à une nouvelle revue indépendante
+du changement de grammaire et de ses limites.
