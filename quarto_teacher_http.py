@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+from types import MappingProxyType
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import json
 import mimetypes
 import os
 import stat
@@ -28,6 +28,7 @@ from quarto_teacher_render import (
 BIND = "127.0.0.1"
 PREFIX = "dist/professeur/"
 MAX_ASSETS = 2000
+MAX_MANIFEST_BYTES = 4 * 1024 * 1024
 # Deliberately STATIC: remote resources and every script (including Quarto's
 # own) are blocked. Quarto's embed-resources uses data:text/css stylesheets;
 # permit only that additional stylesheet scheme, without enabling scripts,
@@ -110,6 +111,39 @@ def _seal_asset(session: Path, name: str, size: int, digest: str) -> bytes:
     return data
 
 
+def _assert_verified_manifest_unchanged(session: Path, expected_sha256: str) -> None:
+    """Only compare a later manifest to the validated bytes; never parse it.
+
+    This is a drift detector, NOT an atomic provenance claim. If the file
+    changes after the check, the HTTP routes remain tied to the original
+    verified manifest and the already sealed immutable asset bytes.
+    """
+    dir_flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+    directory = None
+    fd = -1
+    try:
+        directory = os.open(session, dir_flags)
+        fd = os.open("manifest.json", flags, dir_fd=directory)
+        st = os.fstat(fd)
+        if (not stat.S_ISREG(st.st_mode)
+                or st.st_size > MAX_MANIFEST_BYTES):
+            raise TeacherHTTPError("Manifeste changé après vérification.")
+        with os.fdopen(fd, "rb", closefd=True) as stream:
+            fd = -1
+            data = stream.read(MAX_MANIFEST_BYTES + 1)
+    except OSError as exc:
+        raise TeacherHTTPError("Manifeste non vérifiable après admission.") from exc
+    finally:
+        if fd != -1:
+            os.close(fd)
+        if directory is not None:
+            os.close(directory)
+    if (len(data) > MAX_MANIFEST_BYTES
+            or hashlib.sha256(data).hexdigest() != expected_sha256):
+        raise TeacherHTTPError("Manifeste changé après vérification.")
+
+
 class FictionalTeacherPreview:
     """Verified professor-output assets, restricted to fictional sessions."""
 
@@ -118,10 +152,12 @@ class FictionalTeacherPreview:
         # verify_session checks the real P3.6A HTML identity, symlinks, exact
         # inventory and SHA-256. The manifest is local, NOT signed or trusted.
         try:
-            verify_session(self.session)
-            report = json.loads((self.session / "manifest.json").read_text(
-                encoding="utf-8"))
-        except (TeacherRenderError, OSError, ValueError, TypeError) as exc:
+            proof = verify_session(self.session, include_manifest=True)
+            # C1: the exact object validated by P3.6A, NOT a second manifest
+            # read that a concurrent writer could substitute.
+            report = proof["verified_manifest"]
+            manifest_sha256 = proof["verified_manifest_sha256"]
+        except (TeacherRenderError, OSError, ValueError, TypeError, KeyError) as exc:
             raise TeacherHTTPError("Session P3.6A non vérifiable.") from exc
         rid = report.get("resource_id")
         # Hard feature gate: NO actual professor session is eligible in P3.6B.
@@ -136,7 +172,7 @@ class FictionalTeacherPreview:
         self.prefix = "/alliage-professor-fixture-" + secrets.token_hex(16)
         # Freeze every eligible asset into immutable bytes BEFORE binding.
         # Post-start writes, deletions or symlink swaps cannot alter responses.
-        self.routes: dict[str, tuple[bytes, str]] = {}
+        routes: dict[str, tuple[bytes, str]] = {}
         total = 0
         for item in files:
             if not isinstance(item, dict):
@@ -150,7 +186,7 @@ class FictionalTeacherPreview:
             if total > MAX_RENDERED_BYTES:
                 raise TeacherHTTPError("Budget de lecture Quarto dépassé.")
             route = self.prefix + "/" + quote(name, safe="/")
-            if route in self.routes:
+            if route in routes:
                 raise TeacherHTTPError("Collision de routes professeur.")
             data = _seal_asset(self.session, name, size, digest)
             suffix = PurePosixPath(name).suffix.lower()
@@ -162,11 +198,15 @@ class FictionalTeacherPreview:
                 mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
             if mime.startswith("text/") or mime in ("application/json", "image/svg+xml"):
                 mime += "; charset=utf-8"
-            self.routes[route] = (data, mime)
+            routes[route] = (data, mime)
         html_route = self.prefix + "/" + quote(_asset_name(html["path"]), safe="/")
-        if html_route not in self.routes:
+        if html_route not in routes:
             raise TeacherHTTPError("HTML professeur absent de l'inventaire.")
+        # Detect a manifest swap during admission, without ever consuming it
+        # for authorization. Later swaps cannot affect sealed route bytes.
+        _assert_verified_manifest_unchanged(self.session, manifest_sha256)
         self.html_route = html_route
+        self.routes = MappingProxyType(routes)
 
     def browser_url(self, port: int) -> str:
         return f"http://{BIND}:{port}{self.html_route}"
