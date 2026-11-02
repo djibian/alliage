@@ -295,6 +295,37 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
                     FictionalTeacherPreview(self.session)
         self.assertEqual(self.request(self.preview.html_route)[2], original)
 
+    def test_html5_foreign_content_rehashed_but_refused_before_http(self):
+        """The HTML5 parser catches browser-created links missing in HTMLParser."""
+        file = self.session / "project" / self.html_path
+        original = file.read_bytes()
+        suffixes = (
+            b'<svg><style><p><a href="https://example.invalid/a">'
+            b'EXTERNAL</a></p></style></svg>',
+            b'<svg><script><div><a href="/outside">EXTERNAL</a>'
+            b'</div></script></svg>',
+            b'<math><style><p><a href="/outside">EXTERNAL</a>'
+            b'</p></style></math>',
+            b'<svg><style><meta http-equiv="refresh" '
+            b'content="50;url=https://example.invalid/a"></style></svg>',
+        )
+        for suffix in suffixes:
+            with self.subTest(prefix=suffix[:70]):
+                content = original + suffix
+                file.write_bytes(content)
+                self.manifest["rendered_html"]["bytes"] = len(content)
+                self.manifest["rendered_html"]["sha256"] = hashlib.sha256(
+                    content).hexdigest()
+                self.save_manifest()
+                self.assertEqual(
+                    verify_session(self.session)["status"],
+                    "LOCAL_PROFESSOR_FILES_REHASHED",
+                )
+                with self.assertRaisesRegex(TeacherHTTPError, "Navigation"):
+                    FictionalTeacherPreview(self.session)
+        # Previously admitted HTTP instance must remain byte-for-byte stable.
+        self.assertEqual(self.request(self.preview.html_route)[2], original)
+
     def test_navigation_safe_html_remains_byte_identical(self):
         path = self.session / "project" / self.html_path
         content = path.read_bytes() + b'<a href="#chapter">Same document</a>'
