@@ -13,6 +13,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from urllib.parse import urlsplit
 
 from quarto_teacher_http import (
@@ -209,6 +210,57 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
                     with self.assertRaises(SystemExit) as error:
                         direct_main(args)
                     self.assertEqual(error.exception.code, 2)
+
+    def test_manifest_switch_between_verification_and_admission_refused(self):
+        """C1: never admit a second manifesto after validating the first."""
+        original_verify = verify_session
+        name = "dist/professeur/cours/mission/added.txt"
+        payload = b"FICTIONAL_NOT_IN_PREVIOUSLY_VERIFIED_INVENTORY"
+        entry = {"path": name, "bytes": len(payload),
+                 "sha256": hashlib.sha256(payload).hexdigest()}
+
+        def verify_then_switch(session, **kwargs):
+            proof = original_verify(session, **kwargs)
+            (self.session / "project" / name).write_bytes(payload)
+            changed = dict(self.manifest)
+            changed["rendered_files"] = sorted(
+                [*self.manifest["rendered_files"], entry],
+                key=lambda item: item["path"])
+            changed["rendered_html"] = entry  # not a valid .html identity
+            (self.session / "manifest.json").write_text(json.dumps(changed))
+            return proof
+
+        with patch("quarto_teacher_http.verify_session",
+                   side_effect=verify_then_switch):
+            with self.assertRaisesRegex(TeacherHTTPError, "Manifeste changé"):
+                FictionalTeacherPreview(self.session)
+        with self.assertRaises(TeacherRenderError):
+            original_verify(self.session)  # changed manifest is INVALID
+        # Previously opened preview serves only the already sealed fixture.
+        code, _, body = self.request(self.url().path)
+        self.assertEqual(code, 200)
+        self.assertEqual(body, self.assets[self.html_path])
+
+    def test_route_mapping_cannot_be_mutated_after_admission(self):
+        """C2: immutable bytes AND immutable published route map."""
+        with self.assertRaises(TypeError):
+            self.preview.routes[self.preview.html_route] = (
+                b"UNVERIFIED", "text/html")
+        with self.assertRaises(TypeError):
+            del self.preview.routes[self.preview.html_route]
+        self.assertEqual(
+            self.preview.get_asset(self.preview.html_route)[0],
+            self.assets[self.html_path])
+
+    def test_manifest_proof_returns_same_validated_object_only_on_optin(self):
+        ordinary = verify_session(self.session)
+        self.assertNotIn("verified_manifest", ordinary)
+        self.assertNotIn("verified_manifest_sha256", ordinary)
+        detailed = verify_session(self.session, include_manifest=True)
+        self.assertEqual(detailed["verified_manifest"], self.manifest)
+        self.assertEqual(
+            detailed["verified_manifest_sha256"],
+            hashlib.sha256((self.session / "manifest.json").read_bytes()).hexdigest())
 
     def test_raw_http_target_and_duplicate_security_headers_denied(self):
         """Test what CPython normalizes BEFORE Handler.path is available."""
