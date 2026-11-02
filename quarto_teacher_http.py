@@ -24,6 +24,7 @@ from urllib.parse import quote
 from quarto_teacher_render import (
     MAX_RENDERED_BYTES, TeacherRenderError, verify_session,
 )
+from quarto_teacher_navigation import NavigationAdmissionError, require_static_navigation
 
 BIND = "127.0.0.1"
 PREFIX = "dist/professeur/"
@@ -207,6 +208,14 @@ class FictionalTeacherPreview:
             seen.add(route)
             if name == html_name:
                 data = _seal_asset(self.session, name, size, digest)
+                # Reject known navigation-capable markup BEFORE HTTP binds;
+                # the HTML bytes stay identical to P3.6A verified output.
+                try:
+                    require_static_navigation(data)
+                except NavigationAdmissionError as exc:
+                    raise TeacherHTTPError(
+                        "Navigation de la fixture incompatible avec le confinement."
+                    ) from exc
                 routes[route] = (data, "text/html; charset=utf-8")
         html_route = self.prefix + "/" + quote(html_name, safe="/")
         if len(routes) != 1 or html_route not in routes:
