@@ -8,6 +8,7 @@ import hashlib
 import http.client
 import json
 import os
+import socket
 from pathlib import Path
 import tempfile
 import threading
@@ -181,17 +182,50 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
                 "Sec-Fetch-Site": "same-origin"}
         self.assertEqual(self.request(self.url().path, headers=good)[0], 200)
 
-    def test_post_start_mutation_and_symlink_fail_closed(self):
+    def test_post_start_mutation_and_symlink_do_not_change_sealed_bytes(self):
+        """A response is the admitted immutable snapshot, not mutable disk."""
         asset = self.session / "project" / self.css_path
         route = self.preview.prefix + "/" + self.css_path
         original = asset.read_bytes()
         asset.write_bytes(b"x" * len(original))
-        self.assertEqual(self.request(route)[0], 404)
-        asset.write_bytes(original)
         self.assertEqual(self.request(route)[0], 200)
+        self.assertEqual(self.request(route)[2], original)
+        # A newly admitted preview must still detect altered bytes.
+        with self.assertRaises(TeacherHTTPError):
+            FictionalTeacherPreview(self.session)
         asset.unlink()
         asset.symlink_to(self.session / "project" / self.html_path)
-        self.assertEqual(self.request(route)[0], 404)
+        self.assertEqual(self.request(route)[2], original)
+        # New admission rejects symlinks rather than silently following.
+        with self.assertRaises(TeacherHTTPError):
+            FictionalTeacherPreview(self.session)
+
+    def test_raw_http_target_and_duplicate_security_headers_denied(self):
+        """Test what CPython normalizes BEFORE Handler.path is available."""
+        url = self.url()
+        port = self.server.server_port
+        host = f"127.0.0.1:{port}"
+        requests = [
+            (f"GET /{url.path} HTTP/1.1\r\nHost: {host}\r\n\r\n")
+                .encode("ascii"),
+            (f"GET http://{host}{url.path} HTTP/1.1\r\nHost: {host}\r\n\r\n")
+                .encode("ascii"),
+            (f"GET {url.path} HTTP/1.1\r\nHost: {host}\r\nHost: evil.example\r\n\r\n")
+                .encode("ascii"),
+            (f"GET {url.path} HTTP/1.1\r\nHost: {host}\r\n"
+             f"Origin: http://{host}\r\nOrigin: https://evil.example\r\n\r\n")
+                .encode("ascii"),
+            (f"GET {url.path} HTTP/1.1\r\nHost: {host}\r\n"
+             "Sec-Fetch-Site: none\r\nSec-Fetch-Site: cross-site\r\n\r\n")
+                .encode("ascii"),
+        ]
+        for payload in requests:
+            with self.subTest(request=payload.split(b"\r\n")[0]):
+                with socket.create_connection(("127.0.0.1", port), timeout=5) as peer:
+                    peer.sendall(payload)
+                    first = peer.recv(256).split(b"\r\n")[0]
+                self.assertIn(b" 403 ", first)
+        self.assertEqual(self.request(url.path)[0], 200)
 
     def test_invalid_manifest_rejected_before_server_start(self):
         self.manifest["resource_id"] = (
