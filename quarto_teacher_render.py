@@ -268,15 +268,20 @@ def _single_teacher_html(files: list[dict], source_path: str,
     return html_files[0]
 
 
-def verify_session(session: Path) -> dict:
-    """Re-verify output from disk; does NOT authenticate the original renderer."""
+def verify_session(session: Path, *, include_manifest: bool = False) -> dict:
+    """Re-verify output; optionally return the SAME validated manifest snapshot.
+
+    The optional data is for a strictly internal, non-public consumer; it must
+    never be treated as a signed manifest or serialized into an HTTP response.
+    """
     session = Path(session).expanduser().absolute()
     if session.is_symlink() or not session.is_dir():
         raise TeacherRenderError("Session absente ou symbolique.")
     manifest = session / "manifest.json"
     if not manifest.is_file() or manifest.is_symlink():
         raise TeacherRenderError("Manifeste absent ou symbolique.")
-    data = json.loads(manifest.read_text(encoding="utf-8"))
+    manifest_raw = manifest.read_bytes()
+    data = json.loads(manifest_raw.decode("utf-8"))
     if (data.get("schema") != "alliage.quarto-professor-render.v0"
             or data.get("publication_performed") is not False
             or data.get("student_deployment_verified") is not False):
@@ -294,9 +299,15 @@ def verify_session(session: Path) -> dict:
     if not isinstance(html, dict):
         raise TeacherRenderError("Manifeste HTML non conforme.")
     verified = _single_teacher_html(actual, data.get("source_path"), html)
-    return {"status": "LOCAL_PROFESSOR_FILES_REHASHED",
-            "file_count": len(actual), "html_sha256": verified["sha256"],
-            "publication_performed": False, "student_deployment_verified": False}
+    result = {"status": "LOCAL_PROFESSOR_FILES_REHASHED",
+              "file_count": len(actual), "html_sha256": verified["sha256"],
+              "publication_performed": False, "student_deployment_verified": False}
+    if include_manifest:
+        # Return exactly the object read and validated above. Never re-read an
+        # independently mutable manifest in the HTTP admission caller.
+        result["verified_manifest"] = data
+        result["verified_manifest_sha256"] = hashlib.sha256(manifest_raw).hexdigest()
+    return result
 
 
 _QUARTO_V110_IGNORE_RULES = ("/.quarto/", "**/*.quarto_ipynb")
