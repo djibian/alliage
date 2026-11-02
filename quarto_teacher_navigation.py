@@ -18,6 +18,14 @@ class NavigationAdmissionError(ValueError):
 # Allow only same-document fragments, with deliberately small ASCII slugs.
 # This is more restrictive than normal Quarto and may refuse valid content.
 _FRAGMENT = re.compile(r"#[A-Za-z0-9_.:~-]*\Z", re.ASCII)
+# P3.6E is a restricted laboratory dialect, not an HTML5 validator.
+# Python's HTMLParser and HTML5 browsers disagree on broken comments such
+# as <!----!> and malformed CDATA. Reject the WHOLE markup-declaration
+# family before running HTMLParser, except one exact HTML doctype at start.
+# This deliberately refuses legal HTML comments too; preserving the original
+# Quarto bytes takes precedence over silently "repairing" HTML input.
+_INITIAL_DOCTYPE = re.compile(r"\A\s*<!doctype\s+html\s*>", re.IGNORECASE)
+_UNSUPPORTED_DECLARATION = re.compile(r"<!|<\?|<%", re.IGNORECASE)
 _BANNED_TAGS = frozenset({
     "base", "form", "iframe", "frame", "frameset", "object", "embed",
     "portal", "fencedframe",
@@ -108,6 +116,17 @@ def require_static_navigation(html: bytes) -> None:
         raise NavigationAdmissionError("Octets HTML invalides.")
     try:
         text = html.decode("utf-8", errors="strict")
+        # Lexical preflight does not rely on HTMLParser callbacks. A malformed
+        # comment can swallow active MathML/SMIL from the Python callback
+        # stream while Firefox still instantiates those elements. This
+        # restricted fixture grammar fails closed on ALL comments, CDATA,
+        # processing instructions and unsupported declarations.
+        doctype = _INITIAL_DOCTYPE.match(text)
+        remainder = text[doctype.end():] if doctype else text
+        if _UNSUPPORTED_DECLARATION.search(remainder):
+            raise NavigationAdmissionError(
+                "Déclaration HTML non admise dans la grammaire fictive."
+            )
         parser = _NavigationGuard()
         parser.feed(text)
         parser.close()
