@@ -326,6 +326,36 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
         # Previously admitted HTTP instance must remain byte-for-byte stable.
         self.assertEqual(self.request(self.preview.html_route)[2], original)
 
+    def test_dropped_forbidden_select_tags_rehashed_but_refused(self):
+        """P3.6A validates integrity; HTML5 recovery must not grant HTTP."""
+        file = self.session / "project" / self.html_path
+        original = file.read_bytes()
+        suffixes = (
+            b'<select><iframe src="https://example.invalid/fiction">'
+            b'</iframe></select>',
+            b'<select><form action="/outside"></form></select>',
+            b'<select><meta http-equiv="refresh" '
+            b'content="0;url=https://example.invalid/"></select>',
+            b'<select><link rel="preconnect" '
+            b'href="https://example.invalid/"></select>',
+            b'<select><a href="https://example.invalid/">Go</a></select>',
+        )
+        for suffix in suffixes:
+            with self.subTest(suffix=suffix[:95]):
+                content = original + suffix
+                file.write_bytes(content)
+                self.manifest["rendered_html"]["bytes"] = len(content)
+                self.manifest["rendered_html"]["sha256"] = hashlib.sha256(
+                    content).hexdigest()
+                self.save_manifest()
+                self.assertEqual(
+                    verify_session(self.session)["status"],
+                    "LOCAL_PROFESSOR_FILES_REHASHED",
+                )
+                with self.assertRaisesRegex(TeacherHTTPError, "Navigation"):
+                    FictionalTeacherPreview(self.session)
+        self.assertEqual(self.request(self.preview.html_route)[2], original)
+
     def test_navigation_safe_html_remains_byte_identical(self):
         path = self.session / "project" / self.html_path
         content = path.read_bytes() + b'<a href="#chapter">Same document</a>'
