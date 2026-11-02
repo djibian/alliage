@@ -153,3 +153,55 @@ externe. Elle est acceptée comme **observation initiale fictive seulement**.
 
 Les observations navigateur et cette exception CSS ne lèvent **aucune**
 limite L1–L5 de l'audit, ni le NO-GO pour HTML professeur réel.
+
+## P3.6C — instantané mémoire et requêtes HTTP canoniques (2 novembre 2026)
+
+**PR #15 Draft empilée sur #14**, sans modification du contenu de la
+PR #14 et sans autorisation d'afficher le vrai HTML professeur.
+
+**Correction L5 partielle :** le lecteur fictif `FictionalTeacherPreview`
+utilise désormais `verify_session()`, puis lit une seule fois chaque actif
+inscrit dans l'inventaire, par un parcours POSIX de descripteurs de répertoires
+(`dir_fd`, `O_NOFOLLOW`, `O_DIRECTORY`). L'actif final est ouvert avec
+`O_NOFOLLOW` et `O_NONBLOCK`, vérifié par `fstat` sur le *même* descripteur,
+puis borné en taille et comparé au SHA-256 annoncé. Un OS ne disposant pas
+de ce mécanisme est refusé, sans repli sur un `read_bytes()` non atomique.
+
+Les octets ainsi contrôlés sont conservés en mémoire, avec le type MIME :
+GET et HEAD ne touchent **plus au système de fichiers**. La précédente
+sémantique « mutation du disque après démarrage -> HTTP 404 » est remplacée
+par « mutation du disque après démarrage -> **mêmes octets de l'instantané
+initial** ». Une nouvelle admission sur les fichiers modifiés doit toujours
+être refusée. Le budget total des sorties est borné par `MAX_RENDERED_BYTES`
+de P3.6A (100 Mio). Cette méthode évite la course de chemin dans la lecture
+HTTP après admission, mais ne rend **pas authentique** un manifeste local
+modifié par le propriétaire ou un processus déjà autorisé.
+
+**Correction L3 ciblée :** le request-target est observé avant la
+normalisation de `BaseHTTPRequestHandler` et les alias `//...`, les URI
+absolues et les chemins non canoniques sont refusés ; un seul `Host`
+exact est admis, zéro ou un `Origin` et `Sec-Fetch-Site`, sans doublon.
+Des requêtes HTTP brutes adversariales vérifient ces refus, en préservant
+les chemins normaux.
+
+**Réduction de L1, non résolution :** l'entrée CLI
+`python3 quarto_teacher_http.py --session ...` est désormais systématiquement
+refusée. Le seul lanceur prévu pour l'essai humain est
+`p36b_fictional_firefox_demo.py --trusted-fixture-quarto`, qui construit
+localement sa propre fixture connue. Un appel Python direct à
+`FictionalTeacherPreview(session)` reste toutefois possible et le marqueur
+`quarto:fiction/...` du manifeste demeure forgeable : **ne jamais le
+considérer comme une authentification ou une autorisation du vrai contenu**.
+
+**Limites bloquantes :** L1 identité et mandat non signés, L2 fichiers
+sources déguisés en actifs, L4 liens/navigations externes et exfiltration,
+absence d'attestation universelle de l'application du profil Quarto ;
+aucune habilitation à la session réelle, aucun JS activé et aucune
+publication. Le passage vers un vrai aperçu professeur nécessite un
+dispositif de consentement/provenance indépendant de ce laboratoire et
+un nouveau verdict de sécurité.
+
+**Validation attendue :** CI Python complète et Quarto 1.10.19/1.10.20
+sur le HEAD exact, puis revue indépendante centrée sur L3/L5 et les
+limites restantes. Une réussite synthétique n'est pas un test Firefox
+supplémentaire, ni une autorisation de fusion des PR #13/#14/#15.
