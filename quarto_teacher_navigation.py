@@ -21,6 +21,11 @@ _FRAGMENT = re.compile(r"#[A-Za-z0-9_.:~-]*\Z", re.ASCII)
 _BANNED_TAGS = frozenset({
     "base", "form", "iframe", "frame", "frameset", "object", "embed",
     "portal", "fencedframe",
+    # SMIL can change the browser's effective SVG navigation destination
+    # (a.href.animVal) without any JavaScript. Static inspection of a[href]
+    # is NOT sufficient: reject these tags entirely in the static lab.
+    "set", "animate", "animatemotion", "animatetransform", "animatecolor",
+    "discard",
 })
 _BANNED_REL = frozenset({
     "preconnect", "dns-prefetch", "prefetch", "prerender",
@@ -68,6 +73,17 @@ class _NavigationGuard(HTMLParser):
                     raise NavigationAdmissionError("Navigation hors document.")
         if "formaction" in properties:
             raise NavigationAdmissionError("Formulaire dynamique interdit.")
+
+        # The href attribute is a MathML GLOBAL attribute and can also occur
+        # on SVG elements other than <a>. Allow destinations only on the
+        # explicitly evaluated HTML/SVG a/area and CSS link elements.
+        # Namespaces are not faithfully reconstructed by HTMLParser: fail
+        # closed rather than interpreting unknown href-bearing elements.
+        if tag not in ("a", "area", "link") and (
+                "href" in properties or "xlink:href" in properties):
+            raise NavigationAdmissionError("Destination hors liste autorisée.")
+        if tag == "link" and "xlink:href" in properties:
+            raise NavigationAdmissionError("Destination de lien ambiguë.")
 
         if tag == "link":
             rel = (properties.get("rel") or "").lower().split()
