@@ -87,6 +87,39 @@ class StaticNavigationAdmissionTests(unittest.TestCase):
                 with self.assertRaises(NavigationAdmissionError):
                     require_static_navigation(html)
 
+    def test_auditor_html5_markup_recovery_counterexamples(self):
+        # Python HTMLParser can swallow an entire suffix as an unterminated
+        # comment while the browser HTML5 tokenizer creates active nodes.
+        # Reject the syntax family before relying on parser callbacks.
+        fixtures = (
+            b'<!doctype html><!----!><math href="https://example.invalid/fiction">'
+            b'<mi>Cliquer</mi></math><!---->',
+            b'<!doctype html><!----!><svg><a href="#safe">'
+            b'<set attributeName="href" to="/outside" begin="0s" '
+            b'fill="freeze"/></a></svg><!---->',
+            b'<![CDATA[><math href="https://example.invalid/fiction">'
+            b'<mi>Cliquer</mi></math>',
+            b'<!-- benign-looking comment --><a href="#chapter">safe</a>',
+            b'<!DOCTYPE html><!ENTITY x SYSTEM "https://example.invalid/">',
+            b'<!doctype html><?fiction external?>',
+            b'<!doctype html><!doctype html><a href="#safe">safe</a>',
+            b'<!doctype html><!-- unclosed comment',
+        )
+        for html in fixtures:
+            with self.subTest(prefix=html[:95]):
+                with self.assertRaises(NavigationAdmissionError):
+                    require_static_navigation(html)
+
+    def test_exact_html_doctype_and_safe_fragment_remain_accepted(self):
+        safe = (
+            b'<!DOCTYPE html>\n<html lang="fr"><head>'
+            b'<meta charset="utf-8"><title>Fiction</title></head>'
+            b'<body><a href="#target">interne</a><h1 id="target">Titre</h1>'
+            b'<link rel="stylesheet" href="data:text/css,body%7Bcolor:black%7D">'
+            b'</body></html>'
+        )
+        self.assertIsNone(require_static_navigation(safe))
+
     def test_rejects_non_utf8_and_non_bytes(self):
         for content in (b"\xff", "not bytes", bytearray(b"<html>")):
             with self.subTest(value=type(content).__name__):
