@@ -633,3 +633,48 @@ IA ou Git depuis le navigateur.
   synthétique générée par le lanceur**. Les limites L1–L5 et le NO-GO
   pour toute session professeur réelle restent inchangés ; les PR #13
   et #14 sont encore Draft et non fusionnées.
+
+## P3.6C — sécurisation ciblée du lecteur HTTP fictif (2 novembre 2026)
+
+**PR #15 Draft**, `experiment/p36c-sealed-fixture-http`, empilée sur
+la PR #14 au HEAD `d6e906464ad14448d2e95a1c4429d94ef7237734`,
+elle-même empilée sur la PR #13 (`ff35a3884683be9fde4d968bc88e107b16ecd94e`).
+Aucune fusion, aucun rendu privé ni publication au cours de cet incrément.
+
+La contre-revue de #14 avait accordé **GO Firefox fictif seulement**
+et identifié cinq limites L1–L5. P3.6C traite deux d'entre elles dans
+le laboratoire existant :
+- **L3** : vérification du request-target brut avant normalisation CPython,
+  refus d'URI/chemins ambigus et des en-têtes Host/Origin/Sec-Fetch-Site
+  dupliqués. Scénarios de requêtes HTTP brutes intégrés.
+- **L5** : ouverture par descripteurs POSIX `dir_fd`/`O_NOFOLLOW` et
+  `fstat` du même descripteur, puis copie de tous les actifs vérifiés dans
+  un **snapshot mémoire borné à 100 Mio**. GET/HEAD servent uniquement
+  ces octets scellés. Une altération du disque *après admission* ne peut
+  plus modifier les réponses de cette instance ; une nouvelle admission
+  sur les fichiers altérés demeure refusée. La sémantique 404 post-start
+  de #14 est donc remplacée explicitement par le contenu initial figé.
+
+La CLI de lecture directe `--session` est désactivée pour réduire les
+accidents de lancement sur une vraie session. Le lanceur fictif contrôlé
+reste l'unique chemin opérateur prévu. Cette mesure ne prouve pas que
+`quarto:fiction/...` dans un manifeste est authentique.
+
+**Tests vérifiés sur le commit de code
+`9f24aa1c10cb35e94defcba9d66eb79f65b17e33` :**
+[CI Python #41448345043](https://github.com/djibian/alliage/actions/runs/41448345043)
+**131 tests, 11 ignorés, PASS** ;
+[CI Quarto #41448345028](https://github.com/djibian/alliage/actions/runs/41448345028)
+**13 tests PASS avec 1.10.19 et 13 PASS avec 1.10.20**.
+Les journaux confirment l'exécution des scénarios HTTP brut, de snapshot
+immuable et de CLI désactivée. Le présent commit documentaire demandera
+un contrôle distinct des CI de son HEAD final.
+
+**Limites ouvertes :** L1 authentification/provenance d'une vraie session,
+L2 contenu sensible déguisé sous des noms de fichiers autorisés, L4 navigation
+externe et exfiltration navigateur, profil effectif non attesté
+universellement. **NO-GO pour HTML professeur réel**. Maintenir les PR
+#13/#14/#15 Draft ; prochaine porte : contre-revue indépendante ciblée sur
+le HEAD final de #15 et expérimentation synthétique supplémentaire si
+une réfutation est trouvée. Aucune nouvelle manipulation de l'enseignant
+requise actuellement.
