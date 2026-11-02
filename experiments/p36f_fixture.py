@@ -65,16 +65,22 @@ def create_handler(kind: str, decoy_port: int, counter: dict):
 
 
 def start_pair(port: int, decoy_port: int):
-    if port == decoy_port:
+    if port == decoy_port and port != 0:
         raise ValueError("Fixture and decoy ports must differ")
     counter = {"count": 0, "lock": threading.Lock()}
     servers = []
     try:
-        for role, p in (("a", port), ("b", decoy_port)):
-            server = ThreadingHTTPServer(
-                ("127.0.0.1", p), create_handler(role, decoy_port, counter))
-            server.daemon_threads = True
-            servers.append(server)
+        # Create B first so port 0 (an OS-assigned ephemeral test port)
+        # can be embedded accurately in A's synthetic links.
+        decoy = ThreadingHTTPServer(
+            ("127.0.0.1", decoy_port), create_handler("b", 0, counter))
+        decoy.daemon_threads = True
+        servers.append(decoy)
+        witness = ThreadingHTTPServer(
+            ("127.0.0.1", port),
+            create_handler("a", decoy.server_address[1], counter))
+        witness.daemon_threads = True
+        servers.append(witness)
         return servers, counter
     except Exception:
         for server in servers:
