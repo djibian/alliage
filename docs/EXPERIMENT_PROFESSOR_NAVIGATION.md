@@ -81,3 +81,42 @@ Les PR #13 à #16 restent Draft et non fusionnées.
 La porte L1 de provenance et consentement explicite de l'enseignant
 reste fermée ; un marqueur `quarto:fiction/` dans un manifeste
 local ne constitue pas un contrôle d'accès.
+
+## Contre-expertise du 2 novembre 2026 — MathML et SMIL
+
+La [contre-expertise indépendante P3.6E](https://github.com/djibian/alliage/pull/17#issuecomment-6581380069)
+du HEAD initial `a80982b97c7392c1ccf18950f36d3aac813df349`
+conclut **CORRECTIONS REQUISES** avec deux réfutations concrètes :
+
+1. **MathML** : `href` peut être un attribut global, notamment sur
+   `<math>` et `<mi>`. Un document portant `<math href="https://...">`
+   passait le filtre initial alors qu'il propose une navigation.
+2. **SVG/SMIL** : `<set attributeName="href" to="...">` et
+   `<animate attributeName="href" values="...">` peuvent modifier
+   la destination effective d'un `<a href="#fragment">`
+   sans JavaScript. L'audit a observé cet écart entre valeur statique et
+   valeur animée sous Chromium ; ce n'est **pas une preuve Firefox**.
+
+**Correction minimale à l'admission, jamais une transformation HTML :**
+- Tout `href` ou `xlink:href` sur un élément **autre que les
+  exceptions explicitement analysées** `a`, `area`, `link`
+  provoque le refus. `a` et `area` conservent exclusivement les
+  fragments `#...` ; `link` conserve seulement la CSS Quarto
+  intégrée `data:text/css,` et refuse `xlink:href`.
+- Les tags SMIL `set`, `animate`, `animateMotion`,
+  `animateTransform`, `animateColor` et `discard` sont refusés
+  sans chercher à interpréter leur chronologie et leurs mutations.
+- Les contre-exemples MathML et SMIL précédents, leurs variantes
+  d'attributs et l'invariant d'admission HTTP sont désormais dans les
+  tests fictifs. Le document réel Quarto synthétique et son CSS
+  intégré continuent d'être testés sur les deux versions cibles.
+
+**Limites maintenues :** le refus des tags SMIL connus ne prouve pas
+l'équivalence du parseur Python au parseur HTML5 de Firefox ;
+les chargements indirects CSS, SVG ou autres, les fonctionnalités
+externes du navigateur et l'interaction JS restent à qualifier.
+Les règles ne sont **pas un assainisseur de contenu** ni un contrôle
+de provenance. L1, L2, L4 général et l'attestation de profil réel
+restent des portes fermées à l'exposition professeur.
+La PR #17 reste Draft et doit recevoir une nouvelle contre-revue
+indépendante sur son HEAD corrigé avant tout essai Firefox adversarial.
