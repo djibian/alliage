@@ -143,8 +143,16 @@ def require_static_navigation(html: bytes) -> None:
     try:
         text = html.decode("utf-8", errors="strict")
         _require_unambiguous_markup(text)
-        root = html5lib.parse(
-            text, treebuilder="etree", namespaceHTMLElements=True)
+        parser = html5lib.HTMLParser(
+            tree=html5lib.getTreeBuilder("etree"),
+            namespaceHTMLElements=True,
+        )
+        root = parser.parse(text)
+        # The HTML5 tokenizer resolves duplicate attributes by precedence.
+        # Refuse them explicitly instead of relying on that precedence.
+        if any(code == "duplicate-attribute"
+               for _, code, _ in parser.errors):
+            raise NavigationAdmissionError("Attribut HTML dupliqué.")
         for element in root.iter():
             _check_element(element)
     except (UnicodeError, ValueError, TypeError, KeyError) as exc:
