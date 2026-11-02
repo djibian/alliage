@@ -157,6 +157,34 @@ class StaticNavigationAdmissionTests(unittest.TestCase):
                 with self.assertRaises(NavigationAdmissionError):
                     require_static_navigation(html)
 
+    def test_html5_dropped_start_tag_in_select_fails_closed(self):
+        """The auditor's lost iframe and nearby forbidden syntax still count.
+
+        These fragments may be inert in a browser but the fictional admission
+        policy refuses forbidden syntax even when HTML5 drops its DOM node.
+        """
+        fixtures = (
+            b'<!doctype html><select><iframe '
+            b'src="https://example.invalid/fiction"></iframe></select>',
+            b'<select><form action="/outside"></form></select>',
+            b'<select><base href="https://example.invalid/"></select>',
+            b'<select><object data="/outside"></object></select>',
+            b'<select><embed src="/outside"></select>',
+            b'<select><set attributeName="href" to="/outside"></set></select>',
+            b'<select><animate attributeName="href" to="/outside">'
+            b'</animate></select>',
+            b'<select><portal src="/outside"></portal></select>',
+            b'<select><meta http-equiv="refresh" '
+            b'content="0;url=https://example.invalid/a"></select>',
+            b'<select><link rel="preconnect" '
+            b'href="https://example.invalid/"></select>',
+            b'<select><a href="https://example.invalid/">Escape</a></select>',
+        )
+        for html in fixtures:
+            with self.subTest(html=html[:100]):
+                with self.assertRaises(NavigationAdmissionError):
+                    require_static_navigation(html)
+
     def test_rejects_non_utf8_and_non_bytes(self):
         for content in (b"\xff", "not bytes", bytearray(b"<html>")):
             with self.subTest(value=type(content).__name__):
