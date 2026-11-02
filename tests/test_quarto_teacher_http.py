@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+from dataclasses import FrozenInstanceError
 import io
 import hashlib
 import http.client
@@ -242,15 +243,30 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
         self.assertEqual(body, self.assets[self.html_path])
 
     def test_route_mapping_cannot_be_mutated_after_admission(self):
-        """C2: immutable bytes AND immutable published route map."""
+        """C2: immutable bytes, map AND preview attribute bindings."""
+        route = self.preview.html_route
         with self.assertRaises(TypeError):
-            self.preview.routes[self.preview.html_route] = (
-                b"UNVERIFIED", "text/html")
+            self.preview.routes[route] = (b"UNVERIFIED", "text/html")
         with self.assertRaises(TypeError):
-            del self.preview.routes[self.preview.html_route]
+            del self.preview.routes[route]
+        # Exact remaining auditor counterexample: replacing the field used
+        # by the already running HTTP handler must fail, not serve new bytes.
+        with self.assertRaises(FrozenInstanceError):
+            self.preview.routes = {route: (b"FICTIONAL_UNVERIFIED", "text/html")}
+        with self.assertRaises(FrozenInstanceError):
+            del self.preview.routes
+        for key, value in (
+            ("html_route", "/replaced"),
+            ("prefix", "/replaced"),
+            ("session", self.session.parent),
+        ):
+            with self.subTest(field=key):
+                with self.assertRaises(FrozenInstanceError):
+                    setattr(self.preview, key, value)
         self.assertEqual(
-            self.preview.get_asset(self.preview.html_route)[0],
-            self.assets[self.html_path])
+            self.preview.get_asset(route)[0], self.assets[self.html_path])
+        # Verify the in-flight handler continues to serve the sealed content.
+        self.assertEqual(self.request(route)[2], self.assets[self.html_path])
 
     def test_manifest_proof_returns_same_validated_object_only_on_optin(self):
         ordinary = verify_session(self.session)
