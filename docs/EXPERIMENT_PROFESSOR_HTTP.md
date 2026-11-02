@@ -205,3 +205,52 @@ un nouveau verdict de sécurité.
 sur le HEAD exact, puis revue indépendante centrée sur L3/L5 et les
 limites restantes. Une réussite synthétique n'est pas un test Firefox
 supplémentaire, ni une autorisation de fusion des PR #13/#14/#15.
+
+## P3.6C — contre-expertise C1/C2, frontière de preuve corrigée (2 novembre 2026)
+
+La [contre-expertise indépendante de P3.6C](https://github.com/djibian/alliage/pull/15#issuecomment-6578152166)
+a conclu **CORRECTIONS REQUISES** sur le HEAD
+`276035b2d0316606f35a29a51277ae3fb4e8ed87` :
+L3 est confirmé, mais C1 démontre une substitution de `manifest.json`
+entre le rehash `verify_session(session)` et la deuxième lecture JSON
+réalisée par `FictionalTeacherPreview`. Le vérificateur avait validé
+une première identité HTML alors que le lecteur pouvait admettre une
+entrée modifiée `rendered_html` et un actif ajouté. C2 note que le
+dictionnaire des routes demeurait mutable en mémoire par code Python,
+même si les valeurs `bytes` étaient immuables.
+
+**C1 corrigé sans modifier le protocole par défaut de P3.6A :**
+`verify_session(session, include_manifest=True)` retourne, **uniquement
+sur opt-in interne**, l'objet `verified_manifest` qui a été effectivement
+lu et vérifié, ainsi que son SHA-256 calculé sur les mêmes octets
+`manifest_raw`. L'appel ordinaire conserve son résultat limité
+`status/file_count/html_sha256/publication_performed/student_deployment_verified`.
+Le lecteur n'effectue **aucune seconde désérialisation JSON** : ses
+routes et l'identité HTML proviennent exclusivement de l'objet validé.
+Il détecte par un contrôle SHA-256 séparé, après la copie des actifs,
+une substitution ultérieure du manifeste et refuse d'ouvrir le
+serveur. Ce second contrôle est une **détection d'écart**, et non une
+revalidation ou une revendication d'atomicité temporelle totale :
+après admission, seule la première table validée est conservée.
+
+**C2 corrigé :** le lecteur construit les routes dans un dictionnaire
+local, puis publie seulement un `MappingProxyType` en lecture seule ;
+les valeurs restent des tuples `(bytes, type_mime)` et sont scellées
+avant toute écoute HTTP. Une tentative d'écriture ou de suppression
+de route par code interne lève `TypeError`.
+
+**Contre-épreuves :** une fixture publique modifie délibérément
+`manifest.json` **après** le vrai `verify_session` et avant
+l'admission HTTP ; l'admission doit refuser. L'état final est
+également refusé par le vérificateur initial. D'autres tests
+vérifient le résultat du mode facultatif et l'impossibilité
+de muter la table de routes. Les tests POSIX/HTTP L3/L5
+précédents restent actifs.
+
+**Limites inchangées :** ces preuves concernent exclusivement une
+fixture fictive, dans un modèle où un code malveillant de même privilège
+pourrait aussi modifier le processus. L1 (provenance/consentement réel),
+L2 (actif sensible déguisé), L4 (navigation externe/exfiltration),
+et la vérification exhaustive du profil Quarto restent bloquants
+pour l'usage réel. Aucune session privée, aucune ouverture Firefox
+réelle, aucun JS activé et aucune publication n'est autorisé.
