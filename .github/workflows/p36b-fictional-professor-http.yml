@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - "quarto_teacher_http.py"
+      - "quarto_teacher_navigation.py"
       - "tests/test_quarto_teacher_http.py"
+      - "tests/test_quarto_teacher_navigation.py"
       - ".github/workflows/p36b-fictional-professor-http.yml"
   workflow_dispatch:
 
