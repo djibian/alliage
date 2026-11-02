@@ -172,3 +172,55 @@ l'unique HTML, L4 générale et la vérification du profil Quarto
 continuent de **bloquer toute exposition de la session réelle**.
 La PR #17 reste Draft jusqu'à une nouvelle revue indépendante
 du changement de grammaire et de ses limites.
+
+## Troisième contre-expertise — divergence raw-text SVG/MathML (2 novembre 2026)
+
+La [contre-expertise indépendante finale](https://github.com/djibian/alliage/pull/17#issuecomment-6583146348)
+du HEAD `707677dff3a9f79994ab6012e6bd77eab3d97156`
+a conclu **CORRECTIONS REQUISES**. Les contournements par commentaires
+malformés étaient fermés, mais `HTMLParser` Python interprétait le
+contenu de `style`/`script` comme texte brut même lorsque des règles
+de sortie des espaces de noms SVG/MathML conduisaient le navigateur HTML5
+à construire de véritables liens HTML et des `meta refresh`.
+
+**Changement de méthode**, et non une nouvelle expression régulière
+sur `<svg><style>` : abandon de `HTMLParser` comme autorité du DOM.
+L'admission inspecte l'arbre reconstruit par **html5lib 1.1**, une
+implémentation HTML5 tenant compte des espaces de noms HTML, SVG et MathML,
+avec builder `etree`. Les exceptions pour `a`/`area` et `link`
+s'appliquent aux seuls espaces de noms attendus. Les attributs de
+navigation et les animations SMIL sont examinés **sur les éléments
+effectivement reconstruits**. Les attributs dupliqués sont refusés
+à partir des diagnostics du parseur HTML5.
+
+Le refus lexical des déclarations/commentaires ambigus est conservé
+comme **restriction supplémentaire** de la fixture ; il ne prétend pas
+implémenter la reconstruction HTML5. Aucune sérialisation ou réécriture
+du DOM n'est utilisée : le navigateur reçoit toujours les octets
+vérifiés par l'oracle P3.6A.
+
+**Nouvelle dépendance isolée et épinglée** :
+`requirements-p36e.txt` (html5lib 1.1, six, webencodings). Les deux
+workflows de tests installent ces versions avant qualification. Un
+environnement sans html5lib doit refuser le démarrage, sans revenir
+silencieusement au parseur Python incomplet. Pour une éventuelle
+expérience locale future, installer la dépendance dans un venv dédié ;
+ne pas modifier l'environnement Python système.
+
+**Contre-tests :** liens HTML actifs récupérés par le parseur depuis
+`svg/style`, `svg/script`, `math/style` et `meta refresh`
+reconstitué ; intégration `verify_session()=PASS` puis **refus
+avant HTTP**, avec snapshot préexistant inchangé. Les cas MathML
+href, SMIL, commentaires malformés, fragments locaux et CSS Quarto
+embarqué demeurent dans la suite. Une CI verte n'exclut pas de
+nouvelles divergences HTML5/Firefox : le parseur externe, les
+autres caractéristiques du navigateur et les chargements CSS/SVG
+ne constituent pas une garantie de confinement général.
+
+**Statut et barrières :** P3.6E reste **strictement fictive**.
+L1 autorisation/provenance/consentement, L2 contenu intégré du HTML,
+L4 confinement des navigations et requêtes **dans Firefox** et
+l'attestation du profil professeur restent NON RÉSOLUS. Aucune session
+professeur réelle ne doit être servie par HTTP, aucune fusion,
+aucun JS activé ni publication élève. Soumettre le HEAD
+final aux CI Quarto et à une contre-revue indépendante.
