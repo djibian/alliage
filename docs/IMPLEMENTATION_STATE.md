@@ -678,3 +678,50 @@ universellement. **NO-GO pour HTML professeur réel**. Maintenir les PR
 le HEAD final de #15 et expérimentation synthétique supplémentaire si
 une réfutation est trouvée. Aucune nouvelle manipulation de l'enseignant
 requise actuellement.
+
+## P3.6C — C1/C2 corrigés après contre-expertise (2 novembre 2026)
+
+**Audit indépendant de la PR #15, HEAD
+`276035b2d0316606f35a29a51277ae3fb4e8ed87` :**
+[verdict CORRECTIONS REQUISES](https://github.com/djibian/alliage/pull/15#issuecomment-6578152166).
+L3 des requêtes HTTP et la lecture POSIX ont été approuvés dans la portée
+étudiée. Le bloquant C1 démontre une substitution de manifeste entre
+`verify_session()` et la relecture JSON du lecteur ; C2 pointe une
+table des routes modifiable par du code Python de même processus.
+Aucune session réelle n'a été ouverte en HTTP.
+
+**Correctif C1 :** `verify_session(session, include_manifest=True)` offre
+un mode de retour opt-in du **même objet manifeste effectivement validé**
+et du SHA-256 de ses octets ; le résultat par défaut ne révèle toujours
+aucun manifeste et conserve le contrat `LOCAL_PROFESSOR_FILES_REHASHED`.
+Le lecteur ne relit plus le manifeste pour dériver les routes ; il ne
+consomme que cet objet validé, scelle les octets des actifs correspondants,
+puis détecte une substitution éventuelle par une lecture de comparaison
+SHA-256, sans exploiter ses données. Un test intercale de façon
+déterministe une altération du manifeste après le vrai `verify_session`
+et avant l'admission HTTP : **refus attendu**. La lecture comparative ne
+prouve pas l'immuabilité temporelle du fichier, mais la table admise ne
+peut jamais dériver d'un manifeste différent de celui validé.
+
+**Correctif C2 :** routes construites localement puis publiées via
+`MappingProxyType`, avec des valeurs `(bytes, MIME)` figées.
+Les tentatives de mutation de route depuis Python lèvent `TypeError`.
+Les protections L3, les lectures POSIX L5, la limite 100 Mio, le refus
+de la CLI arbitraire et la CSP statique restent en vigueur.
+
+**CI vérifiées sur le commit de code
+`68e6069f501cc2c9a0391f858727220dc603e9bd` :**
+[Python #41453225107](https://github.com/djibian/alliage/actions/runs/41453225107)
+**134 tests dont 11 ignorés, PASS** ;
+[Quarto HTTP fictif #41453225091](https://github.com/djibian/alliage/actions/runs/41453225091)
+**16 PASS en 1.10.19 et 16 PASS en 1.10.20** ;
+[Quarto P3.6A #41453225097](https://github.com/djibian/alliage/actions/runs/41453225097)
+**22 PASS en 1.10.19 et 22 PASS en 1.10.20**.
+Les journaux prouvent l'exécution des trois nouveaux contre-tests.
+
+**Avant toute conclusion finale :** contrôler le HEAD documentaire
+terminal et ses CI, solliciter une contre-revue **ciblée C1/C2**.
+L1 authentification/consentement de la session réelle, L2
+fichiers sensibles déguisés, L4 navigations/exfiltration et l'attestation
+complète du profil Quarto restent NON RÉSOLUS. Maintenir les PR #13/#14/#15
+Draft, sans merge, publication ni accès HTTP à une vraie session.
