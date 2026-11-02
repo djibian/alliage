@@ -213,6 +213,43 @@ class FictionalTeacherHTTPTests(unittest.TestCase):
                 "Sec-Fetch-Site": "same-origin"}
         self.assertEqual(self.request(self.url().path, headers=good)[0], 200)
 
+    def test_navigation_active_but_verified_html_denied_at_admission(self):
+        """P3.6A validates identity, but must not authorize a navigable page."""
+        file = self.session / "project" / self.html_path
+        original = file.read_bytes()
+        for content in (
+            original + b'<a href="https://example.invalid/collect">Escape</a>',
+            original + b'<meta http-equiv="refresh" content="0;url=https://example.invalid/">',
+            original + b'<link rel="preconnect" href="//example.invalid">',
+        ):
+            with self.subTest(suffix=content[len(original):35+len(original)]):
+                file.write_bytes(content)
+                self.manifest["rendered_html"]["bytes"] = len(content)
+                self.manifest["rendered_html"]["sha256"] = hashlib.sha256(content).hexdigest()
+                self.save_manifest()
+                # The P3.6A rehash cannot infer browser navigation safety.
+                self.assertEqual(
+                    verify_session(self.session)["status"],
+                    "LOCAL_PROFESSOR_FILES_REHASHED",
+                )
+                with self.assertRaisesRegex(TeacherHTTPError, "Navigation"):
+                    FictionalTeacherPreview(self.session)
+        # No change to an existing HTTP snapshot already admitted.
+        self.assertEqual(self.request(self.preview.html_route)[2], original)
+
+    def test_navigation_safe_html_remains_byte_identical(self):
+        path = self.session / "project" / self.html_path
+        content = path.read_bytes() + b'<a href="#chapter">Same document</a>'
+        path.write_bytes(content)
+        self.manifest["rendered_html"]["bytes"] = len(content)
+        self.manifest["rendered_html"]["sha256"] = hashlib.sha256(content).hexdigest()
+        self.save_manifest()
+        self.assertEqual(verify_session(self.session)["status"],
+                         "LOCAL_PROFESSOR_FILES_REHASHED")
+        preview = FictionalTeacherPreview(self.session)
+        self.assertEqual(preview.get_asset(preview.html_route)[0], content)
+        self.assertEqual(len(preview.routes), 1)
+
     def test_post_start_mutation_and_symlink_do_not_change_sealed_html(self):
         """The only HTTP response is the original verified HTML snapshot."""
         asset = self.session / "project" / self.html_path
