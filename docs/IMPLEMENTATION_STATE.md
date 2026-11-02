@@ -801,3 +801,38 @@ et les navigations ultérieures devront être mesurés séparément.
 L1 provenance/consentement, L2 contenu intégré au HTML, profil Quarto
 effectif et L4 complète restent ouverts. **Aucun HTTP professeur réel,
 aucun JS, aucune publication et aucune fusion.**
+
+## P3.6E — réfutations MathML/SMIL corrigées après revue (2 novembre 2026)
+
+La [contre-expertise de #17](https://github.com/djibian/alliage/pull/17#issuecomment-6581380069)
+a donné **CORRECTIONS REQUISES** sur le HEAD initial
+`a80982b97c7392c1ccf18950f36d3aac813df349`. Deux
+constructions fictives échappaient au filtre : liens `href` sur
+éléments MathML (`math` et `mi`), et animation SMIL du
+`href` SVG (`set` / `animate`) sans JavaScript.
+
+**Correction L4a ciblée sur la même PR #17 Draft** : refuser
+`href` / `xlink:href` sur les éléments non explicitement
+autorisés (`a`, `area`, `link`), refuser
+`xlink:href` sur `link`, refuser entièrement les tags
+SMIL `set`, `animate`, `animateMotion`,
+`animateTransform`, `animateColor`, `discard`.
+Le contrôle reste un **refus d'admission**, sans modifier
+le HTML scellé ni changer les routes/CSP.
+
+**Contre-tests ajoutés :** exemples MathML, SVG/SMIL statique
+et animé, variantes d'attributs (y compris `xlink:href`),
+et test d'intégration prouvant qu'un HTML **rehashé avec
+succès par P3.6A** est tout de même refusé par le lecteur.
+Les tests précédents de fragments internes, CSS Quarto
+intégré et conservation octet pour octet restent actifs.
+
+**Qualification en cours** sur le HEAD final : Python général
+et Quarto réel 1.10.19/1.10.20 ; ne pas déclarer de PASS
+sans consulter les journaux de cette révision.
+
+**Prochaine porte :** nouvelle revue indépendante strictement
+sur les deux réfutations et l'absence de régression L4a.
+Aucune ouverture réelle, aucun HTML professeur privé via
+HTTP, aucune fusion, aucun JS ni publication. L1/L2/L4
+général et l'attestation du profil restent ouverts.
