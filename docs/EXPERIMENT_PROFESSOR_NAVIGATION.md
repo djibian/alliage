@@ -224,3 +224,43 @@ l'attestation du profil professeur restent NON RÉSOLUS. Aucune session
 professeur réelle ne doit être servie par HTTP, aucune fusion,
 aucun JS activé ni publication élève. Soumettre le HEAD
 final aux CI Quarto et à une contre-revue indépendante.
+
+## Quatrième contre-expertise — diagnostics des balises écartées (2 novembre 2026)
+
+La [contre-expertise indépendante de la PR #17](https://github.com/djibian/alliage/pull/17#issuecomment-6584277621)
+du HEAD `06491151a80a89228fcb42e6ffaf1a2c741cb626`
+conclut **CORRECTIONS REQUISES** pour le contrat de *refus syntaxique*.
+Les contre-exemples SVG/style, SVG/script et MathML/style qui
+avaient motivé `html5lib` sont **effectivement refusés**.
+En revanche, une balise interdite telle que
+`<select><iframe src="https://example.invalid/fiction"></iframe></select>`
+peut être éliminée par la récupération HTML5, avec le diagnostic
+`unexpected-start-tag-in-select`. Le garde ne considérait auparavant
+que `unexpected-start-tag-ignored`, et acceptait donc ce HTML.
+
+**Précision essentielle de sécurité :** l'élément supprimé du DOM
+était **inerte** dans la construction HTML5 observée ; aucun chargement
+ni navigation Firefox n'a été démontré. La réfutation vise la
+**politique expérimentale de refus conservateur de syntaxe interdite**,
+pas une nouvelle fuite avérée.
+
+**Correction ciblée dans P3.6E :** examiner les diagnostics de
+la famille `start-tag` qui portent un nom d'élément, et refuser
+les noms de la liste d'éléments interdits, ainsi que les éléments de
+navigation conditionnelle `a`, `area`, `meta`, `link`
+lorsqu'ils sont écartés. Les interdictions des éléments présents
+dans le DOM continuent d'être évaluées sur l'arbre HTML5.
+Cette politique peut refuser du contenu qui aurait été inerte dans
+ce contexte : choix conservateur **propre au laboratoire fictif**.
+
+**Contre-tests sans contenu privé :** variantes interdites
+sous `select` dans le test de parseur et test HTTP
+`P3.6A rehash PASS → admission REFUSÉE`, avec contrôle
+des octets scellés déjà servis. La compatibilité de l'activité
+Quarto fictive sur 1.10.19 et 1.10.20 doit être contrôlée sur
+le HEAD final avant nouvelle contre-revue indépendante.
+
+Le module `html5lib` n'est **pas** un confinement du navigateur :
+L1, L2 dans le HTML, L4 générale et l'attestation de profil restent
+non résolus. Aucune session professeur réelle ne doit être servie
+en HTTP, aucun JS, aucun merge ni publication élève.
