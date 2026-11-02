@@ -759,3 +759,45 @@ contre-revue indépendante **strictement C2**. PR #13/#14/#15
 toujours Draft et non fusionnées ; L1/L2/L4 et l'attestation
 complète du profil Quarto restent ouvertes. Aucun HTTP professeur
 réel, aucune publication ni activation JS.
+
+
+## P3.6E — navigation statique sur fixture fictive (2 novembre 2026)
+
+**PR #17 Draft**, branche `experiment/p36e-static-navigation-fixture`,
+empilée sur #16 au HEAD `9f7a02d1b089a38b554af94aedaf8ca377da407a`
+(la PR #16 a réussi les CI, la contre-revue indépendante et l'observation
+Firefox statique sur sa fixture `embed-resources: true` ; voir
+[rapport humain expurgé](https://github.com/djibian/alliage/pull/16#issuecomment-6580720860)).
+PR #13–#16 toujours Draft/non fusionnées.
+
+La lecture de la [documentation MDN sur CSP sandbox](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/sandbox)
+montre que l'absence de `allow-top-navigation` **ne garantit pas
+l'interdiction de navigation du document de premier niveau lui-même**.
+La preuve Firefox de #16 ne comporte aucun clic de navigation
+malveillant. **L4 n'est pas levée.**
+
+**Petit incrément de recherche L4a :** `quarto_teacher_navigation.py`
+analyse le HTML **exactement scellé** après `verify_session`, sans
+réécriture des octets admis, avant l'ouverture du socket HTTP.
+Refus des ancres de navigation hors fragments `#...` du même document,
+des destinations HTML/SVG ambiguës, `target`, `ping`, `download`,
+`meta refresh`, `base`, formulaires, frames et liens head de
+préconnexion/préchargement. La CSS embarquée `data:text/css,`
+de la fixture Quarto reste admise. Un contenu refusé bloque entièrement
+l'admission HTTP, plutôt que de supprimer un lien dans le HTML.
+
+**Tests :** vecteurs synthétiques de navigation et attributs dupliqués,
+ajout de liens externes dans un HTML **par ailleurs vérifié par P3.6A**,
+assertion de refus ; les fragments internes et l'HTML Quarto fictif
+normal sont servis sans transformation. Rendu Quarto réel
+1.10.19 et 1.10.20, tests Python généraux et tests HTTP sont attendus
+sur le HEAD final de la PR #17.
+
+**Portée limitée :** `HTMLParser` Python ne démontre pas l'équivalence
+avec le parseur HTML5 de Firefox ; ce contrôle n'est pas une
+sanitisation générale. Les réseaux déclenchés par CSS, SVG,
+éléments non couverts, fonctionnalités du navigateur ou extensions,
+et les navigations ultérieures devront être mesurés séparément.
+L1 provenance/consentement, L2 contenu intégré au HTML, profil Quarto
+effectif et L4 complète restent ouverts. **Aucun HTTP professeur réel,
+aucun JS, aucune publication et aucune fusion.**
