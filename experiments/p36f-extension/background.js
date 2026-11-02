@@ -85,7 +85,7 @@ browser.runtime.onMessage.addListener(async (message,sender) => {
     allowedURL = url;
     try {
       await browser.tabs.update(tab.id,{url});
-      return {status:"OPEN_ATTEMPTED_FICTION_ONLY",...snapshot()};
+      return {...snapshot(),status:"OPEN_ATTEMPTED_FICTION_ONLY"};
     } catch (_) {
       f1.close();
       return {status:"NO_GO_TAB_NAVIGATION"};
