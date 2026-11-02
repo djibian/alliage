@@ -874,3 +874,51 @@ de listes Python de balises interdites. Pas de tests Firefox adversariaux
 sur ce HEAD à ce stade ; aucun accès réel ni publication.
 L1, L2 du HTML, L4 général et le profil Quarto effectif restent
 non qualifiés. PR #13 à #17 Draft/non fusionnées.
+
+## P3.6E — résolution structurante de la divergence SVG/style (2 novembre 2026)
+
+La [troisième contre-expertise indépendante de P3.6E](https://github.com/djibian/alliage/pull/17#issuecomment-6583146348),
+sur le HEAD `707677dff3a9f79994ab6012e6bd77eab3d97156`,
+conclut **CORRECTIONS REQUISES** : sous `svg/style`,
+`svg/script`, `math/style`, l'ancienne API Python
+`HTMLParser` masquait des liens HTML et redirections que
+le parseur HTML5 d'un navigateur pouvait effectivement reconstruire.
+Les commentaires malformés de la revue précédente étaient déjà refusés,
+mais le filtre L4a restait contournable.
+
+**Correction architecturale de la seule branche fictive #17 :**
+le garde utilise désormais le DOM de **html5lib 1.1**, un parseur
+HTML5 tenant compte des espaces de noms SVG/MathML, et parcourt les
+éléments effectivement reconstruits. Les destinations `href`
+et `xlink:href` ne sont admises qu'avec les règles strictes
+sur les éléments HTML/SVG attendus. Les attributs HTML5 dupliqués
+sont refusés depuis les diagnostics du parseur ; les balises actives
+invalides supprimées de l'arbre sont refusées lorsqu'un diagnostic
+signale leur suppression. Le contrôle lexical additionnel des
+commentaires/déclarations ambigus demeure actif. **Le HTML source
+scellé n'est ni réécrit ni sérialisé.**
+
+La nouvelle dépendance `requirements-p36e.txt` versionne
+`html5lib==1.1` et ses dépendances directes utilisées en CI,
+installées uniquement dans les environnements de qualification.
+Un environnement sans ce parseur doit refuser l'admission plutôt que
+revenir implicitement à `HTMLParser`. Tests de régression :
+chaque variante SVG/MathML du rapport doit être refusée par
+le garde, puis par le lecteur HTTP, **après rehash réussi P3.6A**.
+Les anciens tests MathML/SMIL/commentaires, CSS Quarto et route unique
+sont conservés.
+
+**Porte de validation :** vérifier les deux workflows sur le HEAD
+documentaire final, y compris Quarto 1.10.19 et 1.10.20,
+puis demander une **contre-revue indépendante ciblée**
+de la nouvelle dépendance, de la reconstruction HTML5,
+des attributs namespacés et des diagnostics de parsing.
+Les tests Firefox sur fixtures synthétiques sont distincts ;
+aucune conclusion sur l'absence globale de fuite.
+
+**A014 reste la règle :** l'admission statique n'est pas le
+confinement du navigateur. L1 autorisation réelle, L2
+confidentialité du HTML, L4 trafic/navigations Firefox
+et attestation du profil professeur demeurent NON RÉSOLUS.
+PR #13–#17 Draft/non fusionnées. Aucun HTML professeur réel
+via HTTP, aucun JS, aucune publication élève.
