@@ -15,6 +15,8 @@ class StaticNavigationAdmissionTests(unittest.TestCase):
             b'<link rel="stylesheet" href="data:text/css,%0Ah2%7Bcolor:red%7D">',
             b'<style>h1{color:red}</style><img src="data:image/png;base64,AAAA">',
             b'<a href="&#35;chapter">Fragment encod\xc3\xa9</a>',
+            b'<!DOCTYPE html><!-- ordinary comment --><a href="#chapter">safe</a>',
+            b'<!-- Quarto local fixture note -->',
         ]
         for content in cases:
             with self.subTest(html=content[:55]):
@@ -99,11 +101,13 @@ class StaticNavigationAdmissionTests(unittest.TestCase):
             b'fill="freeze"/></a></svg><!---->',
             b'<![CDATA[><math href="https://example.invalid/fiction">'
             b'<mi>Cliquer</mi></math>',
-            b'<!-- benign-looking comment --><a href="#chapter">safe</a>',
             b'<!DOCTYPE html><!ENTITY x SYSTEM "https://example.invalid/">',
             b'<!doctype html><?fiction external?>',
             b'<!doctype html><!doctype html><a href="#safe">safe</a>',
             b'<!doctype html><!-- unclosed comment',
+            b'<!-- invalid --!><a href="https://example.invalid/">evil</a><!-- end -->',
+            b'<!-- nested <!-- hidden --> note -->',
+            b'<!-- abruptly closed > <math href="https://example.invalid/">x</math> -->',
         )
         for html in fixtures:
             with self.subTest(prefix=html[:95]):
