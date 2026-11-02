@@ -836,3 +836,41 @@ sur les deux réfutations et l'absence de régression L4a.
 Aucune ouverture réelle, aucun HTML professeur privé via
 HTTP, aucune fusion, aucun JS ni publication. L1/L2/L4
 général et l'attestation du profil restent ouverts.
+
+## P3.6E — divergence HTML5/HTMLParser, grammaire fictive resserrée (2 novembre 2026)
+
+La [deuxième contre-expertise indépendante de #17](https://github.com/djibian/alliage/pull/17#issuecomment-6582722330)
+sur le HEAD `84a9b567bd3844bde79f652580b9e03984bbe489`
+a conclu **CORRECTIONS REQUISES** : les interdictions MathML/SMIL
+étaient efficaces sur les balises visibles, mais des commentaires HTML
+malformés `<!----!>` ou déclarations `<![CDATA[>`
+pouvaient masquer au parseur Python des éléments restitués par HTML5.
+Les CI de ce HEAD ne couvraient pas ces écarts.
+
+Des tests fictifs ont été ajoutés **au parseur et à l'admission HTTP**,
+avec `verify_session()` PASS avant le refus attendu. Une première
+stratégie de refus de tous les commentaires a produit **CI Quarto rouge**
+(par refus sûr mais incompatible avec les commentaires Quarto normaux).
+Une stratégie de grammaire restreinte accepte ensuite le doctype HTML
+simple et les seuls commentaires bien terminés sans structures
+`<`, `>`, `--` internes ; les déclarations/CDATAs et commentaires
+ambigus restent refusés. Les octets du HTML restent intacts, et le
+serveur continue de ne publier qu'une seule route fictive.
+
+**Preuve CI sur le commit de code
+`079f5dc689aa600bced901d850df6c9d220e3705` :**
+[Python #41485105195](https://github.com/djibian/alliage/actions/runs/41485105195)
+**145 tests dont 11 ignorés, PASS** ;
+[Quarto + HTTP #41485105475](https://github.com/djibian/alliage/actions/runs/41485105475)
+**21 tests PASS sur 1.10.19 et 21 PASS sur 1.10.20**.
+Le compte rendu du HEAD final documentaire demandera un contrôle CI
+distinct avant nouvelle contre-revue indépendante.
+
+**Décision de limite :** refuser une construction syntaxique
+ambiguë dans ce *laboratoire fictif* ne prouve pas le confinement
+navigateur. Le contrôle L4 de production devra être pensé au niveau
+du navigateur/du contexte de navigation, pas comme l'accumulation
+de listes Python de balises interdites. Pas de tests Firefox adversariaux
+sur ce HEAD à ce stade ; aucun accès réel ni publication.
+L1, L2 du HTML, L4 général et le profil Quarto effectif restent
+non qualifiés. PR #13 à #17 Draft/non fusionnées.
