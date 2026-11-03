@@ -171,3 +171,23 @@ dans un environnement sans sortie Internet :
 L1/L2/L4 réel et attestation du profil Quarto demeurent
 non qualifiés ; aucun contenu professeur privé ne peut être
 ouvert ou servi.
+
+### Limite de linéarisation et précision des observations
+
+`CLOSE` invalide toutes les **autorisations futures** et
+continuations asynchrones déjà suspendues. Il ne peut
+**annuler rétroactivement** un `GET` qui a déjà obtenu
+`cancel:false`, une connexion déjà transmise, ou les
+octets d'une page déjà chargée. La qualification Firefox
+doit provoquer et observer séparément ce scénario ;
+l'autorité de révocation serveur et l'isolation OS
+restent des protections indépendantes.
+
+Le champ `deniedHTTPBNewTab` ne compte comme « autre onglet »
+qu'un `main_frame` avec `tabId` entier positif
+**connu et distinct** de l'onglet observé. Les requêtes
+`tabId=-1` ou `tabId` absent restent dans
+`deniedHTTPB`, mais ne sont pas attribuées à un
+nouvel onglet : cette distinction est testée explicitement.
+Aucune métrique de veto simulé ne remplace le compteur
+réel du serveur B.
