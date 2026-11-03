@@ -4,7 +4,9 @@ const out = document.getElementById("result");
 async function send(action) {
   try {
     const response = await browser.runtime.sendMessage({
-      action,port:Number(document.getElementById("port").value)
+      action,
+      port:Number(document.getElementById("port").value),
+      decoyPort:Number(document.getElementById("decoy-port").value)
     });
     out.textContent = JSON.stringify(response, null, 2);
   } catch (_) {
