@@ -110,3 +110,64 @@ Pas de merge, pas de publication élève, pas d'usage du
 véritable contenu enseignant. Même une interception
 Firefox observée ne clôturerait pas L1/L2/L4 global
 ou l'attestation du profil Quarto.
+
+## Correctif C2 et oracle B — contre-expertise du 3 novembre 2026
+
+[Rapport indépendant P3.6F1](https://github.com/djibian/alliage/pull/19#issuecomment-6588821737)
+sur le HEAD initial `133216f99844b7843e2ec9d7dda2d1fe1e40ce5a` :
+**CORRECTIONS REQUISES**, avec un contournement reproductible du
+contrat de fermeture dans un modèle asynchrone : `OPEN_FICTION`
+suspendu pendant `permissions.contains` pouvait réarmer après
+un `CLOSE` déjà confirmé. Deuxième réserve : un simple compteur
+global `denied` ne relie pas une requête rejetée à B.
+
+**Corrections sur la même branche, aucun Firefox réel :**
+- Une génération éphémère `generation` reste liée au processus
+  d'event page ; une nouvelle **époque d'opération `epoch`**
+  invalide synchroniquement toute continuation en cours lors
+  de `CLOSE`, d'un second `OPEN_FICTION`, d'une fermeture de
+  l'onglet surveillé, d'un commit HTTP inattendu et d'une notification
+  `permissions.onRemoved`.
+- Le jeton d'opération est vérifié **après chacun des `await`**
+  (`permissions.contains`, `tabs.create`, second contrôle des
+  permissions et `tabs.update`). Un ancien `OPEN` ne
+  peut plus appeler `arm` ni retourner un succès après révocation
+  (résultat `NO_GO_REVOKED`). Les tests utilisent des Promises
+  à résolution contrôlée, pas des temporisations fragiles.
+- La popup accepte un port distinct pour le témoin B
+  (par défaut 18766). Le listener ne compte `deniedHTTPB`
+  que lorsque **`details.url` est exactement**
+  `http://127.0.0.1:B/probe`, méthode `GET`, et que
+  le veto renvoie effectivement `cancel:true`.
+  `deniedHTTPBNewTab` isole les tentatives `main_frame`
+  provenant d'un autre `tabId`. Les URL/capacités exactes
+  ne figurent jamais dans `STATUS`, qui ne publie que des
+  compteurs fictifs.
+- Les compteurs du témoin B sont **réinitialisés par nouvel
+  `OPEN_FICTION`** mais conservés après `CLOSE` pour
+  permettre de consulter les résultats de l'essai arrêté.
+  Une hausse du compteur ne prouve **pas seule** le
+  confinement. Il faut conjointement démontrer que le
+  serveur B est joignable **sans veto**, puis que
+  `deniedHTTPBNewTab` augmente avec le veto ET que
+  B ne reçoit rien et qu'aucune navigation n'est commise.
+- `permissions.onRemoved` réduit la fenêtre logique de
+  révocation pendant le fonctionnement de l'extension. Une
+  extension totalement arrêtée/désinstallée ne peut toujours
+  pas garantir son propre blocage : isolement réseau OS
+  indépendant et tests dans Firefox réel demeurent requis.
+
+**Tests ciblés :** fermeture pendant chacune des opérations
+asynchrones, second `OPEN` concurrent, fermeture d'onglet
+pendant `tabs.update`, commit de navigation inattendu,
+notification de révocation de permission, refus B ciblé
+et non-confusion avec les autres requêtes. Les deux tests
+du serveur A/B sont inchangés : B demeure joignable sans veto.
+
+La qualification du **HEAD documentaire final** est à recontrôler
+en CI après cette mise à jour. Jusqu'à observation Firefox
+dans un environnement sans sortie Internet :
+**`F1_UNIT_ONLY / INTERCEPTION_UNPROVEN`**.
+L1/L2/L4 réel et attestation du profil Quarto demeurent
+non qualifiés ; aucun contenu professeur privé ne peut être
+ouvert ou servi.
