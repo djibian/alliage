@@ -119,10 +119,13 @@ test("targeted B denied counter is distinct from all other DENYs",async()=>{
   e.listeners.veto(req({url:probe,type:"image"}));
   e.listeners.veto(req({url:probe,tabId:24}));
   e.listeners.veto(req({url:probe,tabId:25,method:"POST"}));
+  e.listeners.veto(req({url:probe,tabId:-1}));
+  e.listeners.veto(req({url:probe,tabId:undefined}));
   const s=await e.state();
-  assert.equal(s.deniedHTTPB,2);
+  assert.equal(s.deniedHTTPB,4);
+  // Unknown / speculative tab ids are NOT evidence of a new tab.
   assert.equal(s.deniedHTTPBNewTab,1);
-  assert.ok(s.denied>=4);
+  assert.ok(s.denied>=6);
   assert.equal(JSON.stringify(s).includes("127.0.0.1"),false);
   assert.equal(JSON.stringify(s).includes("/probe"),false);
 });
