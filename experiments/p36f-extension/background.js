@@ -13,13 +13,18 @@ let tabForObservation = -1;
 let allowedURL = null;
 let probeURL = null; // Synthetic B /probe only: NEVER logged or exported.
 let deniedHTTPB = 0;
-let deniedHTTPBNewTab = 0;
+// Attribution requires an observed target CREATED from the active A tab.
+let deniedHTTPBLinkedTarget = 0;
+let pendingCreateTicket = null;
+const linkedTargets = new Set();
 let unexpectedCommits = 0;
 let permissionFailure = false;
 
 function revoke() {
   epoch += 1; // synchronous cancellation: the linearization point
   f1.close();
+  pendingCreateTicket = null;
+  linkedTargets.clear();
   tabForObservation = -1;
   allowedURL = null;
   // Keep the fictitious B endpoint for counting denials AFTER CLOSE.
@@ -38,10 +43,13 @@ function veto(details) {
     if (decision.cancel === true && probeURL !== null && details &&
         details.url === probeURL && details.method === "GET") {
       deniedHTTPB += 1;
+      // Do not mistake a pre-existing/stale tabId for a target created
+      // by A in this attempt. A specific onCreatedNavigationTarget event
+      // must link source A -> destination B in the current epoch.
       if (details.type === "main_frame" &&
-          Number.isSafeInteger(details.tabId) && details.tabId >= 0 &&
-          tabForObservation >= 0 && details.tabId !== tabForObservation) {
-        deniedHTTPBNewTab += 1;
+          linkedTargets.has(details.tabId)) {
+        linkedTargets.delete(details.tabId); // count once per observed target
+        deniedHTTPBLinkedTarget += 1;
       }
     }
     return decision;
@@ -54,6 +62,17 @@ browser.webRequest.onBeforeRequest.addListener(
   veto, {urls: ["<all_urls>"]}, ["blocking"]
 );
 
+// Observation ONLY. This event can correlate a new target to A; it
+// cannot block it, and may arrive too late for a particular request.
+browser.webNavigation.onCreatedNavigationTarget.addListener(details => {
+  if (details && probeURL !== null && tabForObservation >= 0 &&
+      details.sourceTabId === tabForObservation &&
+      details.sourceFrameId === 0 &&
+      Number.isSafeInteger(details.tabId) && details.tabId >= 0 &&
+      details.tabId !== tabForObservation && details.url === probeURL) {
+    linkedTargets.add(details.tabId);
+  }
+});
 // Detection ONLY; webNavigation cannot veto a committed navigation.
 browser.webNavigation.onCommitted.addListener(details => {
   if (details && Number.isInteger(details.tabId) &&
@@ -64,7 +83,14 @@ browser.webNavigation.onCommitted.addListener(details => {
   }
 });
 browser.tabs.onRemoved.addListener(tabId => {
-  if (tabId === tabForObservation) revoke();
+  // During tabs.create(), the new tab's id is not yet known. A removal
+  // event MAY be for that tab. Conservatively revoke *any* pending OPEN
+  // rather than accept a closed tab after the Promise resolves.
+  if (pendingCreateTicket !== null || tabId === tabForObservation) {
+    revoke();
+  } else {
+    linkedTargets.delete(tabId);
+  }
 });
 browser.permissions.onRemoved.addListener(() => {
   permissionFailure = true;
@@ -79,7 +105,7 @@ function trustedControl(sender) {
 function snapshot() {
   const s = f1.status();
   return {status:"F1_UNIT_POLICY_ONLY",armed:s.armed,allowed:s.allowed,
-    denied:s.denied,deniedHTTPB,deniedHTTPBNewTab,
+    denied:s.denied,deniedHTTPB,deniedHTTPBLinkedTarget,
     unexpectedCommits,permissionFailure};
 }
 async function labPermissions() {
@@ -110,7 +136,7 @@ browser.runtime.onMessage.addListener(async (message,sender) => {
   const ticket = epoch;
   probeURL = null;
   deniedHTTPB = 0;
-  deniedHTTPBNewTab = 0;
+  deniedHTTPBLinkedTarget = 0;
 
   let url, decoyURL;
   try {
@@ -135,8 +161,11 @@ browser.runtime.onMessage.addListener(async (message,sender) => {
   }
 
   try {
-    // Create a neutral tab FIRST, then bind the SINGLE-use grant to its ID.
+    // Until tabs.create resolves, tab ID is unknown. An onRemoved during
+    // this await must revoke the operation BEFORE it may arm that tab.
+    pendingCreateTicket = ticket;
     const tab = await browser.tabs.create({url:"about:blank",active:true});
+    if (pendingCreateTicket === ticket) pendingCreateTicket = null;
     if (!current(ticket)) return {status:"NO_GO_REVOKED"};
     if (!tab || !Number.isSafeInteger(tab.id) || tab.id < 0) {
       revoke();
