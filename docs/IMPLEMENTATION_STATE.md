@@ -917,3 +917,45 @@ un environnement réellement sans sortie Internet et un
 profil jetable ; la qualification complète OS et des
 services hôtes demeure F3. Aucune modification de
 `extension/` v0.4, de #17 ou de #18.
+
+### P3.6F1 — contre-expertise du code et correctif de concurrence (3 novembre 2026)
+
+[Contre-expertise indépendante de la PR #19](https://github.com/djibian/alliage/pull/19#issuecomment-6588821737)
+du HEAD initial `133216f99844b7843e2ec9d7dda2d1fe1e40ce5a` :
+**CORRECTIONS REQUISES**. Dans `background.js`,
+un `OPEN_FICTION` suspendu par un `await` pouvait
+réarmer **après** un `CLOSE` confirmé. Par ailleurs,
+`denied` ne prouvait pas le refus de l'URL B précise.
+L'auditeur a confirmé la configuration MV3, le listener
+global synchrone et les protections de la politique pure,
+mais uniquement en simulation.
+
+**Correctifs F1 sur PR #19 uniquement** : epoch
+d'opération en mémoire, révoquée synchroniquement à
+`CLOSE` / nouvelle ouverture / fermeture d'onglet /
+commit inattendu / `permissions.onRemoved`. Contrôle
+du ticket après chaque `await` et permission revalidée
+avant armement. Aucune continuation périmée ne peut
+réarmer. Deux compteurs ciblés `deniedHTTPB` et
+`deniedHTTPBNewTab` observent exclusivement les
+`GET` vers le serveur fictif B `/probe` **dont le
+listener a produit `cancel:true`** : preuve ciblée
+d'une décision, mais pas preuve Firefox/OS ni absence
+de livraison sans témoin externe.
+
+**Épreuves CI :** Promises différées contrôlées sur
+`permissions.contains`, `tabs.create`,
+`tabs.update`, deux OPEN concurrents, fermeture
+d'onglet, commit inattendu, révocation des permissions ;
+compteur spécifique B distinct des autres DENY.
+Le témoin B local est toujours joignable sans veto.
+Les workflows du HEAD final documentaire doivent
+être vérifiés avant nouvelle contre-revue indépendante.
+
+**Statut maintenu : `F1_UNIT_ONLY / INTERCEPTION_UNPROVEN`.**
+Le micro-smoke Firefox réel exige un environnement
+isolé sans egress AVANT lancement, une extension de
+laboratoire seule et un témoin B joignable sans veto.
+Aucun transfert de garantie au Firefox habituel,
+aucune ressource professeur privée ouverte, aucun
+merge, aucune publication.
