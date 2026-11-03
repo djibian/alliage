@@ -191,3 +191,87 @@ qu'un `main_frame` avec `tabId` entier positif
 nouvel onglet : cette distinction est testée explicitement.
 Aucune métrique de veto simulé ne remplace le compteur
 réel du serveur B.
+
+## Deuxième contre-expertise — fermeture de tab avant ID et attribution à l'essai
+
+La [contre-expertise finale](https://github.com/djibian/alliage/pull/19#issuecomment-6614286095)
+sur `2cdbe51f5e5558a6abf077770887fd75ac986d61`
+conclut **CORRECTIONS REQUISES**. Les corrections
+`OPEN → CLOSE` et l'identification de la destination B
+étaient conformes, mais deux garanties plus précises
+restaient réfutables dans un navigateur simulé :
+
+1. Une notification `tabs.onRemoved(id)` pendant la
+   suspension de `tabs.create()`, **avant** que
+   l'ID soit connu, pouvait être ignorée. À la reprise,
+   l'ancien `OPEN` réarmait cet onglet fermé.
+2. Un simple `tabId` différent du tab A ne lie pas une
+   requête B à la navigation `target=_blank` de
+   **l'essai courant** : un ancien onglet ou un onglet
+   préexistant pouvait alimenter le compteur « NewTab ».
+
+**Correctifs ciblés, sans nouveau privilège :**
+
+- `pendingCreateTicket` identifie **l'opération** en cours
+  de `tabs.create`, même avant de connaître l'ID.
+  **Toute fermeture d'onglet** pendant ce délai
+  révoque conservativement l'essai : s'il s'agissait
+  d'un onglet sans rapport, le test peut échouer par
+  sur-refus, mais il ne réarme jamais un onglet fermé.
+  Le ticket est contrôlé après la résolution de la
+  Promise ; `CLOSE`, une nouvelle ouverture et les
+  révocations précédentes invalident aussi l'attente.
+- Un listener d'**observation uniquement**
+  `webNavigation.onCreatedNavigationTarget` est
+  enregistré. Seul un événement avec `sourceTabId`
+  égal au tab A **courant**, `sourceFrameId=0`,
+  `url` égale au GET B fictif exact et un
+  `tabId` cible valide/distinct ajoute une cible
+  à un ensemble **éphémère**. Un GET B `main_frame`
+  effectivement refusé consomme cette cible au
+  plus **une fois**, incrémentant le compteur
+  `deniedHTTPBLinkedTarget`.
+- Le compteur `deniedHTTPB` reste un indicateur
+  brut du refus de **cette destination**, sans
+  promesse d'appartenance à l'essai courant.
+  Le **nouveau** champ `deniedHTTPBLinkedTarget`
+  **remplace** l'ancien `deniedHTTPBNewTab`, qui
+  déduisait abusivement « nouvel onglet » de
+  `tabId != tabForObservation`. Les preuves
+  historiques basées sur cet ancien compteur
+  ne sont **pas valables** pour une attribution.
+- `revoke()`, fermeture de cible et nouvel
+  `OPEN` effacent les cibles observées. La
+  présence du listener `webNavigation` ne
+  crée **aucune capacité d'annulation** :
+  seul `webRequest` peut refuser une requête
+  dans la catégorie effectivement interceptée.
+
+**Tests nouveaux :** notification `onRemoved`
+avant résolution de `tabs.create` puis
+`NO_GO_REVOKED`, fermeture non attribuable
+pendant la création, ancien GET B après deux
+`OPEN`, anciens onglets non liés, origine/frame
+et URL de destination incohérentes, cible
+fermée et `CLOSE`, consommation unique du lien
+de navigation. Tous sur fixtures fictives.
+
+**Condition stricte de preuve :** si
+`onCreatedNavigationTarget` ne précède pas
+le veto `onBeforeRequest` réel, si les
+notifications arrivent trop tard, ou si la
+provenance reste ambiguë, le compteur attribué
+peut **rester à zéro** : l'expérience est alors
+`UNPROVEN`, et non un PASS obtenu en réintroduisant
+l'inférence par un tabId différent.
+
+L'expérience HTTP réelle nécessite toujours
+le témoin B joignable **sans veto**, puis
+`DENY` ciblé et associé à la cible,
+zéro réception serveur B et aucune
+navigation B commise avec veto.
+Le navigateur doit être isolé **avant lancement**,
+avec des ressources entièrement fictives.
+Les appels d'API Node simulés ne prouvent
+pas ce comportement Firefox. L1/L2/L4 globale
+et le profil professeur restent hors périmètre.
