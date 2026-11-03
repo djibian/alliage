@@ -39,7 +39,8 @@ function veto(details) {
         details.url === probeURL && details.method === "GET") {
       deniedHTTPB += 1;
       if (details.type === "main_frame" &&
-          details.tabId !== tabForObservation) {
+          Number.isSafeInteger(details.tabId) && details.tabId >= 0 &&
+          tabForObservation >= 0 && details.tabId !== tabForObservation) {
         deniedHTTPBNewTab += 1;
       }
     }
