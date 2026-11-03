@@ -39,7 +39,10 @@ function environment(options={}) {
       addListener(f,filter,extras){listeners.veto=f;calls.push({filter,extras});},
       hasListener(f){return f===listeners.veto;}
     }},
-    webNavigation:{onCommitted:{addListener(f){listeners.committed=f;}}},
+    webNavigation:{
+      onCommitted:{addListener(f){listeners.committed=f;}},
+      onCreatedNavigationTarget:{addListener(f){listeners.createdTarget=f;}}
+    },
     tabs:{onRemoved:{addListener(f){listeners.removed=f;}},
       async create({url}) {
         assert.equal(url,"about:blank");
@@ -112,7 +115,7 @@ test("CLOSE and removed tab both revoke",async()=>{
   e.listeners.removed(24);
   assert.equal(e.listeners.veto(req({tabId:24})).cancel,true);
 });
-test("targeted B denied counter is distinct from all other DENYs",async()=>{
+test("B counter is exact, but linked target requires observed A -> B event",async()=>{
   const e=environment();
   await e.open();
   e.listeners.veto(req({url:"http://127.0.0.1:19999/not-B"}));
@@ -121,11 +124,25 @@ test("targeted B denied counter is distinct from all other DENYs",async()=>{
   e.listeners.veto(req({url:probe,tabId:25,method:"POST"}));
   e.listeners.veto(req({url:probe,tabId:-1}));
   e.listeners.veto(req({url:probe,tabId:undefined}));
-  const s=await e.state();
+  let s=await e.state();
   assert.equal(s.deniedHTTPB,4);
-  // Unknown / speculative tab ids are NOT evidence of a new tab.
-  assert.equal(s.deniedHTTPBNewTab,1);
-  assert.ok(s.denied>=6);
+  // Existing or unknown tab IDs must NEVER be attributed to A.
+  assert.equal(s.deniedHTTPBLinkedTarget,0);
+  e.listeners.createdTarget({sourceTabId:99,sourceFrameId:0,tabId:25,url:probe});
+  e.listeners.createdTarget({sourceTabId:23,sourceFrameId:0,tabId:26,url:"http://127.0.0.1:18766/else"});
+  e.listeners.createdTarget({sourceTabId:23,sourceFrameId:1,tabId:27,url:probe});
+  e.listeners.veto(req({url:probe,tabId:25}));
+  e.listeners.veto(req({url:probe,tabId:26}));
+  e.listeners.veto(req({url:probe,tabId:27}));
+  s=await e.state();
+  assert.equal(s.deniedHTTPBLinkedTarget,0);
+  e.listeners.createdTarget({sourceTabId:23,sourceFrameId:0,tabId:28,url:probe});
+  e.listeners.veto(req({url:probe,tabId:28}));
+  e.listeners.veto(req({url:probe,tabId:28})); // consumed only once
+  s=await e.state();
+  assert.equal(s.deniedHTTPBLinkedTarget,1);
+  assert.equal(s.deniedHTTPB,9);
+  assert.ok(s.denied>=10);
   assert.equal(JSON.stringify(s).includes("127.0.0.1"),false);
   assert.equal(JSON.stringify(s).includes("/probe"),false);
 });
@@ -228,4 +245,63 @@ test("CLOSE during second permission recheck blocks arming",async()=>{
   gate.resolve(true);
   assert.equal((await opening).status,"NO_GO_REVOKED");
   assert.equal(e.listeners.veto(req()).cancel,true);
+});
+
+
+test("tab removed BEFORE tabs.create resolves invalidates unknown tab",async()=>{
+  const gate=deferred();
+  const e=environment({createHook:()=>gate.promise});
+  const opening=e.open();
+  await microtasks();
+  assert.equal(e.creations.length,1);
+  e.listeners.removed(23); // no known id in background yet
+  gate.resolve();
+  assert.equal((await opening).status,"NO_GO_REVOKED");
+  assert.equal(e.updates.length,0);
+  assert.equal((await e.state()).armed,false);
+  assert.equal(e.listeners.veto(req()).cancel,true);
+});
+test("any tab removal during unresolved create fails closed conservatively",async()=>{
+  const gate=deferred();
+  const e=environment({createHook:()=>gate.promise});
+  const opening=e.open();
+  await microtasks();
+  e.listeners.removed(999); // cannot disambiguate before create returns
+  gate.resolve();
+  assert.equal((await opening).status,"NO_GO_REVOKED");
+  assert.equal(e.updates.length,0);
+  assert.equal(e.listeners.veto(req()).cancel,true);
+});
+test("stale B request from previous OPEN cannot be attributed to new attempt",async()=>{
+  const e=environment();
+  await e.open(); // tab 23
+  e.listeners.createdTarget({sourceTabId:23,sourceFrameId:0,tabId:77,url:probe});
+  assert.equal((await e.open()).status,"OPEN_ATTEMPTED_FICTION_ONLY"); // tab 24
+  e.listeners.veto(req({tabId:77,url:probe})); // delayed previous attempt
+  e.listeners.veto(req({tabId:23,url:probe})); // pre-existing tab
+  let s=await e.state();
+  assert.equal(s.deniedHTTPB,2);
+  assert.equal(s.deniedHTTPBLinkedTarget,0);
+  // Late target event from the OLD source tab must also be ignored.
+  e.listeners.createdTarget({sourceTabId:23,sourceFrameId:0,tabId:78,url:probe});
+  e.listeners.veto(req({tabId:78,url:probe}));
+  s=await e.state();
+  assert.equal(s.deniedHTTPBLinkedTarget,0);
+  // Only a target explicitly created from current A=24 is attributed.
+  e.listeners.createdTarget({sourceTabId:24,sourceFrameId:0,tabId:79,url:probe});
+  e.listeners.veto(req({tabId:79,url:probe}));
+  s=await e.state();
+  assert.equal(s.deniedHTTPBLinkedTarget,1);
+});
+test("CLOSE or target removal revokes pending B target attribution",async()=>{
+  const e=environment();
+  await e.open();
+  e.listeners.createdTarget({sourceTabId:23,sourceFrameId:0,tabId:32,url:probe});
+  e.listeners.removed(32); // removes target tracking, not source grant
+  e.listeners.veto(req({url:probe,tabId:32}));
+  assert.equal((await e.state()).deniedHTTPBLinkedTarget,0);
+  e.listeners.createdTarget({sourceTabId:23,sourceFrameId:0,tabId:33,url:probe});
+  await e.send("CLOSE");
+  e.listeners.veto(req({url:probe,tabId:33}));
+  assert.equal((await e.state()).deniedHTTPBLinkedTarget,0);
 });
