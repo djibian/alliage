@@ -959,3 +959,48 @@ laboratoire seule et un témoin B joignable sans veto.
 Aucun transfert de garantie au Firefox habituel,
 aucune ressource professeur privée ouverte, aucun
 merge, aucune publication.
+
+### P3.6F1 — fermeture avant attribution du tabId et oracle cible B (3 novembre 2026)
+
+La [nouvelle contre-expertise indépendante de #19](https://github.com/djibian/alliage/pull/19#issuecomment-6614286095)
+sur `2cdbe51f5e5558a6abf077770887fd75ac986d61`
+conclut **CORRECTIONS REQUISES**. Les courses `OPEN/CLOSE`
+déjà traitées sont approuvées. Deux problèmes restent :
+une fermeture `tabs.onRemoved` **avant** la résolution
+de `tabs.create` pouvait être ignorée, et un
+`tabId` différent ne prouve pas qu'un
+GET B vient du nouvel onglet créé par la
+page A dans l'essai courant.
+
+**Correction ciblée sur #19 :**
+- suivi `pendingCreateTicket` de l'opération de
+  création, avant que son tabId soit connu ;
+  toute fermeture d'onglet pendant cette
+  suspension provoque la révocation conservatrice ;
+- observation de `webNavigation.onCreatedNavigationTarget`
+  (`sourceTabId`, `sourceFrameId`, `tabId`,
+  URL B exacte), avec ensemble de cibles lié à
+  l'onglet source actuel, effacé à la fermeture/
+  révocation/nouvelle ouverture ;
+- remplacement de l'ancien indicateur ambigu
+  `deniedHTTPBNewTab` par
+  `deniedHTTPBLinkedTarget`, qui incrémente
+  seulement lorsqu'un GET B `main_frame`
+  est **réellement refusé** pour une cible
+  préalablement observée comme issue du tab A
+  courant. Une cible est consommée une fois.
+
+**Tests Node déterministes :** fermeture avant
+retour de `tabs.create`, sur-refus conservateur
+d'une fermeture ambiguë, B tardif de l'essai
+précédent, autre onglet préexistant, mauvais
+`sourceTabId`/frame/URL, fermeture de cible
+et `CLOSE`, comptage unique.
+**Reste `F1_UNIT_ONLY / INTERCEPTION_UNPROVEN`** :
+l'ordre réel des notifications de Firefox,
+l'absence de livraison au serveur B et
+l'isolation réseau OS ne sont toujours pas
+qualifiés. Le micro-smoke est réservé à un
+environnement jetable et isolé **avant** démarrage,
+sans HTML professeur privé ni extension
+du navigateur habituel. PR Draft/non fusionnée.
