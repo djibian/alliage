@@ -65,9 +65,29 @@ jobs:
           _git(repo, "update-ref", tracking, observed)
           with TemporaryDirectory(prefix="alliage-public-fixture-") as home:
               with patch("quarto_observed_session.Path.home", return_value=Path(home)):
-                  result, preview, server = prepare(
-                      repo, "djibian/alliage", tracking, initial,
-                      public_fictional_trusted=True)
+                  try:
+                      result, preview, server = prepare(
+                          repo, "djibian/alliage", tracking, initial,
+                          public_fictional_trusted=True)
+                  except Exception:
+                      # Diagnostic ONLY on this public/fictional maintenance PR.
+                      # Compare tracked .gitignore, with no sensitive data.
+                      import subprocess
+                      check = Path(home) / "debug-project"
+                      check.mkdir()
+                      for name in (".gitignore", "AGENTS.md", "README.md",
+                                   "_quarto.yml", "activite.qmd", "styles.css"):
+                          (check / name).write_bytes(
+                              _git(repo, "show", f"{initial}:{name}"))
+                      before = (check / ".gitignore").read_text()
+                      proc = subprocess.run(
+                          ["quarto", "render", "--to", "html", "--no-execute"],
+                          cwd=check, capture_output=True, text=True, timeout=120)
+                      after = (check / ".gitignore").read_text()
+                      print("QUARTO_FIXTURE_DEBUG_RC=" + str(proc.returncode), flush=True)
+                      print("QUARTO_FIXTURE_GITIGNORE_BEFORE=" + repr(before), flush=True)
+                      print("QUARTO_FIXTURE_GITIGNORE_AFTER=" + repr(after), flush=True)
+                      raise
               assert result["baseline_commit"] == initial
               assert result["observed_commit"] == observed
               # Inspect Quarto-generated, SHA-verified CSS in both versions.
