@@ -61,7 +61,7 @@ function run(url,iframe=false,SearchParams=URLSearchParams,selected="") {
     documentElement:new Element("html"),
     getElementById:()=>null,
     createElement:tag=>new Element(tag),
-    createTextNode:text=>({textContent:text})
+    createTextNode:text=>Object.assign(new Element("text"),{textContent:text})
   };
   const window={location:{assign:url=>navigations.push(url)},
     getSelection:()=>({toString:()=>selected})};
