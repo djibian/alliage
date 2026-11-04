@@ -588,3 +588,47 @@ fusion de #22/#24, aucune publication d'élèves,
 aucune preuve de modification Git depuis le chatbot
 latéral. Travaux P3.6 #13–#21 suspendus,
 conservés et non fusionnés.
+
+
+## Déblocage effectif fixture Quarto — PR #24 intégrée (4 novembre 2026)
+
+**Décision et gouvernance :** accord exprès du propriétaire pour
+une exception de maintenance `.gitignore` uniquement sur
+`experiment/pareto-quarto-demo`. Contre-expertise indépendante
+`APPROUVABLE` sur #24 HEAD
+`8e2f8b84515e9555c853c42f14cde0bca2c5de53`, publiée en
+revue COMMENT avec le compte GitHub du propriétaire (pas un APPROVE
+technique d'un collaborateur distinct). Vérification pré-merge :
+base `4a3028334a63fdd722ffd4d3da7886558127d033`,
+4 commits en avance, 0 derrière, diff limité à
+`.gitignore` et `styles.css`, CI réelle Quarto 1.11.9
+de la candidate `41874261209` SUCCESS. PR #24 fusionnée
+**par merge normal et exclusivement vers la branche fictive**.
+
+**État distant post-merge recontrôlé :**
+- `main` **inchangé** :
+  `7231ac4fb54ec54aebd498e72d4bd588878e631e`.
+- `experiment/pareto-quarto-demo` :
+  `affdb099bafd94099bf219c174e1ec6bbf82968f`.
+- Merge parents : `4a302833...` et V6 `8e2f8b8...` ;
+  l'arbre Git du merge est **strictement identique** à
+  l'arbre V6 `48efe8940950539cbdccc0de4e355360bf87f261`.
+  V5 `5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347`
+  est toujours ancêtre et CSS passe de bleu à vert ;
+  `.gitignore` contient `/_site/`, `/.quarto/`,
+  ligne blanche et `**/*.quarto_ipynb`.
+- **Nouvelle paire pour la démo** : V1 = V5 et V2 =
+  HEAD de merge `affdb099...`. Aucun de ces commits
+  n'est présenté comme une révision créée par le chatbot.
+
+**Requalification après adoption :** workflow de la PR #22 adapté
+pour cloner `experiment/pareto-quarto-demo` au vrai ref distant,
+en vérifier le SHA et l'égalité de tree avec V6 puis exécuter
+Git/Quarto/HTTP sans ref factice ; vérifier la nouvelle CI sur
+le HEAD exact de #22 avant toute affirmation de PASS.
+Guide `PARETO_MVP.md` et reprise `PARETO_REPRISE.md`
+actualisés. **Ni Firefox réel ni la sidebar/READ/WRITE GitHub
+n'ont été observés.** #23 demeure `DEMO_PARTIAL`.
+Il faut encore une revue indépendante de #22 avant fusion du code
+et une **autorisation distincte** pour une future écriture
+pédagogique par IA sur la branche fictive.
