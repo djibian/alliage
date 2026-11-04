@@ -1,0 +1,43 @@
+name: "Pareto — Quarto réel, Git épinglé, HTTP et contexte Firefox"
+
+on:
+  pull_request:
+    paths:
+      - "quarto_pareto_demo.py"
+      - "tests/test_quarto_pareto_demo.py"
+      - "extension/historique_ressource.js"
+      - "tests/test_historique_ressource.js"
+      - ".github/workflows/quarto-pareto-vertical.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vertical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: quarto-dev/quarto-actions/setup@v2
+      - name: Render two real, synthetic Quarto Git revisions and serve verified HTML
+        env:
+          ALLIAGE_TEST_REAL_QUARTO: "1"
+        run: |
+          quarto --version
+          python3 -m unittest discover -s tests -p 'test_quarto_pareto_demo.py' -v
+      - name: Exercise Firefox overlay as DOM simulation only
+        run: |
+          node --check extension/historique_ressource.js
+          node --test tests/test_historique_ressource.js
+      - name: Preserve evidence boundary
+        run: |
+          echo "REAL_QUARTO_RENDER_AND_HTTP_CI=PASS_IF_PREVIOUS_STEPS_SUCCEEDED"
+          echo "FIREFOX_NATIVE_SIDEBAR_AND_GITHUB_WRITE=UNPROVEN"
+          echo "PUBLICATION_PERFORMED=false"
