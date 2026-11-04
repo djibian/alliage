@@ -4,23 +4,22 @@
 **Strictement ressources publiques/fictives** ; jamais de document professeur privé.
 **Version de référence :** `main` `7231ac4fb54ec54aebd498e72d4bd588878e631e`.
 
-> **BLOCAGE EXPÉRIMENTAL IDENTIFIÉ (4 novembre 2026).** Le test du
-> **véritable** couple de commits initial V1=`1b1c0f22…`,
-> V2=`4a302833…` a montré que Quarto réécrit leur `.gitignore`
-> suivi, ce que le moteur P3.1 refuse correctement. **Ne pas lancer la
-> première démonstration décrite plus bas tant que ce blocage n'est pas
-> levé.** Une correction révisable et non fusionnée existe en
-> [PR #24](https://github.com/djibian/alliage/pull/24) : V5
-> `5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347` (motifs Quarto
-> canoniques) et V6 `8e2f8b84515e9555c853c42f14cde0bca2c5de53`
-> (CSS fictif). Le rendu Quarto réel de **V5/V6 a réussi**
-> dans la [CI #41873530021](https://github.com/djibian/alliage/actions/runs/41873530021)
-> (deux rendus, CSS comparés et HTTP vérifié). **La branche actuellement
-> proposée aux enseignants reste ancienne** : approbation de #24,
-> adoption des nouveaux SHA et validation de la branche finale
-> sont obligatoires avant le premier essai Firefox. **Aucune modification du moteur Git/Quarto pour tolérer
-> les fichiers suivis modifiés.**
-
+> **FIXTURE DE DÉMONSTRATION ADOPTÉE (4 novembre 2026).** La
+> [PR #24](https://github.com/djibian/alliage/pull/24) a été intégrée
+> **uniquement** à `experiment/pareto-quarto-demo` après exception de
+> maintenance autorisée et contre-expertise indépendante `APPROUVABLE`.
+> Son HEAD réel est
+> `affdb099bafd94099bf219c174e1ec6bbf82968f`.
+> **Première paire à utiliser** : V1 =
+> `5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347` (CSS bleu), V2 =
+> `affdb099bafd94099bf219c174e1ec6bbf82968f` (CSS vert).
+> L'arbre de V2 est exactement celui du commit V6
+> `8e2f8b84515e9555c853c42f14cde0bca2c5de53`,
+> préservé comme parent du merge ; les SHA anciens V1/V2 ne sont
+> **pas** rendables sous Quarto 1.11.9. Une CI de requalification
+> de la **branche distante effectivement adoptée** est requise ;
+> elle ne prouvera ni Firefox ni les capacités du chatbot. Aucune
+> publication ni modification de `main`.
 
 ## Expérience visée
 
@@ -48,11 +47,16 @@ L'enseignant compare V1/V2 et clique **Retenir/Écarter V2 (local)**.
   elle ferait apparaître la suppression des sources du logiciel.
   Toute modification IA doit être exclusivement sur cette branche,
   après autorisation explicite.
-- **Premier SHA fictif V1** :
-  `1b1c0f22e4f210bb24396274f56401ade0723353`.
-- **Deuxième SHA initial V2, avant intervention IA** :
-  `4a3028334a63fdd722ffd4d3da7886558127d033`.
-  Ce deuxième commit ne représente **pas** une révision IA.
+- **V1 initiale, rendable avec Quarto 1.11.9** :
+  `5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347` (bleu).
+- **V2 initiale, HEAD distant adopté** :
+  `affdb099bafd94099bf219c174e1ec6bbf82968f` (vert).
+  Le merge conserve V6 `8e2f8b84515e9555c853c42f14cde0bca2c5de53`
+  comme parent et a **le même arbre Git**. Ces commits sont des
+  versions de test préexistantes, **pas une modification IA**.
+- **Toute nouvelle modification IA** nécessite une autorisation
+  explicite supplémentaire sur `activite.qmd` ou `styles.css`
+  (ou `_quarto.yml`), et un nouveau SHA doit être constaté.
 
 La branche de démonstration est un **pointeur Git mutable** : revalider
 son SHA courant avant chaque nouvelle modification. Aucun SHA ne prouve
@@ -71,7 +75,7 @@ git clone --branch experiment/pareto-quarto-demo --single-branch \
   https://github.com/djibian/alliage.git "$HOME/projets/alliage-demo"
 
 git -C "$HOME/projets/alliage-demo" rev-parse HEAD
-# Doit donner au départ : 4a3028334a63fdd722ffd4d3da7886558127d033
+# Doit donner au départ : affdb099bafd94099bf219c174e1ec6bbf82968f
 ```
 
 Charger temporairement **uniquement** `extension/manifest.json`
@@ -81,18 +85,18 @@ des fichiers locaux si Firefox la requiert. **Pas**
 `experiments/p36f-extension/`, réservé au laboratoire P3.6.
 La vraie compatibilité du rendu et de l'injection reste à observer.
 
-## Premier aperçu V1/V2 pour préparer la demande IA
+## Premier aperçu V5 → branche adoptée pour préparer la demande IA
 
 ```sh
 python3 "$HOME/projets/alliage-code/quarto_pareto_demo.py" \
   --repo "$HOME/projets/alliage-demo" \
   --repository-id djibian/alliage \
   --tracking-ref refs/remotes/origin/experiment/pareto-quarto-demo \
-  --baseline-sha 1b1c0f22e4f210bb24396274f56401ade0723353 \
+  --baseline-sha 5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347 \
   --public-fictional-trusted
 ```
 
-Cette première commande **ne fait aucun fetch**. Elle utilise les objets Git
+Cette première commande **ne fait aucun fetch**. Elle compare V1 = V5 bleu au **HEAD adopté** vert (arbre équivalent à V6), **sans prétendre qu'une IA a déjà modifié la ressource**. Elle utilise les objets Git
 déjà présents, confirme le FAST_FORWARD et rend avec **le véritable
 Quarto** deux instantanés à SHA complets, sans checkout. Le mode
 `--fetch-demo` ci-dessous permet ensuite une **récupération Git volontaire**
@@ -190,7 +194,7 @@ ce n'est **pas** une validation durable dans Git.
 | Lecture GitHub dans le panneau exact | Réponse avec branche et SHA vérifiables | UNPROVEN |
 | Écriture GitHub dans le panneau exact | Commit SHA réellement créé | UNPROVEN |
 | Repli en patch si besoin | Patch appliqué avec autorisation | NON TESTÉ |
-| Rendu nouveau commit par vrai Quarto | Deux SHA et assets vérifiés | CI À QUALIFIER |
+| Rendu initial Quarto V5 → HEAD adopté | Deux SHA et actifs vérifiés | CI candidate PASS ; requalification de la branche adoptée à confirmer |
 | Navigation V1/V2 dans Firefox | Différence visible, aucune erreur CORS | NON OBSERVÉ |
 | Décision humaine locale | Choix puis état affiché, aucune publication | DOM SIMULÉ |
 | Absence de modification du site élèves | Git/HTTP et revue du diff | À CONTRÔLER |
