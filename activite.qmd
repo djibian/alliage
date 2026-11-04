@@ -1,0 +1,14 @@
+---
+title: "Tri de fichiers — activité entièrement fictive"
+---
+
+## Consigne
+
+Une classe fictive prépare un dossier contenant quatre fichiers : `verger.txt`, `plan.svg`, `notes.csv` et `photo.png`.
+
+1. Propose un classement logique de ces fichiers.
+2. Explique en une phrase la différence entre un nom de fichier et son extension.
+
+## Vérification
+
+La correction sera discutée collectivement. Aucun élève, donnée personnelle ou ressource privée n'est présent dans cet exercice.
