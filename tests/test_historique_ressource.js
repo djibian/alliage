@@ -75,7 +75,7 @@ test("V2 historical Quarto resource opens directly; V1 → V2 keeps same session
   const first=run(href());
   assert.ok(first.host,"native resource toolbar should be injected");
   const buttons=findAll(first.host,"button");
-  assert.equal(buttons.length,3);
+  assert.equal(buttons.length,5);
   assert.equal(buttons[0].disabled,false);
   assert.equal(buttons[1].disabled,true);
   assert.match(findAll(first.host,"div").slice(-1)[0].textContent,/non recontrôlées/);
@@ -247,4 +247,18 @@ test("AI handoff only appears on exact authorized preview, not forged pages",()=
   assert.equal(run(httpHref().split("?")[0]).host,null);
   assert.equal(run("https://example.invalid/activite.html?"+httpHref().split("?")[1]).host,null);
   assert.equal(run(httpHref(),true).host,null);
+});
+
+
+test("retain/reject is explicit, browser-local, and never a Git acceptance",()=>{
+  const res=run(httpHref(),false,URLSearchParams,"");
+  const buttons=findAll(res.host,"button");
+  const status=findAll(res.host,"div").find(x=>x.textContent.includes("Décision non prise"));
+  assert.ok(status);
+  buttons[3].emit("click");
+  assert.match(status.textContent,/V2 retenue/);
+  assert.match(status.textContent,/sans écriture Git ni publication/);
+  buttons[4].emit("click");
+  assert.match(status.textContent,/V2 écartée/);
+  assert.equal(res.navigations.length,0);
 });
