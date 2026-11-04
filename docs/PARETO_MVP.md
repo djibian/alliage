@@ -1,6 +1,6 @@
 # Alliage — première démonstration pédagogique Pareto (Firefox + IA + Git + Quarto)
 
-**Statut : candidat en PR Draft, NON QUALIFIÉ dans le Firefox réel.**
+**Statut : PR #22 prête pour revue indépendante, non fusionnée et NON QUALIFIÉE dans le Firefox réel.**
 **Strictement ressources publiques/fictives** ; jamais de document professeur privé.
 **Version de référence :** `main` `7231ac4fb54ec54aebd498e72d4bd588878e631e`.
 
