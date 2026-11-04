@@ -36,6 +36,64 @@ jobs:
         run: |
           node --check extension/historique_ressource.js
           node --test tests/test_historique_ressource.js
+      - name: Verify the REAL public demo branch at its two pinned SHAs
+        env:
+          ALLIAGE_PINNED_DEMO_V1: "1b1c0f22e4f210bb24396274f56401ade0723353"
+          ALLIAGE_PINNED_DEMO_V2: "4a3028334a63fdd722ffd4d3da7886558127d033"
+        run: |
+          git clone -q --single-branch --branch experiment/pareto-quarto-demo \
+            https://github.com/djibian/alliage.git "$RUNNER_TEMP/alliage-public-demo"
+          python3 - <<'PY'
+          import http.client
+          import os
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from unittest.mock import patch
+          from urllib.parse import urlsplit
+          from quarto_pareto_demo import prepare
+          from quarto_versions import _git
+          repo = Path(os.environ["RUNNER_TEMP"]) / "alliage-public-demo"
+          initial = os.environ["ALLIAGE_PINNED_DEMO_V1"]
+          observed = os.environ["ALLIAGE_PINNED_DEMO_V2"]
+          tracking = "refs/remotes/origin/experiment/pareto-quarto-demo"
+          for sha in (initial, observed):
+              assert _git(repo, "cat-file", "-t", sha).strip() == b"commit"
+          # The branch may have advanced since the two pinned demo commits.
+          # Test EXACTLY the declared demo pair, without rewriting remote refs.
+          _git(repo, "update-ref", "refs/alliage-ci/pinned-demo", observed)
+          with TemporaryDirectory(prefix="alliage-public-fixture-") as home:
+              with patch("quarto_observed_session.Path.home", return_value=Path(home)):
+                  result, preview, server = prepare(
+                      repo, "djibian/alliage", tracking, initial,
+                      public_fictional_trusted=True)
+                  try:
+                      # For a reproducible pair, the tracking ref must point to V2.
+                      assert result["baseline_commit"] == initial
+                      assert result["observed_commit"] == observed, (
+                          "Fixture branch moved; use a pinned local ref for this test")
+                      url = urlsplit(preview.browser_url(server.server_port))
+                      route = url.path + "?" + url.query
+                      conn = http.client.HTTPConnection(url.hostname, url.port, timeout=5)
+                      try:
+                          # Server must be running to test HTTP. Running thread
+                          # is strictly local; teardown precedes temp HOME removal.
+                          import threading
+                          thread = threading.Thread(target=server.serve_forever, daemon=True)
+                          thread.start()
+                          conn.request("GET", route)
+                          response = conn.getresponse()
+                          body = response.read()
+                          assert response.status == 200
+                          assert b"Consigne" in body
+                      finally:
+                          conn.close()
+                          server.shutdown()
+                          server.server_close()
+                          thread.join(timeout=5)
+                  finally:
+                      pass
+          print("REAL_PUBLIC_QUARTO_BRANCH_TWO_PINNED_COMMITS=PASS; FIREFOX=UNPROVEN")
+          PY
       - name: Preserve evidence boundary
         run: |
           echo "REAL_QUARTO_RENDER_AND_HTTP_CI=PASS_IF_PREVIOUS_STEPS_SUCCEEDED"
