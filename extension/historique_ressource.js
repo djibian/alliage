@@ -90,6 +90,12 @@
   // never a chatbot API, clipboard read, conversation scraping or Git write.
   const ai = document.createElement("button");
   ai.type="button";ai.textContent="Préparer demande IA";
+  const keep = document.createElement("button");
+  keep.type="button";keep.textContent="Retenir V2 (local)";
+  const reject = document.createElement("button");
+  reject.type="button";reject.textContent="Écarter V2 (local)";
+  const decision = document.createElement("div");decision.className="note";
+  decision.textContent="Décision non prise ; aucun enregistrement Git ni publication.";
   const consentLabel = document.createElement("label");
   consentLabel.style.cssText="display:block;font:12px system-ui,sans-serif;margin-top:7px";
   const consent = document.createElement("input");
@@ -160,8 +166,25 @@
     if (typeof promptBox.focus === "function") promptBox.focus();
     if (typeof promptBox.select === "function") promptBox.select();
   });
-  row.append(title,v1,v2,ai);
-  box.append(row,consentLabel,promptBox,aiStatus,note);
+  // This is a reversible, browser-local preference only, NOT the Git
+  // approval, edit, or publication of an educational resource.
+  const decisionKey = "alliage.local-review.v0:" + first.commit + ":" + second.commit;
+  function displayDecision(value) {
+    decision.textContent = value === "KEEP"
+      ? "V2 retenue dans ce navigateur, sans écriture Git ni publication."
+      : value === "REJECT"
+        ? "V2 écartée dans ce navigateur, sans écriture Git ni publication."
+        : "Décision non prise ; aucun enregistrement Git ni publication.";
+  }
+  function markDecision(value) {
+    try { window.sessionStorage?.setItem(decisionKey,value); } catch (_) { /* file: may forbid storage */ }
+    displayDecision(value);
+  }
+  try { displayDecision(window.sessionStorage?.getItem(decisionKey)); } catch (_) { /* non persistent */ }
+  keep.addEventListener("click", () => markDecision("KEEP"));
+  reject.addEventListener("click", () => markDecision("REJECT"));
+  row.append(title,v1,v2,ai,keep,reject);
+  box.append(row,decision,consentLabel,promptBox,aiStatus,note);
   shadow.append(style,box);
   document.documentElement.appendChild(host);
 })();
