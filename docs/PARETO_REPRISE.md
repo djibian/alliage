@@ -49,8 +49,9 @@ réelles ; sinon consigner `DEMO_PARTIAL` sans extrapoler la CI.
   deux rendus réels Quarto V5 → HEAD adopté, HTTP et CSS vérifiés.
   **`ADOPTED_FIXTURE_QUARTO_CI_PASS`** sur ce HEAD.
   Le verdict Firefox reste `UNPROVEN`.
-- #22 reste une PR du **logiciel** vers `main`, Draft
-  en attente de revue indépendante ciblée. Pas de fusion automatique.
+- #22 reste une PR du **logiciel** vers `main`, désormais
+  **Ready for review**, en attente de revue indépendante ciblée.
+  Pas de fusion automatique.
   Elle conserve l'extension v0.4 et ses composants historiques.
 - [Issue #23](https://github.com/djibian/alliage/issues/23)
   = porte principale de démonstration réelle. Les essais CI/DOM
