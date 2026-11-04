@@ -853,3 +853,187 @@ seulement la non-régression du projet existant.
 aucun déploiement, aucune ressource professeur réelle
 accessible par HTTP ; L1, L2, L4 de production et
 attestation du profil Quarto restent non résolus.
+
+## P3.6F1 — prototype d'interception simulée, Firefox réel non qualifié (2 novembre 2026)
+
+**Branche d'expérience indépendante :**
+`experiment/p36f1-firefox-global-deny-fixture`,
+empilée sur l'architecture F0 corrigée de PR #18,
+HEAD `e0043c54ddf67fa653a1b58618125eec75381f2d`,
+[approuvée architecturalement](https://github.com/djibian/alliage/pull/18#issuecomment-6587854448)
+**pour coder F1 fictif seulement**. PR #17 reste
+APPROUVABLE fictive/non fusionnée et non modifiée.
+
+Une WebExtension MV3 **distincte** est proposée sous
+`experiments/p36f-extension/`, avec une politique pure
+`CLOSED` / `ARMED` en mémoire, veto `webRequest` global,
+refus de tous les HTTP(S) effectivement interceptés sauf
+l'unique `GET/main_frame` à l'URL fictive exacte, depuis
+l'onglet pré-armé. Enregistrement synchrone de l'écouteur
+au top-level, même en état fermé. `webNavigation` sert
+seulement à noter les commits, jamais à les bloquer.
+
+Tests Node simulant les API de Firefox et serveur témoin
+double HTTP strictement `127.0.0.1`, avec tests Python
+de joignabilité/compteur. Permissions `<all_urls>`
+**uniquement dans la WebExtension de laboratoire**,
+jamais dans `extension/manifest.json` v0.4.
+Aucune donnée privée, aucun rendu professeur réel,
+aucune installation dans Firefox habituel.
+
+**Statut rigoureux : `F1_UNIT_ONLY / INTERCEPTION_UNPROVEN`.**
+Les résultats CI unitaires ne prouvent pas que Firefox
+réel appelle le listener, le bloque avant réception, ni
+l'absence de DNS, requêtes non HTTP ou égress externe.
+La prochaine porte indépendante porte sur l'API, les
+permissions et la logique des tests. Le micro-smoke
+Firefox n'est éligible qu'avec une isolation réelle
+sans sortie Internet **déjà attestée** avant lancement,
+et des témoins A/B positif/négatif. En son absence,
+rester `INTERCEPTION_UNPROVEN`. L1/L2/L4 globale
+et le profil réel Quarto restent fermés.
+
+### P3.6F1 — qualification unitaire du code (2 novembre 2026)
+
+**Code HEAD testé : `541c6d69b3b95c3ee734553797f9798a8aeedb8f`.**
+- [CI de laboratoire #41522605859](https://github.com/djibian/alliage/actions/runs/41522605859),
+  `completed/success` : **11 tests Node**, 11 PASS/0 FAIL ;
+  test Python du double serveur HTTP loopback PASS ;
+  vérification du manifeste expérimental PASS.
+- [CI générale #41522605917](https://github.com/djibian/alliage/actions/runs/41522605917),
+  `completed/success` : **136 tests Python, 11 ignorés**.
+- Une première CI a détecté le masque accidentel du statut
+  `OPEN_ATTEMPTED_FICTION_ONLY` par le statut générique
+  `F1_UNIT_POLICY_ONLY`. Ordre de composition corrigé dans
+  `background.js` ; test de régression maintenu. **Aucun
+  test Firefox réel n'a été lancé.**
+
+**Verdict actuel : `F1_UNIT_ONLY / INTERCEPTION_UNPROVEN`.**
+Le code est soumis à une nouvelle contre-revue indépendante :
+l'extension de laboratoire n'est pas encore une barrière
+validée et ne doit pas être installée dans le Firefox
+quotidien. Le micro-smoke Firefox nécessite d'abord
+un environnement réellement sans sortie Internet et un
+profil jetable ; la qualification complète OS et des
+services hôtes demeure F3. Aucune modification de
+`extension/` v0.4, de #17 ou de #18.
+
+### P3.6F1 — contre-expertise du code et correctif de concurrence (3 novembre 2026)
+
+[Contre-expertise indépendante de la PR #19](https://github.com/djibian/alliage/pull/19#issuecomment-6588821737)
+du HEAD initial `133216f99844b7843e2ec9d7dda2d1fe1e40ce5a` :
+**CORRECTIONS REQUISES**. Dans `background.js`,
+un `OPEN_FICTION` suspendu par un `await` pouvait
+réarmer **après** un `CLOSE` confirmé. Par ailleurs,
+`denied` ne prouvait pas le refus de l'URL B précise.
+L'auditeur a confirmé la configuration MV3, le listener
+global synchrone et les protections de la politique pure,
+mais uniquement en simulation.
+
+**Correctifs F1 sur PR #19 uniquement** : epoch
+d'opération en mémoire, révoquée synchroniquement à
+`CLOSE` / nouvelle ouverture / fermeture d'onglet /
+commit inattendu / `permissions.onRemoved`. Contrôle
+du ticket après chaque `await` et permission revalidée
+avant armement. Aucune continuation périmée ne peut
+réarmer. Deux compteurs ciblés `deniedHTTPB` et
+`deniedHTTPBNewTab` observent exclusivement les
+`GET` vers le serveur fictif B `/probe` **dont le
+listener a produit `cancel:true`** : preuve ciblée
+d'une décision, mais pas preuve Firefox/OS ni absence
+de livraison sans témoin externe.
+
+**Épreuves CI :** Promises différées contrôlées sur
+`permissions.contains`, `tabs.create`,
+`tabs.update`, deux OPEN concurrents, fermeture
+d'onglet, commit inattendu, révocation des permissions ;
+compteur spécifique B distinct des autres DENY.
+Le témoin B local est toujours joignable sans veto.
+Les workflows du HEAD final documentaire doivent
+être vérifiés avant nouvelle contre-revue indépendante.
+
+**Statut maintenu : `F1_UNIT_ONLY / INTERCEPTION_UNPROVEN`.**
+Le micro-smoke Firefox réel exige un environnement
+isolé sans egress AVANT lancement, une extension de
+laboratoire seule et un témoin B joignable sans veto.
+Aucun transfert de garantie au Firefox habituel,
+aucune ressource professeur privée ouverte, aucun
+merge, aucune publication.
+
+### P3.6F1 — fermeture avant attribution du tabId et oracle cible B (3 novembre 2026)
+
+La [nouvelle contre-expertise indépendante de #19](https://github.com/djibian/alliage/pull/19#issuecomment-6614286095)
+sur `2cdbe51f5e5558a6abf077770887fd75ac986d61`
+conclut **CORRECTIONS REQUISES**. Les courses `OPEN/CLOSE`
+déjà traitées sont approuvées. Deux problèmes restent :
+une fermeture `tabs.onRemoved` **avant** la résolution
+de `tabs.create` pouvait être ignorée, et un
+`tabId` différent ne prouve pas qu'un
+GET B vient du nouvel onglet créé par la
+page A dans l'essai courant.
+
+**Correction ciblée sur #19 :**
+- suivi `pendingCreateTicket` de l'opération de
+  création, avant que son tabId soit connu ;
+  toute fermeture d'onglet pendant cette
+  suspension provoque la révocation conservatrice ;
+- observation de `webNavigation.onCreatedNavigationTarget`
+  (`sourceTabId`, `sourceFrameId`, `tabId`,
+  URL B exacte), avec ensemble de cibles lié à
+  l'onglet source actuel, effacé à la fermeture/
+  révocation/nouvelle ouverture ;
+- remplacement de l'ancien indicateur ambigu
+  `deniedHTTPBNewTab` par
+  `deniedHTTPBLinkedTarget`, qui incrémente
+  seulement lorsqu'un GET B `main_frame`
+  est **réellement refusé** pour une cible
+  préalablement observée comme issue du tab A
+  courant. Une cible est consommée une fois.
+
+**Tests Node déterministes :** fermeture avant
+retour de `tabs.create`, sur-refus conservateur
+d'une fermeture ambiguë, B tardif de l'essai
+précédent, autre onglet préexistant, mauvais
+`sourceTabId`/frame/URL, fermeture de cible
+et `CLOSE`, comptage unique.
+**Reste `F1_UNIT_ONLY / INTERCEPTION_UNPROVEN`** :
+l'ordre réel des notifications de Firefox,
+l'absence de livraison au serveur B et
+l'isolation réseau OS ne sont toujours pas
+qualifiés. Le micro-smoke est réservé à un
+environnement jetable et isolé **avant** démarrage,
+sans HTML professeur privé ni extension
+du navigateur habituel. PR Draft/non fusionnée.
+
+### P3.6F1 — tombstones de cibles fermées, troisième contre-expertise (4 novembre 2026)
+
+[Audit indépendant #19](https://github.com/djibian/alliage/pull/19#issuecomment-6626556643),
+HEAD `4424a75a3b2e0a758a0fed2e9564721bac217e7a` :
+**CORRECTIONS REQUISES** pour un seul cas supplémentaire.
+L'auditeur a approuvé en simulation la révocation pendant
+`tabs.create()` avant connaissance du tabId et la corrélation
+principale de la cible B. Mais `onRemoved(70)` reçu
+**avant** `onCreatedNavigationTarget(A → B, tabId=70)`
+pouvait réintroduire un onglet déjà fermé dans la liste
+des cibles observées, puis fausser
+`deniedHTTPBLinkedTarget`.
+
+**Correction purement locale** : `removedTargets` en mémoire
+par époque d'essai ; toute fermeture positive observée
+pendant un essai actif crée une tombstone, même si la cible
+n'était pas encore liée ; le listener de création
+retardée refuse ces IDs. Révocation et nouvelle ouverture
+purgent les tombstones. L'ancien mécanisme
+`pendingCreateTicket` demeure strict.
+Trois tests Node déterministes portent sur l'ordre
+inverse, le doublon tardif et la purge aux changements
+d'époque. `deniedHTTPB` reste un compteur brut,
+jamais une preuve de causalité à lui seul.
+
+**Porte suivante** : contrôler les CI du HEAD final, puis
+contre-revue ciblée, sans rouvrir les protections déjà
+validées. **`F1_UNIT_ONLY / INTERCEPTION_UNPROVEN`** :
+aucune observation navigateur ni attestation d'isolation OS.
+Le micro-test Firefox n'est pas autorisé à ce stade ;
+aucun contenu professeur réel, aucune publication, aucun
+merge, aucune modification de l'extension quotidienne.

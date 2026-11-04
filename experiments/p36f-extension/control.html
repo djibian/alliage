@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="fr"><meta charset="utf-8">
+<title>Alliage F1 — Laboratoire fictif</title>
+<body>
+<h1>Alliage P3.6F1 — EXPÉRIENCE FICTIVE</h1>
+<p>Extension à permissions globales : utiliser exclusivement dans un profil Firefox
+jetable et sans accès Internet. Aucune ressource professeur réelle.</p>
+<label>Port HTTP de la fixture A : <input id="port" type="number" min="1024" max="65535" value="18765"></label>
+<label>Port du témoin B : <input id="decoy-port" type="number" min="1024" max="65535" value="18766"></label>
+<button id="open" type="button">Ouvrir la fixture fictive</button>
+<button id="close" type="button">Fermer l’autorisation</button>
+<button id="status" type="button">État</button>
+<p>Le champ <code>deniedHTTPB</code> mesure uniquement les refus vus par le listener pour B /probe. Il ne prouve rien sans témoin B joignable et zéro réception.</p>
+<pre id="result" aria-live="polite">Aucune attestation Firefox.</pre>
+<script src="control.js"></script>
+</body></html>

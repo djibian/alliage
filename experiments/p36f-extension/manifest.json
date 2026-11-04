@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Alliage P3.6F1 — Laboratoire fictif (NE PAS UTILISER AU QUOTIDIEN)",
+  "version": "0.0.1",
+  "description": "Veto HTTP(S) global, profil Firefox jetable uniquement. Aucune ressource réelle.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "p36f1-fixture-lab@alliage.invalid"
+    }
+  },
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "tabs",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": [
+      "policy.js",
+      "background.js"
+    ]
+  },
+  "action": {
+    "default_title": "Alliage F1 (fictif)",
+    "default_popup": "control.html"
+  }
+}

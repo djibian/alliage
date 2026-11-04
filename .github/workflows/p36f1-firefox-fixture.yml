@@ -1,0 +1,46 @@
+name: "P3.6F1 — laboratoire Firefox fictif (tests simulés)"
+
+on:
+  pull_request:
+    paths:
+      - "experiments/p36f-extension/**"
+      - "experiments/p36f-tests/**"
+      - "experiments/p36f_fixture.py"
+      - "tests/test_p36f_fixture.py"
+      - ".github/workflows/p36f1-firefox-fixture.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fictional-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Simuler la politique et le listener Firefox (PAS de navigateur)
+        run: node --test experiments/p36f-tests/*.test.cjs
+      - name: Valider les serveurs fictifs strictement loopback
+        run: python3 -m unittest discover -s tests -p "test_p36f_fixture.py" -v
+      - name: Vérifier la forme minimale du manifeste de laboratoire
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("experiments/p36f-extension/manifest.json")
+          d = json.loads(p.read_text(encoding="utf-8"))
+          assert d["manifest_version"] == 3
+          assert d["background"]["scripts"] == ["policy.js", "background.js"]
+          assert d["host_permissions"] == ["<all_urls>"]
+          assert {"webRequest", "webRequestBlocking", "webNavigation", "tabs"} <= set(d["permissions"])
+          assert all("http" not in x for x in d.get("content_scripts", []))
+          assert not d.get("externally_connectable")
+          print("P36F1_LAB_MANIFEST_SHAPE=PASS; FIREFOX_INTERCEPTION=UNPROVEN")
+          PY
