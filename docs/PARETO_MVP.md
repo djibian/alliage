@@ -10,9 +10,9 @@
 > suivi, ce que le moteur P3.1 refuse correctement. **Ne pas lancer la
 > première démonstration décrite plus bas tant que ce blocage n'est pas
 > levé.** Une correction révisable et non fusionnée existe en
-> [PR #24](https://github.com/djibian/alliage/pull/24) : V3
-> `9bb28fd73545b687685ca4caf48a49ff2434abe8` (motifs Quarto
-> canoniques) et V4 `8a95991b56633524bd280b21810ddaff94ae91fa`
+> [PR #24](https://github.com/djibian/alliage/pull/24) : V5
+> `5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347` (motifs Quarto
+> canoniques) et V6 `8e2f8b84515e9555c853c42f14cde0bca2c5de53`
 > (CSS fictif). La validation CI de cette nouvelle paire, puis son
 > approbation avant mise à jour du protocole de démarrage, sont
 > obligatoires. **Aucune modification du moteur Git/Quarto pour tolérer
