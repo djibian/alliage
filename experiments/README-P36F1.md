@@ -275,3 +275,56 @@ avec des ressources entièrement fictives.
 Les appels d'API Node simulés ne prouvent
 pas ce comportement Firefox. L1/L2/L4 globale
 et le profil professeur restent hors périmètre.
+
+## Troisième contre-expertise — notifications tardives après fermeture (4 novembre 2026)
+
+La [contre-expertise indépendante de la PR #19](https://github.com/djibian/alliage/pull/19#issuecomment-6626556643)
+sur le HEAD `4424a75a3b2e0a758a0fed2e9564721bac217e7a`
+conclut **CORRECTIONS REQUISES** sur une seule objection résiduelle.
+La fermeture d'onglet AVANT résolution de `tabs.create` et la
+correction principale de la liaison A → B sont **PASS en simulation**.
+
+**Nouveau contre-exemple :** dans une seule époque,
+`tabs.onRemoved(70)` peut précéder la notification tardive
+`webNavigation.onCreatedNavigationTarget(A → B, tabId=70)`.
+Auparavant, la suppression d'un ID absent de `linkedTargets`
+était sans effet : la création tardive pouvait réinsérer 70
+et l'oracle attribuait abusivement le refus d'un `GET B`
+à une cible encore vivante.
+
+**Correction minimale :** ajouter `removedTargets`,
+ensemble éphémère des identifiants positifs signalés par
+`tabs.onRemoved` pendant un essai actif, **y compris avant
+leur éventuel lien A → B**. L'événement
+`onCreatedNavigationTarget` refuse de réinsérer une cible
+présente dans cet ensemble. `revoke()`, `CLOSE` et un
+nouvel `OPEN` le purgent avec les autres observations de
+l'époque. Les fermetures pendant `tabs.create` continuent
+de révoquer totalement l'opération, sans assouplissement.
+
+**Régressions déterministes sur la vraie fonction simulée** :
+`onRemoved → onCreatedNavigationTarget tardif → veto B`
+implique `deniedHTTPBLinkedTarget === 0`, tout en
+conservant le compteur brut `deniedHTTPB === 1`.
+Cas également couverts : liaison d'abord, fermeture, puis
+notification de création répétée ; époques successives et
+absence de réattribution depuis l'ancien onglet source.
+
+**Limites inchangées :** un `tabId` peut être inconnu,
+des notifications Firefox peuvent être livrées dans un
+ordre différent, et le listener `onCreatedNavigationTarget`
+n'est pas garanti être appelé avant le veto
+`webRequest.onBeforeRequest`. L'oracle lié à l'essai
+doit alors rester **UNPROVEN**, sans inférer de succès du
+seul compteur brut. Les tests Node et la CI ne sont pas
+une preuve d'interception Firefox, ni de confinement
+réseau OS. Aucune installation sur Firefox habituel,
+aucune ressource professeur réelle, aucune fusion ni
+publication élève.
+
+**Porte suivante :** CI sur le HEAD documentaire final,
+puis contre-revue indépendante strictement limitée aux
+tombstones, à leur purge par époque et aux anciens invariants ;
+ensuite **seulement préparation** d'un essai Firefox fictif
+dans un environnement sans sortie Internet attesté avant
+démarrage.
