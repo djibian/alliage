@@ -79,5 +79,84 @@ class ParetoLaunchTests(unittest.TestCase):
                 pilot.validate_inputs(x, self.SHA, self.REF, True)
 
 
+class RealParetoQuartoTests(unittest.TestCase):
+    """Opt-in CI test: genuine Quarto rendering, local Git, local HTTP, no Firefox."""
+
+    @unittest.skipUnless(__import__("os").environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
+                         "Only the dedicated real Quarto workflow runs this test")
+    def test_real_quarto_css_change_and_http_preview(self):
+        import http.client
+        import subprocess
+        import tempfile
+        import threading
+        from urllib.parse import urlsplit
+
+        def git(repo, *args):
+            return subprocess.check_output(
+                ["git", "-C", str(repo), *args], text=True
+            ).strip()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            repo = home / "public-fiction"
+            repo.mkdir()
+            git(repo, "init", "-q")
+            git(repo, "config", "user.name", "Fiction CI")
+            git(repo, "config", "user.email", "fixture@example.invalid")
+            (repo / "_quarto.yml").write_text(
+                "project:\n  type: default\n  output-dir: _site\n\n"
+                "format:\n  html:\n    css: styles.css\n\n"
+                "execute:\n  enabled: false\n", encoding="utf-8")
+            (repo / "activite.qmd").write_text(
+                "---\ntitle: Activité publique fictive\n---\n\n"
+                "## Consigne\nFaire un test de rendu.\n", encoding="utf-8")
+            (repo / "styles.css").write_text(
+                "h2 { color: #991b1b; }\n", encoding="utf-8")
+            git(repo, "add", "-A")
+            git(repo, "commit", "-qm", "V1 rouge")
+            first = git(repo, "rev-parse", "HEAD")
+            (repo / "styles.css").write_text(
+                "h2 { color: #7c3aed; }\n", encoding="utf-8")
+            git(repo, "add", "-A")
+            git(repo, "commit", "-qm", "V2 violette")
+            second = git(repo, "rev-parse", "HEAD")
+            git(repo, "update-ref", self.REF, second)
+            before = (git(repo, "rev-parse", "HEAD"),
+                      git(repo, "status", "--porcelain"))
+            with patch("quarto_observed_session.Path.home", return_value=home):
+                result, preview, server = pilot.prepare(
+                    repo, "fiction/lab", self.REF, first,
+                    public_fictional_trusted=True)
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                try:
+                    url = urlsplit(preview.browser_url(server.server_port))
+                    conn = http.client.HTTPConnection(url.hostname, url.port, timeout=8)
+                    conn.request("GET", url.path + "?" + url.query)
+                    resp = conn.getresponse()
+                    body = resp.read()
+                    conn.close()
+                    self.assertEqual(resp.status, 200)
+                    self.assertIn(b"Faire un test de rendu", body)
+                    self.assertEqual(result["baseline_commit"], first)
+                    self.assertEqual(result["observed_commit"], second)
+                    self.assertFalse(result["deployment_verified"])
+                    self.assertFalse(result["remote_freshness_verified"])
+                    first_css = preview.get_asset(
+                        preview.prefix + "/V1/project/_site/styles.css")[0]
+                    second_css = preview.get_asset(
+                        preview.prefix + "/V2/project/_site/styles.css")[0]
+                    self.assertIn(b"#991b1b", first_css)
+                    self.assertIn(b"#7c3aed", second_css)
+                    self.assertNotEqual(first_css, second_css)
+                    self.assertEqual(
+                        before, (git(repo, "rev-parse", "HEAD"),
+                                 git(repo, "status", "--porcelain")))
+                finally:
+                    server.shutdown()
+                    server.server_close()
+                    thread.join(timeout=5)
+
+
 if __name__ == "__main__":
     unittest.main()
