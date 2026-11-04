@@ -216,7 +216,7 @@ test("AI handoff requires conscious public/fictional disclosure and never sends 
   assert.ok(!output.value.includes("alliage-history-v0"));
   assert.ok(!output.value.includes("46273"));
   assert.ok(!output.value.includes("http://127.0.0.1"));
-  assert.match(output.value,/permission/i);
+  assert.match(output.value,/autorisation explicite/i);
   assert.match(output.value,/ne peux pas écrire/);
   assert.match(output.value,/aucune fusion/);
 });
