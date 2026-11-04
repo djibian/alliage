@@ -1004,3 +1004,36 @@ qualifiés. Le micro-smoke est réservé à un
 environnement jetable et isolé **avant** démarrage,
 sans HTML professeur privé ni extension
 du navigateur habituel. PR Draft/non fusionnée.
+
+### P3.6F1 — tombstones de cibles fermées, troisième contre-expertise (4 novembre 2026)
+
+[Audit indépendant #19](https://github.com/djibian/alliage/pull/19#issuecomment-6626556643),
+HEAD `4424a75a3b2e0a758a0fed2e9564721bac217e7a` :
+**CORRECTIONS REQUISES** pour un seul cas supplémentaire.
+L'auditeur a approuvé en simulation la révocation pendant
+`tabs.create()` avant connaissance du tabId et la corrélation
+principale de la cible B. Mais `onRemoved(70)` reçu
+**avant** `onCreatedNavigationTarget(A → B, tabId=70)`
+pouvait réintroduire un onglet déjà fermé dans la liste
+des cibles observées, puis fausser
+`deniedHTTPBLinkedTarget`.
+
+**Correction purement locale** : `removedTargets` en mémoire
+par époque d'essai ; toute fermeture positive observée
+pendant un essai actif crée une tombstone, même si la cible
+n'était pas encore liée ; le listener de création
+retardée refuse ces IDs. Révocation et nouvelle ouverture
+purgent les tombstones. L'ancien mécanisme
+`pendingCreateTicket` demeure strict.
+Trois tests Node déterministes portent sur l'ordre
+inverse, le doublon tardif et la purge aux changements
+d'époque. `deniedHTTPB` reste un compteur brut,
+jamais une preuve de causalité à lui seul.
+
+**Porte suivante** : contrôler les CI du HEAD final, puis
+contre-revue ciblée, sans rouvrir les protections déjà
+validées. **`F1_UNIT_ONLY / INTERCEPTION_UNPROVEN`** :
+aucune observation navigateur ni attestation d'isolation OS.
+Le micro-test Firefox n'est pas autorisé à ce stade ;
+aucun contenu professeur réel, aucune publication, aucun
+merge, aucune modification de l'extension quotidienne.
