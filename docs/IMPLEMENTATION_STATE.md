@@ -441,3 +441,77 @@ requalification locale en lecture seule par le propriétaire.
 La PR reste Draft ; aucun `main`, rendu, données pédagogiques
 ni publication ne sont modifiés.
 
+
+## P4 — convergence Pareto vers le chatbot Firefox (4 novembre 2026)
+
+**Base autoritaire non fusionnée :** `main`
+`7231ac4fb54ec54aebd498e72d4bd588878e631e`.
+**PR active : #22 Draft**, branche
+`feat/pareto-firefox-sidebar-context`, indépendante des
+PR #13–#21 P3.6 **conservées mais suspendues**. Ne
+pas fusionner cette chaîne de confinement en prérequis
+du pilote **entièrement fictif/public**.
+[Mode opératoire et critères de preuve](PARETO_MVP.md).
+[Roadmap Pareto](ROADMAP.md), ancienne roadmap archivée,
+[vision actualisée](PRODUCT_VISION.md), décisions A015–A016.
+
+**Déjà implémenté dans la PR #22 (non fusionnée) :**
+- Ressource Quarto fictive sur la branche Git **distincte**
+  `experiment/pareto-quarto-demo` du même dépôt, avec
+  V1 `1b1c0f22e4f210bb24396274f56401ade0723353`
+  et V2 initiale
+  `4a3028334a63fdd722ffd4d3da7886558127d033`.
+  **NE JAMAIS fusionner cette branche de fixture vers main.**
+  Toute écriture sur cette branche exige une autorisation
+  explicite, indépendante de l'autorisation du logiciel.
+- Sur l'overlay `historique_ressource.js`, préparation
+  locale d'un prompt avec consentement public/fictif,
+  texte sélectionné limité et SHA **déclarés**. Le
+  bouton n'interagit pas avec le chatbot : copie
+  manuelle du texte dans le panneau natif Firefox.
+  Pour la fixture connue, la branche candidate
+  `experiment/pareto-quarto-demo` est indiquée
+  comme **non authentifiée et à vérifier**.
+- Boutons `Retenir V2` et `Écarter V2` : préférence
+  locale de session navigateur **non durable** ;
+  aucune acceptation Git, fusion, ni publication.
+- `quarto_pareto_demo.py` raccorde les composants
+  existants P3.3, P3.1, P3.2, rend deux SHA
+  avec vrai Quarto et sert les fichiers inventoriés
+  via HTTP `127.0.0.1` (strictement public/fictif).
+  `--fetch-demo` effectue **seulement sur demande
+  explicite** une récupération de la branche publique
+  exacte après vérification de l'origine GitHub et
+  utilise son **ancien** SHA local comme V1 ;
+  sans option, aucun fetch automatique.
+
+**Preuves et limites :** les workflows initiaux
+de la PR #22 ont réussi :
+[Python #41859411989](https://github.com/djibian/alliage/actions/runs/41859411989)
+(**101 tests, 6 ignorés**),
+[Quarto réel vertical #41859412272](https://github.com/djibian/alliage/actions/runs/41859412272)
+(**5 tests Python dont le rendu+HTTP Quarto réel, 13 Node**),
+[Navigation #41859411813](https://github.com/djibian/alliage/actions/runs/41859411813)
+(**11+6 Python Quarto et 3+13 Node**).
+Les derniers changements `--fetch-demo`, branche dans
+le contexte et tests associés doivent être
+**requalifiés sur le HEAD final de #22** : ne pas
+reprendre les CI initiales comme preuve de ces commits.
+
+**Bloquant principal :** expérience humaine dans le
+**vrai** panneau latéral Firefox : ouverture d'une
+fixture rendue, sélection, transfert/lecture GitHub
+dans cette surface, capacité **effective** ou absence
+d'écriture GitHub, repli patch autorisé si absent,
+puis comparaison et choix local. Aucune session
+Firefox réellement testée par ce chantier ni
+écriture IA réelle prouvée. Les outils GitHub
+disponibles dans une conversation ChatGPT ne
+prouvent pas leur disponibilité dans son panneau
+latéral. **Prochain contrôleur :** revalider main,
+PR #22/CI, corriger seulement défauts déterminants,
+faire qualifier la PR et prioriser le pilote humain.
+Ne pas ouvrir un nouveau chatbot, une API IA ou une
+architecture multiapplication. Le rendu Quarto peut
+exécuter des hooks : ne pas étendre le consentement
+fictif à des dépôts/commits inconnus.
