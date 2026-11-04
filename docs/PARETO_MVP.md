@@ -16,9 +16,10 @@
 > L'arbre de V2 est exactement celui du commit V6
 > `8e2f8b84515e9555c853c42f14cde0bca2c5de53`,
 > préservé comme parent du merge ; les SHA anciens V1/V2 ne sont
-> **pas** rendables sous Quarto 1.11.9. Une CI de requalification
-> de la **branche distante effectivement adoptée** est requise ;
-> elle ne prouvera ni Firefox ni les capacités du chatbot. Aucune
+> **pas** rendables sous Quarto 1.11.9. La [CI #41890947229](https://github.com/djibian/alliage/actions/runs/41890947229)
+> **SUCCESS** qualifie les deux rendus Quarto et HTTP directement sur
+> la **branche distante adoptée** ; elle ne prouve ni Firefox ni
+> les capacités du chatbot. Aucune
 > publication ni modification de `main`.
 
 ## Expérience visée
@@ -194,7 +195,7 @@ ce n'est **pas** une validation durable dans Git.
 | Lecture GitHub dans le panneau exact | Réponse avec branche et SHA vérifiables | UNPROVEN |
 | Écriture GitHub dans le panneau exact | Commit SHA réellement créé | UNPROVEN |
 | Repli en patch si besoin | Patch appliqué avec autorisation | NON TESTÉ |
-| Rendu initial Quarto V5 → HEAD adopté | Deux SHA et actifs vérifiés | CI candidate PASS ; requalification de la branche adoptée à confirmer |
+| Rendu initial Quarto V5 → HEAD adopté | Deux SHA, actifs, HTTP, intégrité des fichiers suivis | CI réelle sur branche adoptée : PASS (run 41890947229) |
 | Navigation V1/V2 dans Firefox | Différence visible, aucune erreur CORS | NON OBSERVÉ |
 | Décision humaine locale | Choix puis état affiché, aucune publication | DOM SIMULÉ |
 | Absence de modification du site élèves | Git/HTTP et revue du diff | À CONTRÔLER |
