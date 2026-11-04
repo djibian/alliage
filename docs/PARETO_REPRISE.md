@@ -44,8 +44,11 @@ réelles ; sinon consigner `DEMO_PARTIAL` sans extrapoler la CI.
 - Le nouveau workflow dans la [PR #22](https://github.com/djibian/alliage/pull/22)
   clone la **vraie branche distante adoptée**, exige son SHA,
   et rend V5 → HEAD avec vrais Git/Quarto et HTTP.
-  Vérifier le run sur le **HEAD exact de #22** avant de déclarer
-  `ADOPTED_FIXTURE_QUARTO_CI_PASS`.
+  [CI #41890947229](https://github.com/djibian/alliage/actions/runs/41890947229)
+  **SUCCESS** sur `15df12fd59f1d832aa424d40f9879ad8a64e2c8f` :
+  deux rendus réels Quarto V5 → HEAD adopté, HTTP et CSS vérifiés.
+  **`ADOPTED_FIXTURE_QUARTO_CI_PASS`** sur ce HEAD.
+  Le verdict Firefox reste `UNPROVEN`.
 - #22 reste une PR du **logiciel** vers `main`, Draft
   en attente de revue indépendante ciblée. Pas de fusion automatique.
   Elle conserve l'extension v0.4 et ses composants historiques.
@@ -56,10 +59,10 @@ réelles ; sinon consigner `DEMO_PARTIAL` sans extrapoler la CI.
 
 ## Actions opérationnelles (Pareto)
 
-1. **Vérifier la nouvelle CI #22** sur le ref adopté (deux rendus
-   réels Quarto 1.11.9 et HTTP, pas seulement une ref CI synthétique).
-   Corriger uniquement une régression prouvée. Puis revérifier les
-   SHA de `main`, #22 et de la fixture.
+1. **Revalider la CI sur tout nouveau HEAD #22**. Sur
+   `15df12fd...`, Quarto réel / HTTP / navigation / Python étaient
+   PASS. Corriger seulement une régression prouvée. Ne pas refaire
+   l'étude de la fixture ; revérifier les SHA mutables.
 2. Faire relire #22 **indépendamment** : consentement et contexte
    limité, absence d'envoi IA automatique, identité Git déclarée,
    fetch borné et volontaire, décision locale non publiée.
