@@ -305,3 +305,45 @@ test("CLOSE or target removal revokes pending B target attribution",async()=>{
   e.listeners.veto(req({url:probe,tabId:33}));
   assert.equal((await e.state()).deniedHTTPBLinkedTarget,0);
 });
+
+test("auditor: onRemoved before delayed target creation must never relink B",async()=>{
+  const e=environment();
+  assert.equal((await e.open()).status,"OPEN_ATTEMPTED_FICTION_ONLY");
+  e.listeners.removed(70); // target closure precedes creation notification
+  e.listeners.createdTarget({
+    sourceTabId:23,sourceFrameId:0,tabId:70,url:probe
+  });
+  assert.equal(e.listeners.veto(req({tabId:70,url:probe})).cancel,true);
+  const s=await e.state();
+  assert.equal(s.deniedHTTPB,1); // exact endpoint B still counted as raw veto
+  assert.equal(s.deniedHTTPBLinkedTarget,0); // NOT live A -> B target
+});
+test("tombstone prevents re-link even if target was previously observed",async()=>{
+  const e=environment();
+  await e.open();
+  const link={sourceTabId:23,sourceFrameId:0,tabId:71,url:probe};
+  e.listeners.createdTarget(link);
+  e.listeners.removed(71);
+  e.listeners.createdTarget(link); // delayed duplicate/reordered notification
+  e.listeners.veto(req({tabId:71,url:probe}));
+  const s=await e.state();
+  assert.equal(s.deniedHTTPBLinkedTarget,0);
+  assert.equal(s.deniedHTTPB,1);
+});
+test("CLOSE and new OPEN clear tombstones without transferring old attribution",async()=>{
+  const e=environment();
+  await e.open(); // source tab 23
+  e.listeners.removed(72);
+  assert.equal((await e.open()).status,"OPEN_ATTEMPTED_FICTION_ONLY"); // source 24
+  e.listeners.createdTarget({sourceTabId:23,sourceFrameId:0,tabId:72,url:probe});
+  e.listeners.veto(req({tabId:72,url:probe}));
+  assert.equal((await e.state()).deniedHTTPBLinkedTarget,0);
+  // In the new epoch a freshly observed target from current source is valid.
+  e.listeners.createdTarget({sourceTabId:24,sourceFrameId:0,tabId:73,url:probe});
+  e.listeners.veto(req({tabId:73,url:probe}));
+  assert.equal((await e.state()).deniedHTTPBLinkedTarget,1);
+  await e.send("CLOSE");
+  e.listeners.createdTarget({sourceTabId:24,sourceFrameId:0,tabId:74,url:probe});
+  e.listeners.veto(req({tabId:74,url:probe}));
+  assert.equal((await e.state()).deniedHTTPBLinkedTarget,1);
+});
