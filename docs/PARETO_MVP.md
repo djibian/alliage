@@ -13,9 +13,12 @@
 > [PR #24](https://github.com/djibian/alliage/pull/24) : V5
 > `5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347` (motifs Quarto
 > canoniques) et V6 `8e2f8b84515e9555c853c42f14cde0bca2c5de53`
-> (CSS fictif). La validation CI de cette nouvelle paire, puis son
-> approbation avant mise à jour du protocole de démarrage, sont
-> obligatoires. **Aucune modification du moteur Git/Quarto pour tolérer
+> (CSS fictif). Le rendu Quarto réel de **V5/V6 a réussi**
+> dans la [CI #41873530021](https://github.com/djibian/alliage/actions/runs/41873530021)
+> (deux rendus, CSS comparés et HTTP vérifié). **La branche actuellement
+> proposée aux enseignants reste ancienne** : approbation de #24,
+> adoption des nouveaux SHA et validation de la branche finale
+> sont obligatoires avant le premier essai Firefox. **Aucune modification du moteur Git/Quarto pour tolérer
 > les fichiers suivis modifiés.**
 
 
