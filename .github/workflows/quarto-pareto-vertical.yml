@@ -36,88 +36,66 @@ jobs:
         run: |
           node --check extension/historique_ressource.js
           node --test tests/test_historique_ressource.js
-      - name: Verify the REAL public demo branch at its two pinned SHAs
+      - name: Verify the proposed FIXED public Quarto fixture at two pinned SHAs
         env:
-          ALLIAGE_PINNED_DEMO_V1: "1b1c0f22e4f210bb24396274f56401ade0723353"
-          ALLIAGE_PINNED_DEMO_V2: "4a3028334a63fdd722ffd4d3da7886558127d033"
+          ALLIAGE_PINNED_DEMO_V3: "9bb28fd73545b687685ca4caf48a49ff2434abe8"
+          ALLIAGE_PINNED_DEMO_V4: "8a95991b56633524bd280b21810ddaff94ae91fa"
         run: |
-          git clone -q --single-branch --branch experiment/pareto-quarto-demo \
-            https://github.com/djibian/alliage.git "$RUNNER_TEMP/alliage-public-demo"
+          # PR #24 is a PROPOSED maintenance fix, NOT the deployed demo branch.
+          git clone -q --single-branch --branch fix/pareto-demo-quarto-gitignore \
+            https://github.com/djibian/alliage.git "$RUNNER_TEMP/alliage-public-demo-candidate"
           python3 - <<'PY'
           import http.client
           import os
+          import threading
           from pathlib import Path
           from tempfile import TemporaryDirectory
           from unittest.mock import patch
           from urllib.parse import urlsplit
           from quarto_pareto_demo import prepare
           from quarto_versions import _git
-          repo = Path(os.environ["RUNNER_TEMP"]) / "alliage-public-demo"
-          initial = os.environ["ALLIAGE_PINNED_DEMO_V1"]
-          observed = os.environ["ALLIAGE_PINNED_DEMO_V2"]
+
+          repo = Path(os.environ["RUNNER_TEMP"]) / "alliage-public-demo-candidate"
+          initial = os.environ["ALLIAGE_PINNED_DEMO_V3"]
+          observed = os.environ["ALLIAGE_PINNED_DEMO_V4"]
           tracking = "refs/remotes/origin/experiment/pareto-quarto-demo"
-          for sha in (initial, observed):
-              assert _git(repo, "cat-file", "-t", sha).strip() == b"commit"
-          # Re-pin the LOCAL clone's tracking ref to the reviewed V2 SHA.
-          # Never rewrite the remote branch or any checkout.
+          for commit in (initial, observed):
+              assert _git(repo, "cat-file", "-t", commit).strip() == b"commit"
+          # CI-only local tracking ref; never touch GitHub's remote fixture branch.
           _git(repo, "update-ref", tracking, observed)
           with TemporaryDirectory(prefix="alliage-public-fixture-") as home:
               with patch("quarto_observed_session.Path.home", return_value=Path(home)):
+                  result, preview, server = prepare(
+                      repo, "djibian/alliage", tracking, initial,
+                      public_fictional_trusted=True)
+              assert result["baseline_commit"] == initial
+              assert result["observed_commit"] == observed
+              # Inspect Quarto-generated, SHA-verified CSS in both versions.
+              old_css = preview.get_asset(
+                  preview.prefix + "/V1/project/_site/styles.css")[0]
+              new_css = preview.get_asset(
+                  preview.prefix + "/V2/project/_site/styles.css")[0]
+              assert b"#991b1b" in old_css
+              assert b"#2563eb" in new_css
+              url = urlsplit(preview.browser_url(server.server_port))
+              thread = threading.Thread(target=server.serve_forever, daemon=True)
+              thread.start()
+              try:
+                  conn = http.client.HTTPConnection(url.hostname, url.port, timeout=5)
                   try:
-                      result, preview, server = prepare(
-                          repo, "djibian/alliage", tracking, initial,
-                          public_fictional_trusted=True)
-                  except Exception:
-                      # Diagnose ONLY PUBLIC/FICTIONAL tracked path names.
-                      # Never loosen the Git snapshot integrity invariant.
-                      from hashlib import sha256
-                      import subprocess
-                      src = Path(home) / "diagnostic-v1"
-                      src.mkdir()
-                      names = (".gitignore", "AGENTS.md", "README.md",
-                               "_quarto.yml", "activite.qmd", "styles.css")
-                      before = {}
-                      for name in names:
-                          data = _git(repo, "show", f"{initial}:{name}")
-                          (src / name).write_bytes(data)
-                          before[name] = sha256(data).hexdigest()
-                      render = subprocess.run(
-                          ["quarto", "render", "--to", "html", "--no-execute"],
-                          cwd=src, capture_output=True, text=True, timeout=120)
-                      changed = [name for name in names
-                                 if sha256((src / name).read_bytes()).hexdigest() != before[name]]
-                      print("PINNED_DEMO_DIAGNOSTIC_TRACKED_FILES_CHANGED=" +
-                            ",".join(changed), flush=True)
-                      print("PINNED_DEMO_DIAGNOSTIC_QUARTO_RC=" +
-                            str(render.returncode), flush=True)
-                      raise
-                  try:
-                      # For a reproducible pair, the tracking ref must point to V2.
-                      assert result["baseline_commit"] == initial
-                      assert result["observed_commit"] == observed, (
-                          "Fixture branch moved; use a pinned local ref for this test")
-                      url = urlsplit(preview.browser_url(server.server_port))
-                      route = url.path + "?" + url.query
-                      conn = http.client.HTTPConnection(url.hostname, url.port, timeout=5)
-                      try:
-                          # Server must be running to test HTTP. Running thread
-                          # is strictly local; teardown precedes temp HOME removal.
-                          import threading
-                          thread = threading.Thread(target=server.serve_forever, daemon=True)
-                          thread.start()
-                          conn.request("GET", route)
-                          response = conn.getresponse()
-                          body = response.read()
-                          assert response.status == 200
-                          assert b"Consigne" in body
-                      finally:
-                          conn.close()
-                          server.shutdown()
-                          server.server_close()
-                          thread.join(timeout=5)
+                      conn.request("GET", url.path + "?" + url.query)
+                      response = conn.getresponse()
+                      body = response.read()
+                      assert response.status == 200
+                      assert b"Consigne" in body
                   finally:
-                      pass
-          print("REAL_PUBLIC_QUARTO_BRANCH_TWO_PINNED_COMMITS=PASS; FIREFOX=UNPROVEN")
+                      conn.close()
+              finally:
+                  server.shutdown()
+                  server.server_close()
+                  thread.join(timeout=5)
+          print("PROPOSED_FIXED_DEMO_QUARTO_V3_V4=PASS; "
+                "REMOTE_FIXTURE_BRANCH_UNMODIFIED=true; FIREFOX=UNPROVEN")
           PY
       - name: Preserve evidence boundary
         run: |
