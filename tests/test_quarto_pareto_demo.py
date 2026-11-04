@@ -153,6 +153,8 @@ class ParetoLaunchTests(unittest.TestCase):
               patch.object(pilot, "AttestedPreview") as preview,
               patch.object(pilot, "make_server") as server):
             server.return_value.server_port = 12345
+            preview.return_value.browser_url.return_value = (
+                "http://127.0.0.1:12345/fixture")
             with redirect_stdout(io.StringIO()):
                 self.assertEqual(pilot.main(args), 0)
             fetch.assert_called_once_with(Path("/fiction"), "djibian/alliage", ref)
