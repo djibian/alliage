@@ -38,8 +38,8 @@ jobs:
           node --test tests/test_historique_ressource.js
       - name: Verify the proposed FIXED public Quarto fixture at two pinned SHAs
         env:
-          ALLIAGE_PINNED_DEMO_V3: "9bb28fd73545b687685ca4caf48a49ff2434abe8"
-          ALLIAGE_PINNED_DEMO_V4: "8a95991b56633524bd280b21810ddaff94ae91fa"
+          ALLIAGE_PINNED_DEMO_V5: "5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347"
+          ALLIAGE_PINNED_DEMO_V6: "8e2f8b84515e9555c853c42f14cde0bca2c5de53"
         run: |
           # PR #24 is a PROPOSED maintenance fix, NOT the deployed demo branch.
           git clone -q --single-branch --branch fix/pareto-demo-quarto-gitignore \
@@ -56,8 +56,8 @@ jobs:
           from quarto_versions import _git
 
           repo = Path(os.environ["RUNNER_TEMP"]) / "alliage-public-demo-candidate"
-          initial = os.environ["ALLIAGE_PINNED_DEMO_V3"]
-          observed = os.environ["ALLIAGE_PINNED_DEMO_V4"]
+          initial = os.environ["ALLIAGE_PINNED_DEMO_V5"]
+          observed = os.environ["ALLIAGE_PINNED_DEMO_V6"]
           tracking = "refs/remotes/origin/experiment/pareto-quarto-demo"
           for commit in (initial, observed):
               assert _git(repo, "cat-file", "-t", commit).strip() == b"commit"
@@ -95,8 +95,8 @@ jobs:
                   preview.prefix + "/V1/project/_site/styles.css")[0]
               new_css = preview.get_asset(
                   preview.prefix + "/V2/project/_site/styles.css")[0]
-              assert b"#991b1b" in old_css
-              assert b"#2563eb" in new_css
+              assert b"#2563eb" in old_css
+              assert b"#15803d" in new_css
               url = urlsplit(preview.browser_url(server.server_port))
               thread = threading.Thread(target=server.serve_forever, daemon=True)
               thread.start()
@@ -114,7 +114,7 @@ jobs:
                   server.shutdown()
                   server.server_close()
                   thread.join(timeout=5)
-          print("PROPOSED_FIXED_DEMO_QUARTO_V3_V4=PASS; "
+          print("PROPOSED_FIXED_DEMO_QUARTO_V5_V6=PASS; "
                 "REMOTE_FIXTURE_BRANCH_UNMODIFIED=true; FIREFOX=UNPROVEN")
           PY
       - name: Preserve evidence boundary
