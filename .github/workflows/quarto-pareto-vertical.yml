@@ -36,14 +36,16 @@ jobs:
         run: |
           node --check extension/historique_ressource.js
           node --test tests/test_historique_ressource.js
-      - name: Verify the proposed FIXED public Quarto fixture at two pinned SHAs
+      - name: Verify the ADOPTED public demo ref with real Quarto at two pinned SHAs
         env:
           ALLIAGE_PINNED_DEMO_V5: "5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347"
           ALLIAGE_PINNED_DEMO_V6: "8e2f8b84515e9555c853c42f14cde0bca2c5de53"
+          ALLIAGE_ADOPTED_DEMO_HEAD: "affdb099bafd94099bf219c174e1ec6bbf82968f"
         run: |
-          # PR #24 is a PROPOSED maintenance fix, NOT the deployed demo branch.
-          git clone -q --single-branch --branch fix/pareto-demo-quarto-gitignore \
-            https://github.com/djibian/alliage.git "$RUNNER_TEMP/alliage-public-demo-candidate"
+          # Test the actual remote fixture branch after reviewed PR #24 was merged.
+          # Never invent a tracking ref or mutate it locally to simulate adoption.
+          git clone -q --single-branch --branch experiment/pareto-quarto-demo \
+            https://github.com/djibian/alliage.git "$RUNNER_TEMP/alliage-public-demo-adopted"
           python3 - <<'PY'
           import http.client
           import os
@@ -55,22 +57,28 @@ jobs:
           from quarto_pareto_demo import prepare
           from quarto_versions import _git
 
-          repo = Path(os.environ["RUNNER_TEMP"]) / "alliage-public-demo-candidate"
+          repo = Path(os.environ["RUNNER_TEMP"]) / "alliage-public-demo-adopted"
           initial = os.environ["ALLIAGE_PINNED_DEMO_V5"]
-          observed = os.environ["ALLIAGE_PINNED_DEMO_V6"]
+          v6 = os.environ["ALLIAGE_PINNED_DEMO_V6"]
+          observed = os.environ["ALLIAGE_ADOPTED_DEMO_HEAD"]
           tracking = "refs/remotes/origin/experiment/pareto-quarto-demo"
-          for commit in (initial, observed):
+          for commit in (initial, v6, observed):
               assert _git(repo, "cat-file", "-t", commit).strip() == b"commit"
-          # CI-only local tracking ref; never touch GitHub's remote fixture branch.
-          _git(repo, "update-ref", tracking, observed)
-          with TemporaryDirectory(prefix="alliage-public-fixture-") as home:
+          assert _git(repo, "rev-parse", tracking + "^{commit}").decode().strip() == observed, (
+              "Adopted remote fixture branch does not match pinned SHA"
+          )
+          assert _git(repo, "rev-parse", "HEAD").decode().strip() == observed
+          # The merge preserves V5/V6 history and its final tree is exactly V6.
+          assert _git(repo, "rev-parse", v6 + "^{tree}") == _git(
+              repo, "rev-parse", observed + "^{tree}")
+          assert _git(repo, "merge-base", "--is-ancestor", initial, observed) == b""
+          with TemporaryDirectory(prefix="alliage-adopted-fixture-") as home:
               with patch("quarto_observed_session.Path.home", return_value=Path(home)):
                   result, preview, server = prepare(
                       repo, "djibian/alliage", tracking, initial,
                       public_fictional_trusted=True)
               assert result["baseline_commit"] == initial
               assert result["observed_commit"] == observed
-              # Inspect Quarto-generated, SHA-verified CSS in both versions.
               old_css = preview.get_asset(
                   preview.prefix + "/V1/project/_site/styles.css")[0]
               new_css = preview.get_asset(
@@ -94,8 +102,8 @@ jobs:
                   server.shutdown()
                   server.server_close()
                   thread.join(timeout=5)
-          print("PROPOSED_FIXED_DEMO_QUARTO_V5_V6=PASS; "
-                "REMOTE_FIXTURE_BRANCH_UNMODIFIED=true; FIREFOX=UNPROVEN")
+          print("ADOPTED_REMOTE_DEMO_QUARTO_V5_V6_TREE=PASS; "
+                "REMOTE_REF_PINNED=true; FIREFOX=UNPROVEN")
           PY
       - name: Preserve evidence boundary
         run: |
