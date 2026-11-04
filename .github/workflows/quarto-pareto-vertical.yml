@@ -58,9 +58,9 @@ jobs:
           tracking = "refs/remotes/origin/experiment/pareto-quarto-demo"
           for sha in (initial, observed):
               assert _git(repo, "cat-file", "-t", sha).strip() == b"commit"
-          # The branch may have advanced since the two pinned demo commits.
-          # Test EXACTLY the declared demo pair, without rewriting remote refs.
-          _git(repo, "update-ref", "refs/alliage-ci/pinned-demo", observed)
+          # Re-pin the LOCAL clone's tracking ref to the reviewed V2 SHA.
+          # Never rewrite the remote branch or any checkout.
+          _git(repo, "update-ref", tracking, observed)
           with TemporaryDirectory(prefix="alliage-public-fixture-") as home:
               with patch("quarto_observed_session.Path.home", return_value=Path(home)):
                   result, preview, server = prepare(
