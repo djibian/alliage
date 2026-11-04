@@ -49,8 +49,14 @@ P3.6 pour ce premier résultat fictif.
   soumise à autorisation, non mutation IA) et une variation CSS.
   Paire candidate : V5
   `5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347`,
-  V4 `8e2f8b84515e9555c853c42f14cde0bca2c5de53`.
+  V6 `8e2f8b84515e9555c853c42f14cde0bca2c5de53`.
   **La tête réelle de la branche de démonstration n'a pas été changée.**
+  **Candidate V5/V6 testée avec Quarto réel** :
+  [CI #41873530021](https://github.com/djibian/alliage/actions/runs/41873530021)
+  PASS (deux snapshots, CSS, HTTP). La branche de référence
+  reste à V2 et ne doit pas être utilisée tant que #24 n'est
+  pas approuvée ; aucun test dans le Firefox utilisateur n'a eu lieu.
+
 - PR expérimentales P3.6 #13–#21 : **suspendre sans détruire** ;
   pas de vraie donnée professeur/élève dans les aperçus HTTP.
 
