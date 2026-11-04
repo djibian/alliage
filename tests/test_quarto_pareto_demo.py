@@ -8,6 +8,8 @@ from __future__ import annotations
 from contextlib import redirect_stdout
 import io
 from pathlib import Path
+import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch, Mock
 
@@ -71,12 +73,92 @@ class ParetoLaunchTests(unittest.TestCase):
         server.serve_forever.assert_called_once_with()
         server.server_close.assert_called_once_with()
         self.assertIn("http://127.0.0.1:9999/fiction", buf.getvalue())
-        self.assertIn("Aucun fetch automatique", buf.getvalue())
+        self.assertIn("Actualisation Git explicitement demandée : NON", buf.getvalue())
 
     def test_invalid_repository_identity_rejected(self):
         for x in ("../private", "fiction/private/a", "https://github.com/fiction/lab"):
             with self.subTest(x=x), self.assertRaises(pilot.DemoRefused):
                 pilot.validate_inputs(x, self.SHA, self.REF, True)
+
+
+    def test_explicit_fetch_restricted_to_the_exact_public_demo(self):
+        with tempfile.TemporaryDirectory() as path:
+            repo = Path(path)
+            before = "a" * 40
+            calls = []
+
+            def fake_git(_repo, *args):
+                calls.append(args)
+                if args == ("rev-parse", "--show-toplevel"):
+                    return (str(repo) + "\n").encode()
+                if args == ("remote", "get-url", "origin"):
+                    return b"https://github.com/djibian/alliage.git\n"
+                if args == ("rev-parse", "--verify",
+                             "refs/remotes/origin/experiment/pareto-quarto-demo^{commit}"):
+                    return (before + "\n").encode()
+                raise AssertionError(args)
+
+            with (patch.object(pilot, "_git", side_effect=fake_git),
+                  patch.object(pilot.subprocess, "run",
+                               return_value=SimpleNamespace(returncode=0)) as fetch):
+                previous = pilot.fetch_fictional_demo(
+                    repo, "djibian/alliage",
+                    "refs/remotes/origin/experiment/pareto-quarto-demo")
+            self.assertEqual(previous, before)
+            command = fetch.call_args.args[0]
+            self.assertEqual(command[:4], ["git", "-C", str(repo), "fetch"])
+            self.assertIn("--no-tags", command)
+            self.assertEqual(command[-1],
+                             "refs/heads/experiment/pareto-quarto-demo:"
+                             "refs/remotes/origin/experiment/pareto-quarto-demo")
+            self.assertEqual(fetch.call_args.kwargs["env"]["GIT_TERMINAL_PROMPT"], "0")
+
+    def test_explicit_fetch_refuses_any_other_branch_repo_or_remote(self):
+        with tempfile.TemporaryDirectory() as path:
+            repo = Path(path)
+            with patch.object(pilot, "_git") as git, patch.object(
+                    pilot.subprocess, "run") as fetch:
+                for repository_id, ref in [
+                    ("other/private", "refs/remotes/origin/experiment/pareto-quarto-demo"),
+                    ("djibian/alliage", "refs/remotes/origin/experiment/other"),
+                ]:
+                    with self.assertRaises(pilot.DemoRefused):
+                        pilot.fetch_fictional_demo(repo, repository_id, ref)
+                git.return_value = b"https://example.invalid/other.git\n"
+                with self.assertRaises(pilot.DemoRefused):
+                    pilot.fetch_fictional_demo(
+                        repo, "djibian/alliage",
+                        "refs/remotes/origin/experiment/pareto-quarto-demo")
+                fetch.assert_not_called()
+
+    def test_one_command_refresh_uses_old_tracking_sha_and_requires_consent(self):
+        ref = "refs/remotes/origin/experiment/pareto-quarto-demo"
+        args = ["--repo", "/fiction", "--repository-id", "djibian/alliage",
+                "--tracking-ref", ref, "--fetch-demo",
+                "--public-fictional-trusted"]
+        result = {
+            "resource_id": "quarto:djibian/alliage:activite.qmd",
+            "session_path": "/fiction/session",
+            "baseline_commit": "a" * 40,
+            "observed_commit": "b" * 40,
+        }
+        with (patch.object(pilot, "fetch_fictional_demo",
+                           return_value="a" * 40) as fetch,
+              patch.object(pilot, "create_observed_session",
+                           return_value=result) as render,
+              patch.object(pilot, "AttestedPreview") as preview,
+              patch.object(pilot, "make_server") as server):
+            server.return_value.server_port = 12345
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(pilot.main(args), 0)
+            fetch.assert_called_once_with(Path("/fiction"), "djibian/alliage", ref)
+            self.assertEqual(render.call_args.args[4], "a" * 40)
+            server.return_value.serve_forever.assert_called_once_with()
+            self.assertIsNotNone(preview.call_args)
+            with self.assertRaises(SystemExit) as exit_status:
+                pilot.main(args[:-1])
+            self.assertEqual(exit_status.exception.code, 2)
+            self.assertEqual(fetch.call_count, 1)
 
 
 class RealParetoQuartoTests(unittest.TestCase):
