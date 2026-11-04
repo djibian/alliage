@@ -32,6 +32,10 @@ def validate_inputs(repository_id: str, baseline_sha: str, tracking_ref: str,
         raise DemoRefused("Confirmer explicitement le projet Quarto public/fictif de confiance.")
     if not re.fullmatch(r"[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+", repository_id):
         raise DemoRefused("Identité Git déclarée owner/repo requise.")
+    parts = repository_id.split("/")
+    if any(part.startswith(".") or part.endswith(".") or ".." in part
+           for part in parts):
+        raise DemoRefused("Segments de dépôt Git ambigus ou dangereux.")
     if SHA.fullmatch(baseline_sha) is None:
         raise DemoRefused("SHA complet de référence obligatoire.")
     if (TRACKED_BRANCH.fullmatch(tracking_ref) is None or
