@@ -1080,3 +1080,49 @@ confinement global (F3/F4). L1/L2 et attestation
 Quarto professeur restent non résolus.
 Aucun HTML pédagogique privé, aucun JS professeur,
 aucune publication élève et aucun merge.
+
+## P3.6F2 — contre-expertise du protocole et correction des faux PASS (4 novembre 2026)
+
+L'[audit indépendant de la PR #20](https://github.com/djibian/alliage/pull/20#issuecomment-6630262624)
+sur le HEAD initial `581a31b4b50f0d119a30993c51f918511a51f614`
+conclut **CORRECTIONS REQUISES** : la conception G0–G2 est
+pertinente, mais quatre détails du protocole permettaient de
+déduire une réussite sans attribuer correctement les observations
+à **l'unique clic de l'essai courant** :
+
+- **C1 (G1)** : relever le compteur B *avant et après*
+  le clic ; exiger un delta positif et l'affichage exact du
+  corps fictif `FICTIONAL_DECOY_RECEIVED` dans le nouvel
+  onglet. Les deux profils partent d'un gabarit vierge
+  équivalent (proxy/DNS, préférences, cache).
+- **C2 (G2)** : relever `STATUS` complet et B `/stats`
+  avant/après le clic, exiger `ΔdeniedHTTPB>0` sans
+  requête concurrente, `allowed` stable, permissions
+  présentes et aucune réinitialisation d'event page.
+- **C3 (absence de commit)** : définir une observation
+  bornée, une quiescence et des lectures B stables
+  répétées ; ne jamais présenter la seule UI ou
+  `unexpectedCommits` global comme preuve de non-commit.
+  En l'absence d'observateur indépendant effectif,
+  remplir `UNPROVEN_COMMIT`, même si le veto B est observé.
+- **C4 (chronologie A→B)** : le verdict renforcé
+  `INTERCEPTION_OBSERVED_HTTP_LOCAL_LINKED_TARGET`
+  est **désactivé** tant que les événements de la même
+  requête ne portent pas de trace causalement attribuable
+  (`requestId`, ordre et horodatage). Le simple
+  `deniedHTTPBLinkedTarget>0` ne suffit pas.
+
+**Prévol G0 renforcé :** inventaire effectif des périphériques
+et canaux de l'hyperviseur côté hôte (vsock, 9p/virtiofs,
+SPICE, guest-agent, USB/réseau, etc.) et des interfaces,
+routes, montages, relais, FD/proxies côté invité,
+**avant le lancement de Firefox**. Un doute arrête l'essai.
+
+**Seuls les deux documents de #20 ont été corrigés ;**
+aucun code F1/#19, extension v0.4, serveur local,
+VM, sandbox ou navigateur modifié/activé. Le protocole
+amendé est soumis à **une nouvelle contre-revue indépendante**.
+Aucun essai Firefox autorisé sans approbation, preuve G0
+effective et accord explicite avant manipulation locale.
+`FIREFOX_INTERCEPTION=UNPROVEN`, L1/L2/L4 et profil
+professeur réel toujours hors périmètre.
