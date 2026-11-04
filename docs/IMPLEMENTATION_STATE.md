@@ -1037,3 +1037,46 @@ aucune observation navigateur ni attestation d'isolation OS.
 Le micro-test Firefox n'est pas autorisé à ce stade ;
 aucun contenu professeur réel, aucune publication, aucun
 merge, aucune modification de l'extension quotidienne.
+
+## P3.6F1 approuvée en simulation ; P3.6F2 préparé (4 novembre 2026)
+
+La [contre-expertise finale indépendante sur la PR #19](https://github.com/djibian/alliage/pull/19#issuecomment-6629201343)
+valide **APPROUVABLE** au HEAD exact
+`32af1710dc56c30b55aa961ed9ecfca318774c96`.
+La réfutation `onRemoved → onCreatedNavigationTarget tardif
+→ veto B` est levée dans le navigateur simulé :
+`deniedHTTPB=1` mais `deniedHTTPBLinkedTarget=0`.
+L'auditeur a réalisé 16 assertions indépendantes ciblées,
+contrôlé les CI F1 (28 tests Node) et Python (136 tests,
+11 ignorés), et recommande explicitement de **clore F1
+dans ce périmètre simulé**. Ne pas rouvrir la recherche de
+courses spéculatives sans nouvelle preuve.
+
+**État de référence : `F1_UNIT_APPROUVABLE`** ;
+**`FIREFOX_INTERCEPTION=UNPROVEN` demeure inchangé.**
+PR #19 Draft, non fusionnée et non déployée.
+
+Nouvelle branche de **préparation F2 seulement** :
+`experiment/p36f2-firefox-real-smoke-protocol`, issue du
+HEAD approuvé de #19. Son
+[protocole de micro-essai Firefox réel](EXPERIMENT_FIREFOX_F2_MICRO_SMOKE.md)
+sépare trois portes :
+1. **G0** : VM/profil jetables et absence de sortie
+   réseau externe **attestées avant le lancement**.
+2. **G1** : serveur B accessible depuis Firefox sans
+   l'extension (témoin négatif).
+3. **G2** : avec l'extension, A chargé une fois,
+   `DENY` B observable, zéro réception B et
+   absence de navigation B commise ; attribution à
+   une cible A→B validée séparément, jamais inférée
+   du seul compteur brut.
+
+**Ce F2 n'exécute aucun navigateur, ne crée aucune VM,
+ne demande aucune permission et ne teste aucun réseau.**
+Son document doit être revu indépendamment et sa
+configuration réelle contrôlée avant toute manipulation.
+Une preuve HTTP locale F2 ne démontre pas le
+confinement global (F3/F4). L1/L2 et attestation
+Quarto professeur restent non résolus.
+Aucun HTML pédagogique privé, aucun JS professeur,
+aucune publication élève et aucun merge.
