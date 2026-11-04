@@ -128,15 +128,15 @@
     }
     const selected = (selectedAtPointerDown || pageSelection()).trim();
     selectedAtPointerDown="";
-    if (selected.length > 2400 || selected.includes("\\u0000")) {
+    if (selected.length > 2400 || selected.includes("\u0000")) {
       aiStatus.textContent="Sélection refusée (max. 2 400 caractères, sans NUL). Réduire la sélection.";
       return;
     }
     // This is DECLARED provenance carried by an untrusted URL parameter,
     // not an authenticated GitHub repository, current ref or deployment.
     const selectedContext = selected ?
-      "Passage sélectionné (citation non vérifiée) :\\n<<<PASSAGE\\n" +
-      selected + "\\nPASSAGE>>>" :
+      "Passage sélectionné (citation non vérifiée) :\n<<<PASSAGE\n" +
+      selected + "\nPASSAGE>>>" :
       "Portée : ressource entière (aucun contenu HTML transmis).";
     promptBox.value = [
       "Alliage — demande pédagogique, ressource PUBLIQUE ou FICTIVE.",
@@ -154,7 +154,7 @@
       "ou une procédure GitHub explicite et n'annonce aucune modification faite.",
       "N'autorise aucune fusion, validation de publication ni modification élève.",
       "L'enseignant doit ensuite faire vérifier le rendu Quarto et choisir."
-    ].join("\\n");
+    ].join("\n");
     promptBox.hidden=false;
     aiStatus.textContent="Demande préparée localement. Sélectionner/copier le texte puis le coller dans le chatbot latéral. Aucun envoi automatique.";
     if (typeof promptBox.focus === "function") promptBox.focus();
