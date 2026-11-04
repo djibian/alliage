@@ -624,8 +624,13 @@ de la candidate `41874261209` SUCCESS. PR #24 fusionnée
 **Requalification après adoption :** workflow de la PR #22 adapté
 pour cloner `experiment/pareto-quarto-demo` au vrai ref distant,
 en vérifier le SHA et l'égalité de tree avec V6 puis exécuter
-Git/Quarto/HTTP sans ref factice ; vérifier la nouvelle CI sur
-le HEAD exact de #22 avant toute affirmation de PASS.
+Git/Quarto/HTTP sans ref factice. **CI de requalification réelle
+#41890947229 SUCCESS** : étape `Verify the ADOPTED public demo ref
+with real Quarto at two pinned SHAs` **SUCCESS** sur
+`15df12fd59f1d832aa424d40f9879ad8a64e2c8f`,
+Python et navigation historiques également SUCCESS.
+**ADOPTED_FIXTURE_QUARTO_CI_PASS** sur ce HEAD ; revérifier
+après tout nouveau commit.
 Guide `PARETO_MVP.md` et reprise `PARETO_REPRISE.md`
 actualisés. **Ni Firefox réel ni la sidebar/READ/WRITE GitHub
 n'ont été observés.** #23 demeure `DEMO_PARTIAL`.
