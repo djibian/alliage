@@ -137,8 +137,8 @@ export async function run(args, WebSocketImpl = globalThis.WebSocket) {
       if (typeof m.id === "number" && pending.has(m.id)) {
         const slot = pending.get(m.id);
         pending.delete(m.id);
-        if (m.type === "error") slot.reject(new Error("BiDi command rejected"));
-        else slot.resolve(m.result);
+        if (m.type === "success") slot.resolve(m.result);
+        else slot.reject(new Error("BiDi command refused or malformed"));
       } else if (m.type === "event") {
         const record=evidence.observe(m);
         if (record) process.stdout.write(JSON.stringify({event:record})+"\n");
