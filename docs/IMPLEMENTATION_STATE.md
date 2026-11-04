@@ -515,3 +515,76 @@ Ne pas ouvrir un nouveau chatbot, une API IA ou une
 architecture multiapplication. Le rendu Quarto peut
 exécuter des hooks : ne pas étendre le consentement
 fictif à des dépôts/commits inconnus.
+
+## MVP Pareto — preuve sur fixture réelle et dernier blocage métier (4 novembre 2026)
+
+**`main` de référence au début de cet incrément :**
+`7231ac4fb54ec54aebd498e72d4bd588878e631e`.
+**[PR #22](https://github.com/djibian/alliage/pull/22) Draft** :
+bouton « Préparer demande IA » (consentement explicite
+public/fictif, sélection ≤ 2 400 caractères ou ressource
+entière, copie manuelle), décisions **locales sans
+validation Git durable**, lanceur
+`quarto_pareto_demo.py` réutilisant Git/Quarto/HTTP,
+roadmap et tests Pareto.
+
+**Réfutation déterminante du vrai projet fictif** :
+les deux anciens commits `1b1c0f22…` et `4a302833…`
+n'étaient PAS rendables par P3.1, parce que Quarto
+1.11.9 réécrit leur `.gitignore` suivi. Le moteur
+a **raison de refuser** : aucune relaxation du contrôle
+d'intégrité des fichiers Git suivis.
+
+**[PR #24](https://github.com/djibian/alliage/pull/24)
+Draft** (base = branche publique fictive distincte
+`experiment/pareto-quarto-demo`, toujours non modifiée),
+correction de maintenance `.gitignore` et CSS
+**strictement publique/fictive**. Paire retenue pour
+qualification en CI, **non encore adoptée dans la branche
+cible** : V5
+`5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347`,
+V6 `8e2f8b84515e9555c853c42f14cde0bca2c5de53`.
+L'exception d'écriture de `.gitignore` à l'AGENTS
+de la branche fictive doit être **revue et explicitement
+autorisée avant fusion**, et cette PR ne doit JAMAIS
+être fusionnée vers `main`.
+
+**Preuves exactes sur le code de #22** :
+- [CI verticale réelle #41873945544](https://github.com/djibian/alliage/actions/runs/41873945544)
+  `SUCCESS` : clone de la branche de **correction proposée**,
+  création d'un ref local épinglé V6, rendu réel
+  V5/V6, CSS distincts vérifiés, réponse HTTP 200,
+  et 14 tests DOM simulés. Aucun Firefox réel dans CI.
+- [CI Python #41873945472](https://github.com/djibian/alliage/actions/runs/41873945472)
+  `SUCCESS` : 104 tests (6 ignorés).
+- [CI historique #41873945565](https://github.com/djibian/alliage/actions/runs/41873945565)
+  `SUCCESS` : non-régression.
+- Ces trois CI portent sur le commit
+  `66c24f5fbc732869d30e87e6e6567ba655b2130a`.
+  Les commits suivants n'ont changé que les documents ;
+  revérifier le HEAD et la CI après chaque changement.
+
+**Deux portes réelles restantes, dans l'ordre :**
+1. Revue et autorisation **explicites** de la maintenance
+   proposée #24, puis faire avancer la branche fictive
+   et remplacer les SHA/commandes de première démonstration
+   dans `docs/PARETO_MVP.md`. Rejouer le test du
+   **vrai ref public** après adoption ; ne pas annoncer
+   l'ancien clone V1/V2 comme démonstration fonctionnelle.
+2. [Issue #23](https://github.com/djibian/alliage/issues/23) :
+   dans le **véritable panneau latéral natif Firefox Ubuntu**,
+   observer le transfert manuel, l'accès GitHub (lecture
+   et éventuellement écriture, chacun vérifié dans CETTE
+   surface), la modification autorisée/repli patch,
+   le nouveau SHA, le rendu et la décision. Le connecteur
+   GitHub standard ChatGPT est documenté **en lecture seule** ;
+   une écriture éventuelle nécessite un outil/mode réellement
+   disponible (Codex ou autre), sans automatisation fragile.
+
+**État véridique : `PARETO_VERTICAL_QUARTO_CI_PASS;
+REAL_FIREFOX_SIDEBAR_UNPROVEN; DEMO_BRANCH_ADOPTION_BLOCKED`.**
+Aucune vraie donnée professeur servie en HTTP, aucune
+fusion de #22/#24, aucune publication d'élèves,
+aucune preuve de modification Git depuis le chatbot
+latéral. Travaux P3.6 #13–#21 suspendus,
+conservés et non fusionnés.
