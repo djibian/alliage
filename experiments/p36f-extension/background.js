@@ -17,6 +17,9 @@ let deniedHTTPB = 0;
 let deniedHTTPBLinkedTarget = 0;
 let pendingCreateTicket = null;
 const linkedTargets = new Set();
+// Tombstones: a removed tab MUST NOT be relinked by a late navigation
+// event in the same OPEN epoch. Cleared ONLY when the epoch changes.
+const removedTargets = new Set();
 let unexpectedCommits = 0;
 let permissionFailure = false;
 
@@ -25,6 +28,7 @@ function revoke() {
   f1.close();
   pendingCreateTicket = null;
   linkedTargets.clear();
+  removedTargets.clear();
   tabForObservation = -1;
   allowedURL = null;
   // Keep the fictitious B endpoint for counting denials AFTER CLOSE.
@@ -69,7 +73,8 @@ browser.webNavigation.onCreatedNavigationTarget.addListener(details => {
       details.sourceTabId === tabForObservation &&
       details.sourceFrameId === 0 &&
       Number.isSafeInteger(details.tabId) && details.tabId >= 0 &&
-      details.tabId !== tabForObservation && details.url === probeURL) {
+      details.tabId !== tabForObservation && details.url === probeURL &&
+      !removedTargets.has(details.tabId)) {
     linkedTargets.add(details.tabId);
   }
 });
@@ -88,7 +93,11 @@ browser.tabs.onRemoved.addListener(tabId => {
   // rather than accept a closed tab after the Promise resolves.
   if (pendingCreateTicket !== null || tabId === tabForObservation) {
     revoke();
-  } else {
+  } else if (Number.isSafeInteger(tabId) && tabId >= 0 &&
+             tabForObservation >= 0) {
+    // Record even a tab NOT YET linked: onRemoved may precede a late
+    // onCreatedNavigationTarget. Never treat that event as a live target.
+    removedTargets.add(tabId);
     linkedTargets.delete(tabId);
   }
 });
