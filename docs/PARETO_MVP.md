@@ -74,9 +74,11 @@ python3 "$HOME/projets/alliage-code/quarto_pareto_demo.py" \
   --public-fictional-trusted
 ```
 
-La commande **ne fait aucun fetch**. Elle utilise les objets Git
+Cette première commande **ne fait aucun fetch**. Elle utilise les objets Git
 déjà présents, confirme le FAST_FORWARD et rend avec **le véritable
-Quarto** deux instantanés à SHA complets, sans checkout. Elle démarre
+Quarto** deux instantanés à SHA complets, sans checkout. Le mode
+`--fetch-demo` ci-dessous permet ensuite une **récupération Git volontaire**
+depuis la seule branche publique de la démonstration, sans toucher au checkout. Elle démarre
 le serveur HTTP existant, lié uniquement à `127.0.0.1`, inventaire et
 SHA-256 recontrôlés à chaque réponse. Elle imprime une **URL locale
 contenant une capacité** ; la coller **uniquement dans Firefox local**,
@@ -86,8 +88,12 @@ Ce prévisualiseur **n'est pas une protection pour contenu confidentiel**.
 Tester V2 → V1 → V2 et le CSS. Cocher
 « Je confirme que ce contexte est public ou fictif… » puis utiliser
 « Préparer demande IA ». Le texte est généré localement dans une
-zone éditable seulement par copie (lecture seule), avec l'identité
-Git **déclarée**, les SHA et la sélection de taille ≤ 2 400 caractères.
+zone de texte en lecture seule, avec l'identité Git
+**déclarée**, les SHA et la sélection de taille ≤ 2 400 caractères.
+Pour **cette démonstration uniquement**, il propose aussi la branche
+`experiment/pareto-quarto-demo` en la signalant comme non vérifiée :
+l'IA doit confirmer cette branche et demander l'autorisation
+avant toute écriture.
 **Rien n'est transmis automatiquement**. Copier (Ctrl+C) et coller
 (Ctrl+V) dans **ChatGPT déjà affiché dans le panneau latéral natif**,
 puis dialoguer.
@@ -127,19 +133,28 @@ est un acte contrôlé par ailleurs. Mesurer cette friction.
 
 ## Récupération, comparaison et décision (après commit IA vérifié)
 
-Fermer le serveur (Ctrl+C), puis récupérer **volontairement**
-la branche de démonstration :
+Fermer le serveur (Ctrl+C), puis relancer avec l'option
+**`--fetch-demo`** : elle constitue l'ordre **explicite de récupération**
+depuis la seule branche publique fictive de `djibian/alliage`,
+avec contrôle de l'origine Git. Le lanceur capture l'ancien SHA de suivi
+**avant le fetch**, vérifie ensuite que la branche a avancé sans divergence,
+et génère une nouvelle session Quarto réelle depuis les deux commits.
+Il ne modifie pas le checkout et ne publie rien.
 
 ```sh
-git -C "$HOME/projets/alliage-demo" fetch --no-tags origin \
-  refs/heads/experiment/pareto-quarto-demo:refs/remotes/origin/experiment/pareto-quarto-demo
+python3 "$HOME/projets/alliage-code/quarto_pareto_demo.py" \
+  --repo "$HOME/projets/alliage-demo" \
+  --repository-id djibian/alliage \
+  --tracking-ref refs/remotes/origin/experiment/pareto-quarto-demo \
+  --fetch-demo --public-fictional-trusted
 ```
 
-Contrôler le nouveau SHA ; si la branche n'a pas avancé,
-ne pas inventer de résultat. Refaire **la même commande
-`quarto_pareto_demo.py`**, avec
-`--baseline-sha 4a3028334a63fdd722ffd4d3da7886558127d033`
-(SHA connu **avant la modification IA**).
+Si GitHub n'a pas encore de nouveau commit ou si la branche est réécrite,
+la comparaison est **refusée**, jamais simulée. Il reste une intervention
+dans le terminal après l'essai IA, mais **plus besoin de saisir soi-même
+un refspec Git ou un nouveau SHA**. La commande de lancement et la
+reprise pourront devenir un bouton local seulement après qualification
+du parcours réel dans Firefox.
 
 Dans Firefox, comparer V1 (départ avant IA) et V2
 (proposition IA), utiliser « Retenir V2 (local) »
