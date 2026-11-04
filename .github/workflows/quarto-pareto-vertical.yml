@@ -63,9 +63,34 @@ jobs:
           _git(repo, "update-ref", tracking, observed)
           with TemporaryDirectory(prefix="alliage-public-fixture-") as home:
               with patch("quarto_observed_session.Path.home", return_value=Path(home)):
-                  result, preview, server = prepare(
-                      repo, "djibian/alliage", tracking, initial,
-                      public_fictional_trusted=True)
+                  try:
+                      result, preview, server = prepare(
+                          repo, "djibian/alliage", tracking, initial,
+                          public_fictional_trusted=True)
+                  except Exception:
+                      # Diagnose ONLY PUBLIC/FICTIONAL tracked path names.
+                      # Never loosen the Git snapshot integrity invariant.
+                      from hashlib import sha256
+                      import subprocess
+                      src = Path(home) / "diagnostic-v1"
+                      src.mkdir()
+                      names = (".gitignore", "AGENTS.md", "README.md",
+                               "_quarto.yml", "activite.qmd", "styles.css")
+                      before = {}
+                      for name in names:
+                          data = _git(repo, "show", f"{initial}:{name}")
+                          (src / name).write_bytes(data)
+                          before[name] = sha256(data).hexdigest()
+                      render = subprocess.run(
+                          ["quarto", "render", "--to", "html", "--no-execute"],
+                          cwd=src, capture_output=True, text=True, timeout=120)
+                      changed = [name for name in names
+                                 if sha256((src / name).read_bytes()).hexdigest() != before[name]]
+                      print("PINNED_DEMO_DIAGNOSTIC_TRACKED_FILES_CHANGED=" +
+                            ",".join(changed), flush=True)
+                      print("PINNED_DEMO_DIAGNOSTIC_QUARTO_RC=" +
+                            str(render.returncode), flush=True)
+                      raise
                   try:
                       # For a reproducible pair, the tracking ref must point to V2.
                       assert result["baseline_commit"] == initial
