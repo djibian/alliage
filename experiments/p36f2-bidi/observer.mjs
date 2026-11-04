@@ -99,7 +99,7 @@ export class FixtureNavigationEvidence {
   }
 }
 
-function parseArgs(args) {
+export function parseArgs(args) {
   if (args.length !== 4 || args[0] !== "--phase" || args[2] !== "--port" ||
       !["G1", "G2"].includes(args[1]) || !/^\d{4,5}$/.test(args[3])) {
     throw new TypeError("Usage: node observer.mjs --phase G1|G2 --port 9222");
