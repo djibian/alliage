@@ -108,3 +108,27 @@ l'enseignant constate dans **son Firefox** la sélection,
 le transfert conscient au chatbot natif, l'écriture
 Git autorisée (ou le repli patch), le nouveau rendu
 Quarto et le choix humain, sans publication automatique.
+
+
+## A016 — Actualisation Git volontaire et bornée (4 novembre 2026)
+
+Pour la **seule** démonstration publique `djibian/alliage`,
+branche `experiment/pareto-quarto-demo`, le lanceur
+`quarto_pareto_demo.py --fetch-demo` peut exécuter un
+`git fetch` **sur demande explicite de l'enseignant**,
+après confirmation que le projet Quarto est public,
+fictif et de confiance. Ce mode :
+- vérifie la racine locale exacte, l'identité de dépôt et
+  l'URL de l'origine GitHub attendue avant contact réseau ;
+- mémorise le SHA local de suivi **avant** récupération,
+  refuse toute divergence ou absence de modification par
+  la comparaison existante, et rend ensuite deux SHA épinglés ;
+- ne change jamais le checkout, ne crée pas de commit,
+  ne fusionne, ne valide ni ne publie quoi que ce soit ;
+- n'est ni une surveillance automatique ni une autorisation
+  d'appliquer ce comportement à un dépôt professeur privé.
+
+Le mode sans `--fetch-demo` reste sans réseau implicite.
+Les échanges avec le chatbot Firefox continuent d'exiger
+un consentement humain et de ne jamais présumer les droits
+GitHub de sa surface réelle.
