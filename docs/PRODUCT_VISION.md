@@ -28,3 +28,32 @@ Chaque ressource a une identité stable, une histoire de révisions vérifiables
 La navigation pédagogique présente des libellés compréhensibles, mais lie chaque vue au SHA Git et aux empreintes de contenu. Un résumé, une demande IA ou un message de commit ne prouve pas la modification ; une déclaration de SHA « publié » ne prouve pas le déploiement.
 
 La navigation historique constitue une ambition d'interface commune pour Quarto, Grist, Snap!, Moodle, Collabora et WebeeBlocks, **sans imposer de stockage ni d'opérations universelles**. Les instances et données des élèves demeurent distinctes de l'historique de conception. Les premières expériences concernent uniquement Quarto.
+
+## Priorité de livraison — novembre 2026 (A015–A016)
+
+La **première expérience livrable** est volontairement plus
+modeste que la vision générale : avec une ressource Quarto
+entièrement publique/fictive, l'enseignant sélectionne ou
+désigne l'activité, prépare son contexte dans Alliage,
+puis dialogue avec le **chatbot déjà intégré au panneau
+latéral natif de Firefox**. Alliage ne fournit ni nouveau
+chatbot ni moteur IA. Le transfert de contexte est
+**visible, volontaire et limité**, sans accès aux
+conversations privées, sans automatisation de l'interface
+du chatbot et sans supposer que le connecteur GitHub
+fonctionne dans cette surface.
+
+L'IA peut proposer une modification sur une branche Git
+explicitement autorisée. **La modification effective est
+vérifiée depuis Git**, puis rendue par le vrai Quarto à
+partir de deux SHA épinglés. L'enseignant compare les
+rendus et décide localement de retenir ou non la proposition.
+Cette décision **n'est encore ni une validation Git durable
+ni une publication** : ces gestes restent séparés.
+
+Les recherches P3.6 de confinement du HTML professeur
+privé restent conservées et **suspendues** pendant cette
+démonstration fictive. Aucune preuve de confinement global
+Firefox n'est revendiquée. La généralisation aux données
+professeur confidentielles, aux autres applications et
+aux publications élèves est reportée.
