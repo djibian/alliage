@@ -81,6 +81,7 @@ class ParetoLaunchTests(unittest.TestCase):
 
 class RealParetoQuartoTests(unittest.TestCase):
     """Opt-in CI test: genuine Quarto rendering, local Git, local HTTP, no Firefox."""
+    REF = ParetoLaunchTests.REF
 
     @unittest.skipUnless(__import__("os").environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
                          "Only the dedicated real Quarto workflow runs this test")
