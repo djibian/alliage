@@ -47,9 +47,9 @@ P3.6 pour ce premier résultat fictif.
   **Draft ciblant exclusivement cette branche fictive** :
   une correction technique de `.gitignore` (exception de maintenance
   soumise à autorisation, non mutation IA) et une variation CSS.
-  Paire candidate : V3
-  `9bb28fd73545b687685ca4caf48a49ff2434abe8`,
-  V4 `8a95991b56633524bd280b21810ddaff94ae91fa`.
+  Paire candidate : V5
+  `5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347`,
+  V4 `8e2f8b84515e9555c853c42f14cde0bca2c5de53`.
   **La tête réelle de la branche de démonstration n'a pas été changée.**
 - PR expérimentales P3.6 #13–#21 : **suspendre sans détruire** ;
   pas de vraie donnée professeur/élève dans les aperçus HTTP.
