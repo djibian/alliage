@@ -262,3 +262,23 @@ test("retain/reject is explicit, browser-local, and never a Git acceptance",()=>
   assert.match(status.textContent,/V2 écartée/);
   assert.equal(res.navigations.length,0);
 });
+
+test("fictional demo context includes explicit but UNVERIFIED editing branch",()=>{
+  const p={...payload(),resource_id:"quarto:djibian/alliage:activite.qmd"};
+  const x=run(httpHref(p),false,URLSearchParams,"La consigne de tri");
+  const consent=findAll(x.host,"input")[0];
+  consent.checked=true;
+  findAll(x.host,"button")[2].emit("click");
+  const prompt=findAll(x.host,"textarea")[0].value;
+  assert.match(prompt,/experiment\/pareto-quarto-demo/);
+  assert.match(prompt,/fichier activite\.qmd/);
+  assert.match(prompt,/À VÉRIFIER/);
+  assert.ok(!prompt.includes("alliage-local-"));
+  assert.ok(!prompt.includes("127.0.0.1"));
+  const y=run(httpHref(),false,URLSearchParams,"Fiction");
+  findAll(y.host,"input")[0].checked=true;
+  findAll(y.host,"button")[2].emit("click");
+  const generic=findAll(y.host,"textarea")[0].value;
+  assert.match(generic,/Branche de travail NON IDENTIFIÉE/);
+  assert.ok(!generic.includes("experiment/pareto-quarto-demo"));
+});
