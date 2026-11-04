@@ -144,9 +144,15 @@
       "Passage sélectionné (citation non vérifiée) :\n<<<PASSAGE\n" +
       selected + "\nPASSAGE>>>" :
       "Portée : ressource entière (aucun contenu HTML transmis).";
+    // Only the publicly documented fictional demo has a proposed branch.
+    // The URL cannot prove that ref exists, is current or is writable.
+    const branchHint = payload.resource_id === "quarto:djibian/alliage:activite.qmd"
+      ? "Branche de démonstration À VÉRIFIER : experiment/pareto-quarto-demo ; fichier activite.qmd."
+      : "Branche de travail NON IDENTIFIÉE : la demander avant toute écriture.";
     promptBox.value = [
       "Alliage — demande pédagogique, ressource PUBLIQUE ou FICTIVE.",
       "Identité Git déclarée : " + payload.resource_id,
+      branchHint,
       "Révision affichée : " + current + ", SHA Git indiqué : " + sha,
       "Ancienne révision indiquée : " + first.commit,
       "Nouvelle révision indiquée : " + second.commit,
