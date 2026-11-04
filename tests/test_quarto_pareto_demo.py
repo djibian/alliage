@@ -124,7 +124,11 @@ class ParetoLaunchTests(unittest.TestCase):
                 ]:
                     with self.assertRaises(pilot.DemoRefused):
                         pilot.fetch_fictional_demo(repo, repository_id, ref)
-                git.return_value = b"https://example.invalid/other.git\n"
+                git.side_effect = lambda _repo, *args: (
+                    (str(repo) + "\n").encode()
+                    if args == ("rev-parse", "--show-toplevel")
+                    else b"https://example.invalid/other.git\n"
+                )
                 with self.assertRaises(pilot.DemoRefused):
                     pilot.fetch_fictional_demo(
                         repo, "djibian/alliage",
