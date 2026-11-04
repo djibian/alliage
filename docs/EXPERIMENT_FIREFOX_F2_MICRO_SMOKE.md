@@ -94,6 +94,33 @@ contiennent aucune information enseignant.
 
 ## 4. Séquence de preuve minimale — essais distincts
 
+
+### Audit obligatoire de la VM (G0-A, avant tout Firefox)
+
+Cette porte exige **deux vérifications indépendantes** :
+- **Côté hôte/hyperviseur :** inventaire de la configuration *effective* QEMU/KVM
+  (liste des périphériques/channels en fonctionnement et non seulement du
+  fichier de configuration) : NIC, NAT/bridge/host-only, vsock,
+  virtio-serial, virtiofs/9p, SPICE/WebDAV, presse-papiers, partage
+  de fichiers, guest-agent, USB réseau, redirections de ports, tunnels.
+  **Aucun lien de données** de l'invité vers l'hôte/Internet n'est
+  admissible pour cette expérience ; une présence ambiguë = NO_GO.
+- **Côté invité :** inventorier interfaces et routes IPv4/IPv6, proxy
+  configuré dans Firefox et dans l'environnement, montages, sockets
+  Unix accessibles, agents, services et processus de relais, FDs hérités,
+  et vérifier que seuls A/B et Firefox utiliseront le loopback de l'invité.
+  Le nom `lo` ne suffit pas à attester l'absence de service hôte.
+- **Traçabilité :** une fiche expurgée précise ce qui a été effectivement
+  vérifié, les versions d'hyperviseur/OS/Firefox, le profil de périphériques
+  et la décision `G0=PASS`. Ne pas publier la configuration du réseau privé.
+  Si une preuve manque : `NO_GO_ISOLATION_UNPROVEN` **avant de lancer Firefox**.
+- **Profils comparables :** G1 et G2 utilisent deux clones vierges
+  d'un même gabarit local hors réseau (même Firefox, mêmes préférences,
+  proxy/DNS, cache initial vide, politiques et paramètres de navigation).
+  La seule différence permise pour G2 est l'extension temporaire F1,
+  ses permissions et le contrôle d'armement. Conserver un inventaire
+  comparatif expurgé des paramètres, sans réutiliser un profil habituel.
+
 ### Prévol (G0, bloque toute exécution en cas d'échec)
 
 1. Identifier et consigner le SHA exact de la branche F2
@@ -107,124 +134,224 @@ contiennent aucune information enseignant.
    commande sur l'hôte connecté. Vérifier B `/stats=0`
    avec un client HTTP local hors Firefox.
 
-### Témoin négatif (G1 : B est joignable SANS veto)
+### Témoin négatif (G1 : B joignable PAR LE CLIC SANS veto)
 
-1. Dans un Firefox invité **sans l'extension F1**, ouvrir
-   la page A. Vérifier un rendu réel, pas seulement HTTP 200
-   obtenu par un autre client.
-2. Cliquer sur le lien `target=_blank` vers B `/probe`.
-3. Lire B `/stats` depuis un **client HTTP local externe
-   à Firefox**, toujours dans l'invité : le compteur doit
-   être **strictement > 0**. Noter si le nouvel onglet a
-   effectivement affiché la réponse de B.
-4. Arrêter complètement Firefox et A/B. Redémarrer A/B
-   pour **réinitialiser réellement** B à zéro. Vérifier
-   `/stats=0` avant l'essai positif.
+1. Lancer Firefox dans l'invité **sans extension F1**, sous le
+   premier profil vierge de G0. Charger la page fictive A :
+   attester son rendu réel (titre `ALLIAGE_FICTION_ONLY`).
+   Contrôler que les paramètres proxy/DNS sont ceux du gabarit.
+2. Vérifier le lien exact `target="_blank"` pointant vers
+   `http://127.0.0.1:18766/probe`. Ne déclencher aucune autre
+   interaction ni requête volontaire vers B.
+3. Lire **immédiatement avant le clic** `B /stats` depuis un client
+   local extérieur à Firefox ; consigner `G1_B_BEFORE`.
+   Cette lecture n'incrémente pas `/probe`.
+4. Effectuer **un seul clic observable** sur le lien B depuis
+   la page A ; identifier le nouvel onglet et vérifier que
+   Firefox y affiche le corps exact `FICTIONAL_DECOY_RECEIVED`
+   provenant de B (pas seulement une page d'erreur ou son URL).
+5. Lire **après le clic** `B /stats` depuis le même client
+   local ; consigner `G1_B_AFTER` et
+   `G1_DELTA_B = G1_B_AFTER - G1_B_BEFORE`.
+   Exiger `G1_DELTA_B > 0` **ET** le contenu exact affiché
+   dans le nouvel onglet. Un compteur déjà positif avant le
+   clic n'est pas une preuve : seul le delta observé compte.
+6. Arrêter complètement Firefox et les deux serveurs ;
+   redémarrer A/B afin de remettre le compteur B réellement
+   à zéro. Vérifier `/stats=0` avant G2. Le profil G1
+   ne doit plus être utilisé.
 
-**Si le témoin négatif ne parvient pas à B, arrêter :
-`UNPROVEN_WITNESS_NOT_REACHABLE`.** L'absence de réception
-par B lors de l'essai positif serait alors non interprétable.
+**Un seul des deux oracles manquant (delta ou contenu du nouvel
+onglet) ⇒ `UNPROVEN_WITNESS_NOT_REACHABLE_BY_CLICK` ; arrêter.
+En particulier, ne jamais accepter un simple `B /stats>0`
+provenant d'une requête antérieure.**
 
 ### Essai positif (G2 : veto observé)
 
-1. Toujours dans la **même VM déconnectée**, utiliser
-   un **nouveau profil Firefox jetable**, sans extension
-   de tiers. Installer temporairement **seule**
+**Périmètre :** une seule action de clic, pas de seconde session,
+pas de requête B volontaire concurrente, sources F1 intactes. Un
+résultat sur le clic A→B ne peut être établi par un compteur
+non attribuable à l'action.
+
+1. Toujours dans la **même VM déconnectée**, ouvrir le **second
+   clone vierge du même gabarit G0**. Confirmer la comparaison
+   Firefox/proxy/DNS/politiques/profil avec G1 ; aucune autre
+   extension. Installer temporairement **uniquement**
    `experiments/p36f-extension/` via `about:debugging`.
-   Ne jamais installer `extension/` v0.4 ici.
-2. Dans la popup F1, relever `STATUS` initial
-   (`CLOSED`, `allowed=0`). Vérifier dans le
-   processus d'extension l'inscription du listener et
-   `permissions.contains` : si un droit manque,
-   **NO_GO** ; aucune relaxation de permissions ni
-   chargement direct de A en contournant le contrôle.
-3. Utiliser `OPEN_FICTION` avec les ports A=18765
-   et B=18766. Vérifier visuellement que la page
-   fictive A est effectivement chargée, puis contrôler
-   l'autorisation unique : `allowed=1` (après
-   sa consommation), sans deuxième exception.
-4. Relever B `/stats=0` avec le client local hors
-   Firefox. Cliquer **une seule fois** sur le lien
-   `target=_blank` de A vers B, sans autre clic.
-   Relever immédiatement `STATUS` et B `/stats`.
-5. Observer si B a reçu la requête, si une navigation
-   vers B a été **commise** (pas seulement tentée),
-   et si `deniedHTTPB` puis éventuellement
-   `deniedHTTPBLinkedTarget` ont augmenté.
-   Noter explicitement l'ordre
-   `onCreatedNavigationTarget` /
-   `onBeforeRequest` si observable **sans journaliser
-   d'URL ni contenu sensible**. La documentation MDN
-   garantit un ordre avec `onBeforeNavigate`, pas
-   avec `onBeforeRequest`.
-6. Réessayer le chargement initial A : une **seconde**
-   autorisation `GET/main_frame` ne doit pas être
-   obtenue par un simple rechargement. Ne pas confondre
-   cache/erreur UI et refus `webRequest`.
-   Fermer l'extension et le profil.
+2. Confirmer la présence du listener et les permissions
+   effectives, en particulier `permissions.contains`.
+   `STATUS` doit démarrer fermé, `allowed=0`.
+   Un défaut = `NO_GO_PERMISSIONS_OR_LISTENER`, pas de contournement.
+3. Exécuter `OPEN_FICTION` (A=18765, B=18766).
+   Vérifier le rendu réel de A dans Firefox,
+   `allowed=1` après consommation de l'unique ouverture,
+   et `permissionFailure=false`. Si la page A est absente :
+   `NO_GO_F1_MAIN_DOCUMENT`.
+4. **Avant le clic**, depuis le client local de l'invité relever
+   `G2_B_BEFORE = B /stats` (doit être zéro après remise à
+   zéro G1). Depuis la popup relever le `STATUS` **complet** :
+   `allowed`, `denied`, `deniedHTTPB`,
+   `deniedHTTPBLinkedTarget`, `unexpectedCommits`,
+   `permissionFailure` et `armed`. Les valeurs absolues
+   ne suffisent jamais : elles seront comparées à l'après.
+   Vérifier une seconde fois les paramètres proxy/DNS.
+5. Démarrer **avant le clic** une observation bornée de la
+   navigation de l'onglet cible et de l'activité HTTP de B :
+   - Idéalement une **trace indépendante des commits de
+     navigation**, horodatée et restreinte à la seule fixture
+     fictive, indiquant l'ID de l'onglet et sa destination ;
+     préciser son outil exact et sa couverture réelle. Aucun
+     outil ne sera ajouté à F1 sans revue distincte.
+   - Observer séparément l'URL et le contenu réellement
+     affichés dans l'onglet cible et conserver une trace
+     expurgée de l'état des onglets. **La seule UI
+     « page bloquée » et le compteur global
+     `unexpectedCommits` ne prouvent pas l'absence
+     de commit intermédiaire.**
+   - Si aucun observateur indépendant de `onCommitted`
+     pour B n'est disponible, la propriété « B jamais
+     commise » est `UNPROVEN_COMMIT`. Ne pas saisir
+     artificiellement `NO`.
+6. Réaliser **un clic unique effectivement observé** dans A
+   sur son lien `target="_blank"` vers B. Aucun rechargement
+   ni nouveau `OPEN` pendant l'observation. Relever
+   immédiatement `STATUS` complet et B `/stats` puis
+   poursuivre jusqu'à quiescence.
+7. **Fenêtre définie :** observer au maximum 15 secondes
+   après le clic, avec un premier contrôle immédiat,
+   puis lectures à environ 1, 2, 3 secondes et à la fin
+   (ou jusqu'à 3 contrôles successifs à 1 seconde
+   d'intervalle sans nouvelle activité Firefox liée à
+   l'essai ni évolution de B). La quiescence exige
+   la fin de la tentative réseau/navigation observable,
+   une trace d'onglet stabilisée et **au moins trois lectures
+   B indépendantes stables** ; si cette condition ne peut
+   pas être démontrée dans la fenêtre, noter `UNPROVEN_QUIESCENCE`.
+   Les mesures et leur instant réel sont consignés ; ne
+   pas remplacer la stabilité par une lecture « immédiate »
+   isolée. Un timeout ne prouve pas une absence définitive
+   de requête future.
+8. Relever **après stabilisation** le `STATUS` complet :
+   `G2_DENIED_B_AFTER`, `G2_DENIED_LINKED_AFTER`,
+   `G2_ALLOWED_AFTER`, `G2_UNEXPECTED_AFTER`,
+   `G2_PERMISSION_FAILURE_AFTER`.
+   Calculer `DELTA_DENIED_B = AFTER - BEFORE` ;
+   exiger `DELTA_DENIED_B>0` après ce **seul clic**.
+   Exiger `B /stats` inchangé entre avant et
+   après (zéro), `allowed` inchangé (=1),
+   `permissionFailure=false` en continu, absence
+   de réinitialisation/réveil non contrôlé de l'event
+   page, et absence de source concurrente de requêtes
+   vers B. Sinon `UNPROVEN` ou `NO_GO` selon le défaut.
+9. Relever indépendamment l'existence de commits de
+   navigation vers B **pendant toute la fenêtre**.
+   Si la preuve d'absence manque, `G2_COMMIT_B=UNPROVEN`
+   et le verdict positif complet est indisponible.
+   `unexpectedCommits` est seulement un indicateur
+   global (pas un oracle B).
+10. Vérifier séparément qu'un rechargement de A
+    n'obtient pas une **deuxième** autorisation
+    `GET/main_frame` ; distinguer cache, erreur UI
+    et veto. Fermer le profil jetable.
+
+**Chronologie A→B :** les champs actuels
+`deniedHTTPBLinkedTarget` et `deniedHTTPB` ne contiennent
+ni `requestId` ni horodatage d'événement ni preuve d'ordre
+entre `onCreatedNavigationTarget` et
+`onBeforeRequest`. **Ne pas revendiquer
+`INTERCEPTION_OBSERVED_HTTP_LOCAL_LINKED_TARGET`
+avec ces seules données.** Une instrumentation séparée,
+revue indépendamment, sera nécessaire si ce niveau de
+preuve devient utile.
+
+**La condition « aucun commit B » n'est PASS que si
+un observateur indépendant effectivement opérationnel
+couvre toute la fenêtre.** En son absence, conserver
+un résultat partiel `B_VETO_COUNTER_DELTA_OBSERVED`
+et `UNPROVEN_COMMIT` ; ne pas assimiler ce résultat
+à la qualification d'absence de navigation.
 
 ## 5. Verdicts falsifiables (non interchangeables)
 
 | Conditions observées | Verdict maximal |
 | --- | --- |
-| Isolation non attestée avant Firefox | `NO_GO_ISOLATION_UNPROVEN` ; ne pas démarrer |
-| B inaccessible SANS veto | `UNPROVEN_WITNESS_NOT_REACHABLE` |
-| A pas réellement chargé avec l'extension | `NO_GO_F1_MAIN_DOCUMENT` |
-| B reçoit un GET avec veto | `NO_GO_HTTP_VETO` |
-| B=0 mais aucun refus B observable, ou permissions incertaines | `UNPROVEN` |
-| B=0, `deniedHTTPB>0`, aucune navigation B commise, témoin négatif OK | `INTERCEPTION_OBSERVED_HTTP_LOCAL_DESTINATION` (preuve bornée, attribution de cible potentiellement incertaine) |
-| Cas précédent ET `deniedHTTPBLinkedTarget>0`, avec événement A→B de l'essai courant observé avant veto | `INTERCEPTION_OBSERVED_HTTP_LOCAL_LINKED_TARGET` (preuve plus forte, toujours locale) |
-| Événement de création après veto, lien attribué absent | `UNPROVEN_LINKED_TARGET` même si le veto B peut être observé par ailleurs |
+| Isolation hôte **ou** invité incomplète avant Firefox | `NO_GO_ISOLATION_UNPROVEN` ; aucun lancement |
+| G1 : absence de delta B attribuable au clic **ou** mauvais contenu du nouvel onglet | `UNPROVEN_WITNESS_NOT_REACHABLE_BY_CLICK` |
+| G2 : permissions/listener incertains | `NO_GO_PERMISSIONS_OR_LISTENER` |
+| G2 : page A non rendue ou unique GET initial non admis | `NO_GO_F1_MAIN_DOCUMENT` |
+| B reçoit un GET durant G2 | `NO_GO_HTTP_VETO` |
+| B reste à zéro mais `ΔdeniedHTTPB≤0`, ou le clic n'est pas observable | `UNPROVEN_CLICK_CAUSALITY` |
+| `ΔdeniedHTTPB>0`, B stable à zéro, G1 valide, mais non-commit sans oracle indépendant | `B_VETO_COUNTER_DELTA_OBSERVED ; UNPROVEN_COMMIT`, preuve partielle uniquement |
+| Même cas et pas de quiescence vérifiée | `UNPROVEN_QUIESCENCE`, pas de preuve de non-réception définitive |
+| G0/G1/G2 contrôlés, `ΔdeniedHTTPB>0` après clic unique, B sans réception à quiescence, `allowed`/permissions/génération stables, absence de commit B démontrée indépendamment | `INTERCEPTION_OBSERVED_HTTP_LOCAL_DESTINATION` (preuve locale bornée) |
+| Compteur `deniedHTTPBLinkedTarget>0` sans trace `requestId` + chronologie fiable | **Aucun verdict renforcé** : `UNPROVEN_LINKED_TARGET` |
 
-Le compteur `deniedHTTPB` est **un indicateur de la
-décision du listener**, pas une preuve OS. Le compteur lié
-est une **corrélation d'événements**, pas une garantie
-que les événements arrivent dans cet ordre pour toutes
-les versions Firefox. Le serveur B indépendant et
-l'absence de commit complètent l'oracle ; aucune mesure
-isolée ne suffit à généraliser.
+Le résultat plus fort
+`INTERCEPTION_OBSERVED_HTTP_LOCAL_LINKED_TARGET` est
+**désactivé dans F2** : les compteurs F1 n'en apportent
+pas la causalité temporelle. Une preuve future exige une
+instrumentation indépendante de l'événement de création et
+du veto de la **même** requête, soumise à contre-revue.
 
-**La seule conclusion positive possible en F2 est
-`INTERCEPTION_OBSERVED_HTTP_LOCAL*`.** Elle ne certifie
-ni HTTPS ni les schémas non HTTP, ni l'absence globale de
-sortie de Firefox/du système. F3 (réseau et relais OS)
-et F4 (composition) restent des portes distinctes ;
-L1/L2/attestation Quarto restent non résolues.
+**Aucun verdict F2, même positif, ne prouve le
+confinement général Firefox ou de l'OS.** Les schémas
+non HTTP, HTTPS, extension désactivée, relais hôte et
+l'ensemble L1/L2/profil Quarto restent hors preuve.
+La conclusion intermédiaire `B_VETO_COUNTER_DELTA_OBSERVED`
+ne devient jamais un PASS général par simple interprétation.
 
-## 6. Fiche de résultats à renseigner (aucune donnée personnelle)
+## 6. Fiche de résultats (données entièrement fictives)
 
 ```text
 F2_RUN_ID: <identifiant local non sensible>
 GIT_F1_SHA: 32af1710dc56c30b55aa961ed9ecfca318774c96
-GIT_F2_SHA: <sha complet du protocole audité>
-FIREFOX_VERSION: <version constatée dans l'invité>
+GIT_F2_SHA: <SHA du protocole après revue>
+FIREFOX_VERSION: <constatée dans la VM>
 GUEST_OS: <version exacte>
-ISOLATION_HOST_VERIFIED: PASS / FAIL / UNPROVEN
+VM_HYPERVISOR_DEVICE_INVENTORY: PASS / FAIL / UNPROVEN
+VM_NO_HOST_CHANNELS: PASS / FAIL / UNPROVEN
 GUEST_ONLY_LO_ACTIVE: PASS / FAIL
 GUEST_IPV4_IPV6_ROUTES_ABSENT: PASS / FAIL
-GUEST_HOST_RELAY_EXCLUDED: PASS / FAIL / UNPROVEN
+GUEST_MOUNTS_PROXY_FD_IPC_AUDITED: PASS / FAIL / UNPROVEN
+G0_ISOLATION_RESULT: PASS / NO_GO_ISOLATION_UNPROVEN
+G1_G2_PROFILE_PREFS_COMPARABLE: PASS / FAIL / UNPROVEN
 G1_NO_EXTENSION_A_RENDERED: PASS / FAIL
-G1_NO_EXTENSION_B_COUNT_AFTER_CLICK: <entier>
-G2_EXTENSION_PERMISSION_CONTAINS: PASS / FAIL
+G1_B_BEFORE: <entier>
+G1_B_AFTER: <entier>
+G1_DELTA_B: <entier strictement positif attendu>
+G1_TARGET_TAB_SHOWS_EXACT_FICTIONAL_DECOY_RECEIVED: YES / NO / UNPROVEN
+G2_PERMISSIONS_AND_LISTENER_CONFIRMED: PASS / FAIL
 G2_EXTENSION_INITIAL_CLOSED: PASS / FAIL
 G2_A_RENDERED: PASS / FAIL
-G2_ALLOWED_ONCE: PASS / FAIL
-G2_B_COUNT_BEFORE: <entier>
-G2_DENIED_HTTP_B: <entier>
-G2_DENIED_HTTP_B_LINKED_TARGET: <entier>
-G2_B_COUNT_AFTER: <entier>
+G2_STATUS_BEFORE: <allowed, denied, deniedHTTPB, deniedHTTPBLinkedTarget, unexpectedCommits, permissionFailure, armed>
+G2_B_BEFORE: <entier doit être zéro>
+G2_ONE_CLICK_FROM_A_OBSERVED: YES / NO / UNPROVEN
+G2_OBSERVER_IDENTITY_AND_COVERAGE: <outil précis ou UNPROVEN>
+G2_OBSERVATION_WINDOW_SECONDS: <durée constatée, maximum 15>
+G2_QUIESCENCE_3_STABLE_B_READS: PASS / FAIL / UNPROVEN
+G2_B_AFTER: <entier>
+G2_B_COUNT_SERIES: <séquence temporelle expurgée>
+G2_STATUS_AFTER: <champs STATUS complets>
+G2_DELTA_DENIED_HTTP_B: <entier>
+G2_DELTA_DENIED_LINKED_TARGET: <entier, NON probant seul>
+G2_ALLOWED_STABLE: PASS / FAIL
+G2_PERMISSION_FAILURE_REMAINS_FALSE: PASS / FAIL
+G2_NO_EVENT_PAGE_RESET: PASS / FAIL / UNPROVEN
 G2_NAVIGATION_COMMITTED_TO_B: YES / NO / UNPROVEN
+G2_NO_COMMIT_INDEPENDENT_EVIDENCE: PASS / UNPROVEN
 G2_RELOAD_A_BLOCKED: PASS / FAIL / UNPROVEN
-RESULT: <verdict précisément borné ci-dessus>
-LIMITATIONS: <constats vérifiés, sans inventer une preuve>
+LINKED_TARGET_CHRONOLOGY: UNPROVEN (instrumentation absente)
+RESULT: <verdict borné de §5>
+LIMITATIONS: <faits observés uniquement>
 ```
 
-**Publication :** conserver cette fiche et les traces
-expurgées dans une issue/PR après validation des preuves.
-Ne jamais joindre un profil Firefox, un historique de
-navigation privé, un jeton, une URL de capacité privée,
-une capture de contenu enseignant ou une configuration
-du réseau domestique.
+**Publication :** archiver la fiche et des traces **expurgées**
+dans GitHub uniquement après validation des preuves et de leur
+caractère public. Ne jamais joindre un profil Firefox,
+un jeton, un historique de navigation réel, une URL
+enseignant privée ou une configuration du réseau domestique.
+Une fiche `UNPROVEN` est un résultat honnête, non un
+prétexte pour assouplir G0.
 
 ## 7. Portes et gouvernance
 
@@ -247,5 +374,35 @@ du réseau domestique.
   https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webNavigation/onCreatedNavigationTarget
 - Mozilla Extension Workshop, installation temporaire :
   https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/
+
+## 8. Amendements après contre-expertise du protocole (4 novembre 2026)
+
+[Audit indépendant](https://github.com/djibian/alliage/pull/20#issuecomment-6630262624)
+sur `581a31b4b50f0d119a30993c51f918511a51f614` :
+**CORRECTIONS REQUISES**, sur des risques de faux PASS et non sur
+un comportement Firefox exécuté.
+
+- **C1** : G1 exige `B_after-B_before>0` **et**
+  affichage du corps exact de B après un clic observable.
+- **C2** : G2 relève le `STATUS` complet avant/après,
+  calcule `ΔdeniedHTTPB`, contrôle `allowed`,
+  `permissionFailure`, la stabilité d'event page et les
+  paramètres proxy/DNS ; aucun compteur absolu ne prouve
+  seul le clic.
+- **C3** : observation bornée, quiescence à lectures B
+  répétées, distinction entre compteur global de commits
+  et preuve indépendante d'absence de commit B ; le
+  défaut de cette preuve produit `UNPROVEN_COMMIT`.
+- **C4** : retrait du verdict renforcé
+  `...LINKED_TARGET` sans journal causal horodaté de
+  la même requête ; instrumentation séparée seulement
+  si elle apporte un gain expérimental démontré.
+- **G0** : profil VM sans périphériques réseau ni canaux
+  hôte et inventaire hôte/invité explicitement auditable,
+  comparaison des profils G1/G2 depuis un gabarit identique.
+
+**Statut inchangé** : revue indépendante du présent HEAD
+corrigé nécessaire, aucune VM/Firefox lancée, aucun contenu
+professeur réel, aucun privilège supplémentaire.
 
 Ce protocole **ne rend aucune session professeur réelle accessible**.
