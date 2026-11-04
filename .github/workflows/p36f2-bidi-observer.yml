@@ -1,0 +1,30 @@
+name: "P3.6F2 — observateur BiDi (simulation uniquement)"
+
+on:
+  pull_request:
+    paths:
+      - "experiments/p36f2-bidi/**"
+      - ".github/workflows/p36f2-bidi-observer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-bidi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Tester uniquement le décodage des événements BiDi synthétiques
+        run: node --test experiments/p36f2-bidi/observer.test.mjs
+      - name: Vérifier la syntaxe JavaScript sans réseau
+        run: node --check experiments/p36f2-bidi/observer.mjs
+      - name: Délimiter le résultat
+        run: |
+          echo "BIDI_OBSERVER_SYNTHETIC_TESTS_ONLY=PASS"
+          echo "REAL_FIREFOX_NAVIGATION_COMMIT=UNPROVEN"
+          echo "G0_OS_ISOLATION=UNPROVEN"

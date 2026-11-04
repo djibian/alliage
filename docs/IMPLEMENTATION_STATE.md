@@ -1126,3 +1126,49 @@ Aucun essai Firefox autorisé sans approbation, preuve G0
 effective et accord explicite avant manipulation locale.
 `FIREFOX_INTERCEPTION=UNPROVEN`, L1/L2/L4 et profil
 professeur réel toujours hors périmètre.
+
+## P3.6F2 — protocole approuvé et instrumentation BiDi indépendante (4 novembre 2026)
+
+L'[audit final #20](https://github.com/djibian/alliage/pull/20#issuecomment-6631168270)
+déclare le protocole **APPROUVABLE dans le seul périmètre
+documentaire**, HEAD exact `945846c27555b3459bdbcbdff1c19df66f4bf251`.
+C1–C4 sont levées ; **`FIREFOX_INTERCEPTION=UNPROVEN`**
+reste inchangé. L'auditeur confirme que le verdict complet
+F2 nécessite un **observateur indépendant et continu du
+commit B**, absent de F1. Sans cet observateur,
+l'expérience est au mieux
+`B_VETO_COUNTER_DELTA_OBSERVED ; UNPROVEN_COMMIT`.
+Le verdict `LINKED_TARGET` demeure désactivé.
+
+Une branche **distincte** de #20,
+`experiment/p36f2-bidi-passive-observer`, prépare
+un petit observateur **passif et testable** en
+`experiments/p36f2-bidi/` (Node 22, protocole
+WebDriver BiDi natif Firefox), sans modifier le
+listener F1, les permissions de l'extension ni la
+PR #20 approuvée. L'observateur s'abonne à
+`browsingContext.navigationCommitted` via
+`127.0.0.1` **dans un guest déjà isolé**,
+pseudonymise les identifiants de contextes et
+supprime les URL non fictives de toute sortie.
+Il ne lance pas Firefox et ne pilote ni clic,
+ni navigation, ni extension, ni serveur.
+
+**Contrôle positif indispensable** : G1 sans extension
+doit produire un vrai `navigationCommitted` vers B
+vu par l'observateur **et** un delta du serveur B,
+avec rendu exact, avant de considérer son absence
+en G2 comme potentiellement informative.
+L'observateur seul ne délivre aucun PASS de
+confinement ; sa non-perturbation et sa compatibilité
+sur la version Firefox réelle sont à établir.
+Les tests Node du flux synthétique sont une
+preuve de logique JavaScript **uniquement**.
+
+**État : `F2_OBSERVER_CANDIDATE / FIREFOX_INTERCEPTION_UNPROVEN`.**
+Nouvelle porte : CI et contre-expertise spécifique
+de cet observateur, puis preuve G0 réelle et
+consentement explicite avant configuration VM ou
+lancement Firefox. Aucun matériel ou navigateur
+utilisateur modifié, aucune ressource pédagogique
+privée, aucun merge ni publication.
