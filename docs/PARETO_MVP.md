@@ -4,6 +4,21 @@
 **Strictement ressources publiques/fictives** ; jamais de document professeur privé.
 **Version de référence :** `main` `7231ac4fb54ec54aebd498e72d4bd588878e631e`.
 
+> **BLOCAGE EXPÉRIMENTAL IDENTIFIÉ (4 novembre 2026).** Le test du
+> **véritable** couple de commits initial V1=`1b1c0f22…`,
+> V2=`4a302833…` a montré que Quarto réécrit leur `.gitignore`
+> suivi, ce que le moteur P3.1 refuse correctement. **Ne pas lancer la
+> première démonstration décrite plus bas tant que ce blocage n'est pas
+> levé.** Une correction révisable et non fusionnée existe en
+> [PR #24](https://github.com/djibian/alliage/pull/24) : V3
+> `9bb28fd73545b687685ca4caf48a49ff2434abe8` (motifs Quarto
+> canoniques) et V4 `8a95991b56633524bd280b21810ddaff94ae91fa`
+> (CSS fictif). La validation CI de cette nouvelle paire, puis son
+> approbation avant mise à jour du protocole de démarrage, sont
+> obligatoires. **Aucune modification du moteur Git/Quarto pour tolérer
+> les fichiers suivis modifiés.**
+
+
 ## Expérience visée
 
 Dans Firefox Ubuntu, ouvrir une activité Quarto **réellement rendue**.
