@@ -153,7 +153,7 @@ export async function run(args, WebSocketImpl = globalThis.WebSocket) {
   });
   try {
     await startup;
-    await send("session.new",{});
+    await send("session.new",{capabilities:{}});
     await send("session.subscribe",{
       events:[...METHODS]
     });
