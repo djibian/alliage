@@ -85,8 +85,8 @@ def validate_inputs(repository_id: str, baseline_sha: str, tracking_ref: str,
         raise DemoRefused("Branche de suivi origin/experiment/* explicite obligatoire.")
 
 
-def prepare(repo: Path, repository_id: str, tracking_ref: str,
-            baseline_sha: str, *, public_fictional_trusted: bool):
+def prepare_preview(repo: Path, repository_id: str, tracking_ref: str,
+                    baseline_sha: str, *, public_fictional_trusted: bool):
     validate_inputs(repository_id, baseline_sha, tracking_ref,
                     public_fictional_trusted)
     # The underlying experiment verifies a FAST_FORWARD and renders two
@@ -96,8 +96,44 @@ def prepare(repo: Path, repository_id: str, tracking_ref: str,
         trusted_quarto=True,
     )
     preview = AttestedPreview(Path(result["session_path"]), result["resource_id"])
+    return result, preview
+
+
+def prepare(repo: Path, repository_id: str, tracking_ref: str,
+            baseline_sha: str, *, public_fictional_trusted: bool):
+    result, preview = prepare_preview(
+        repo, repository_id, tracking_ref, baseline_sha,
+        public_fictional_trusted=public_fictional_trusted)
     server = make_server(preview)  # ephemeral 127.0.0.1 only
     return result, preview, server
+
+
+def browser_refresh_callback(repo: Path, observed_sha: str):
+    """Revalidate ONE public Git origin and refresh only after an HTTP click.
+
+    Keep the last successfully rendered SHA if Git advanced but rendering
+    failed. This allows retrying the same commit without dropping V1.
+    """
+    state = {"observed": observed_sha}
+
+    def update(_current_preview: AttestedPreview):
+        fetch_fictional_demo(repo, PUBLIC_DEMO_REPOSITORY,
+                             PUBLIC_DEMO_TRACKING_REF)
+        remote = _git(repo, "rev-parse", "--verify",
+                      PUBLIC_DEMO_TRACKING_REF + "^{commit}").decode("ascii").strip()
+        if not SHA.fullmatch(remote):
+            raise DemoRefused("SHA de branche invalide.")
+        if remote == state["observed"]:
+            return None
+        result, new_preview = prepare_preview(
+            repo, PUBLIC_DEMO_REPOSITORY, PUBLIC_DEMO_TRACKING_REF,
+            state["observed"], public_fictional_trusted=True)
+        if result["observed_commit"] != remote:
+            raise DemoRefused("Branche Git déplacée pendant le rendu.")
+        state["observed"] = result["observed_commit"]
+        return new_preview
+
+    return update
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -114,6 +150,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="SHA40 avant modification ; omissible avec --fetch-demo")
     parser.add_argument("--fetch-demo", action="store_true",
                         help="Récupérer explicitement la seule branche publique fictive puis comparer depuis l'ancien SHA local")
+    parser.add_argument("--browser-refresh", action="store_true",
+                        help="Autoriser un clic volontaire Firefox à déclencher UN fetch et deux rendus Quarto de la fixture publique")
     parser.add_argument("--public-fictional-trusted", action="store_true",
                         help="J'atteste une ressource exclusivement publique/fictive et Quarto de confiance")
     args = parser.parse_args(argv)
@@ -127,6 +165,9 @@ def main(argv: list[str] | None = None) -> int:
             args.tracking_ref = PUBLIC_DEMO_TRACKING_REF
         elif not args.repository_id or not args.tracking_ref:
             raise DemoRefused("--repository-id et --tracking-ref requis sans --demo.")
+        if args.browser_refresh and (not args.demo or
+                                     not args.public_fictional_trusted):
+            raise DemoRefused("--browser-refresh exige --demo et --public-fictional-trusted.")
         if not args.baseline_sha and not args.fetch_demo:
             raise DemoRefused("--baseline-sha requis sans actualisation Git explicite.")
         # Validate user consent and arguments before any contact with GitHub.
@@ -138,9 +179,17 @@ def main(argv: list[str] | None = None) -> int:
             baseline = args.baseline_sha or old_sha
         else:
             baseline = args.baseline_sha
-        result, preview, server = prepare(
-            args.repo, args.repository_id, args.tracking_ref,
-            baseline, public_fictional_trusted=args.public_fictional_trusted)
+        if args.browser_refresh:
+            result, preview = prepare_preview(
+                args.repo, args.repository_id, args.tracking_ref,
+                baseline, public_fictional_trusted=True)
+            refresh = browser_refresh_callback(
+                args.repo, result["observed_commit"])
+            server = make_server(preview, refresh_callback=refresh)
+        else:
+            result, preview, server = prepare(
+                args.repo, args.repository_id, args.tracking_ref,
+                baseline, public_fictional_trusted=args.public_fictional_trusted)
     except (ValueError, OSError) as exc:
         parser.exit(2, "REFUSED: " + str(exc) + "\n")
     try:
@@ -154,6 +203,9 @@ def main(argv: list[str] | None = None) -> int:
         print("Ressource à ouvrir dans Firefox : " +
               preview.browser_url(server.server_port), flush=True)
         print("Choisir V1/V2 dans la page ; Ctrl+C arrête le serveur local.", flush=True)
+        print("Actualisation volontaire depuis Firefox : " +
+              ("ACTIVÉE pour la fixture fictive" if args.browser_refresh
+               else "DÉSACTIVÉE"), flush=True)
         server.serve_forever()
     except KeyboardInterrupt:
         pass
