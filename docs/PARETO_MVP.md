@@ -92,13 +92,22 @@ La vraie compatibilité du rendu et de l'injection reste à observer.
 ```sh
 python3 "$HOME/projets/alliage-code/quarto_pareto_demo.py" \
   --repo "$HOME/projets/alliage-demo" \
-  --repository-id djibian/alliage \
-  --tracking-ref refs/remotes/origin/experiment/pareto-quarto-demo \
+  --demo \
   --baseline-sha 5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347 \
   --public-fictional-trusted
 ```
 
-Cette première commande **ne fait aucun fetch**. Elle compare V1 = V5 bleu au **HEAD adopté** vert (arbre équivalent à V6), **sans prétendre qu'une IA a déjà modifié la ressource**. Elle utilise les objets Git
+Le raccourci `--demo` sélectionne **uniquement** l'identité
+`djibian/alliage` et la référence de la branche de démonstration ;
+il n'autorise aucune écriture et n'enlève pas l'attestation
+`--public-fictional-trusted`. La forme explicite
+`--repository-id … --tracking-ref …` reste disponible.
+
+Cette première commande **ne fait aucun fetch**. Elle compare
+V1 = V5 (CSS bleu) au SHA de suivi **déjà présent dans le clone**
+(initialement le merge approuvé, puis éventuellement un commit IA) ;
+elle ne présente jamais une ancienne version de test comme une
+révision produite par l'IA. Elle utilise les objets Git
 déjà présents, confirme le FAST_FORWARD et rend avec **le véritable
 Quarto** deux instantanés à SHA complets, sans checkout. Le mode
 `--fetch-demo` ci-dessous permet ensuite une **récupération Git volontaire**
@@ -168,17 +177,16 @@ Il ne modifie pas le checkout et ne publie rien.
 ```sh
 python3 "$HOME/projets/alliage-code/quarto_pareto_demo.py" \
   --repo "$HOME/projets/alliage-demo" \
-  --repository-id djibian/alliage \
-  --tracking-ref refs/remotes/origin/experiment/pareto-quarto-demo \
-  --fetch-demo --public-fictional-trusted
+  --demo --fetch-demo --public-fictional-trusted
 ```
 
 Si GitHub n'a pas encore de nouveau commit ou si la branche est réécrite,
 la comparaison est **refusée**, jamais simulée. Il reste une intervention
 dans le terminal après l'essai IA, mais **plus besoin de saisir soi-même
-un refspec Git ou un nouveau SHA**. La commande de lancement et la
-reprise pourront devenir un bouton local seulement après qualification
-du parcours réel dans Firefox.
+un refspec Git ou un nouveau SHA**. La chaîne a été qualifiée en vrai Firefox le 5 novembre 2026 ;
+une éventuelle actualisation en un clic depuis la page nécessitera
+une évolution **distincte, explicite et testée** du pont local,
+sans mise à jour ni publication automatique.
 
 Dans Firefox, comparer V1 (départ avant IA) et V2
 (proposition IA), utiliser « Retenir V2 (local) »
