@@ -741,3 +741,53 @@ lors de ce contrôle, et la branche de démonstration
 ne doit **jamais** être intégrée dans `main`.
 P3.6 (#13–#21), multiapplication, publication et
 ressources professeur confidentielles restent différés.
+
+
+## Itération Pareto après démonstration — réduction du CLI (5 novembre 2026)
+
+**Fait déclencheur :** [issue #23](https://github.com/djibian/alliage/issues/23)
+`DEMO_REAL_FIREFOX_PASS`, terminée. Le code reste en
+[PR #22](https://github.com/djibian/alliage/pull/22), **non fusionnée**,
+en attente d'une contre-revue indépendante. `main` était encore
+`7231ac4fb54ec54aebd498e72d4bd588878e631e` lors du contrôle.
+
+**Changement minimal du logiciel :** `quarto_pareto_demo.py --demo`
+préremplit **exclusivement** l'identité du dépôt public fictif
+`djibian/alliage` et sa branche
+`refs/remotes/origin/experiment/pareto-quarto-demo`.
+L'option **n'active ni fetch, ni rendu implicite** et ne
+remplace jamais `--public-fictional-trusted` ; `--fetch-demo`
+demeure un acte volontaire. Un conflit entre `--demo` et
+`--repository-id` ou `--tracking-ref` est refusé
+**avant** tout accès Git. La commande explicite historique
+reste prise en charge.
+
+**Tests :** nouveaux tests Python contrôlant le raccourci sans
+fetch, le fetch volontaire, le consentement requis, les
+conflits d'identité/ref et l'absence de contact Git dans
+les refus. Sur le HEAD technique
+`d3b49cb81ec4ee39fc4dc581f1ce2a1165db1aa3`,
+trois workflows **SUCCESS** :
+[Quarto réel #42072177612](https://github.com/djibian/alliage/actions/runs/42072177612),
+[Python #42072177647](https://github.com/djibian/alliage/actions/runs/42072177647)
+et [navigation #42072177553](https://github.com/djibian/alliage/actions/runs/42072177553).
+La compatibilité **du nouveau raccourci dans Firefox de l'enseignant**
+n'a pas été requalifiée manuellement : l'ancien parcours
+utilisateur reste le parcours réel attesté.
+
+**Documentation :** README désormais centré sur le MVP fictif
+actuel et non le pilote privé v0.4 ; guide de démonstration
+allégé ; roadmap V0 marquée `DEMO_REAL_FIREFOX_PASS`.
+Le prochain problème ergonomique déterminant est inscrit
+dans [#25](https://github.com/djibian/alliage/issues/25) :
+**actualisation Git/Quarto sur un clic volontaire depuis Firefox**
+sans relancer manuellement le terminal, en réutilisant le moteur
+et les garde-fous existants. **Ne pas commencer cette issue
+avant la revue favorable et l'intégration autorisée de #22.**
+
+**Prochaine porte :** contre-expertise indépendante de
+la PR #22 sur son HEAD final exact : consentement, choix
+local, identité Git, fetch opt-in, refus `--demo` contradictoire,
+CI du HEAD mutable de la fixture, aucune publication et
+aucune fuite de données privées. Ne pas fusionner la branche
+fictive dans `main`, ni réactiver P3.6.
