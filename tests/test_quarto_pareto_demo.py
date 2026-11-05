@@ -251,6 +251,77 @@ class ParetoLaunchTests(unittest.TestCase):
             fetch.assert_not_called()
 
 
+    def test_browser_refresh_requires_demo_and_explicit_public_trust(self):
+        with (patch.object(pilot,"prepare_preview") as preview,
+              patch.object(pilot,"fetch_fictional_demo") as fetch,
+              patch.object(pilot,"make_server") as server):
+            candidates=[
+                ["--browser-refresh","--repository-id","djibian/alliage",
+                 "--tracking-ref",pilot.PUBLIC_DEMO_TRACKING_REF,
+                 "--baseline-sha",self.SHA,"--public-fictional-trusted"],
+                ["--browser-refresh","--demo","--baseline-sha",self.SHA],
+            ]
+            for args in candidates:
+                with self.subTest(args=args), self.assertRaises(SystemExit) as denied:
+                    pilot.main(["--repo","/fiction",*args])
+                self.assertEqual(denied.exception.code,2)
+            preview.assert_not_called()
+            fetch.assert_not_called()
+            server.assert_not_called()
+
+    def test_browser_refresh_retries_failed_render_from_last_successful_SHA(self):
+        old,new="a"*40,"b"*40
+        callback=pilot.browser_refresh_callback(Path("/fiction"),old)
+        new_preview=Mock()
+        def fake_git(*_):
+            return (new+"\\n").encode()
+        with (patch.object(pilot,"fetch_fictional_demo",return_value=old) as fetch,
+              patch.object(pilot,"_git",side_effect=fake_git),
+              patch.object(pilot,"prepare_preview",
+                           side_effect=[ValueError("Quarto refuses"),
+                                        ({"observed_commit":new},new_preview)]) as prepare):
+            with self.assertRaises(ValueError):
+                callback(Mock())
+            self.assertIs(callback(Mock()),new_preview)
+            self.assertEqual(prepare.call_count,2)
+            self.assertEqual(prepare.call_args_list[0].args[3],old)
+            self.assertEqual(prepare.call_args_list[1].args[3],old)
+            self.assertEqual(fetch.call_count,2)
+        with (patch.object(pilot,"fetch_fictional_demo") as fetch,
+              patch.object(pilot,"_git",return_value=(new+"\\n").encode()),
+              patch.object(pilot,"prepare_preview") as preview):
+            self.assertIsNone(callback(Mock()))
+            fetch.assert_called_once()
+            preview.assert_not_called()
+
+    def test_browser_refresh_opt_in_reuses_one_server_without_implicit_fetch(self):
+        result={"baseline_commit":self.SHA,"observed_commit":"b"*40,
+                "resource_id":"quarto:djibian/alliage:activite.qmd",
+                "session_path":"/fiction/session"}
+        preview=Mock()
+        preview.browser_url.return_value="http://127.0.0.1:9000/test"
+        server=Mock()
+        server.server_port=9000
+        with (patch.object(pilot,"prepare_preview",
+                           return_value=(result,preview)) as prepare,
+              patch.object(pilot,"make_server",return_value=server) as make,
+              patch.object(pilot,"fetch_fictional_demo") as fetch):
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(pilot.main([
+                    "--repo","/fiction","--demo","--browser-refresh",
+                    "--baseline-sha",self.SHA,
+                    "--public-fictional-trusted"]),0)
+        prepare.assert_called_once_with(
+            Path("/fiction"),pilot.PUBLIC_DEMO_REPOSITORY,
+            pilot.PUBLIC_DEMO_TRACKING_REF,self.SHA,
+            public_fictional_trusted=True)
+        self.assertEqual(make.call_count,1)
+        self.assertTrue(callable(make.call_args.kwargs["refresh_callback"]))
+        fetch.assert_not_called()
+        server.serve_forever.assert_called_once_with()
+
+
+
 class RealParetoQuartoTests(unittest.TestCase):
     """Opt-in CI test: genuine Quarto rendering, local Git, local HTTP, no Firefox."""
     REF = ParetoLaunchTests.REF
