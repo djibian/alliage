@@ -1,6 +1,6 @@
 # Alliage — première démonstration pédagogique Pareto (Firefox + IA + Git + Quarto)
 
-**Statut : PR #22 prête pour revue indépendante, non fusionnée ; parcours Firefox réel PARTIELLEMENT QUALIFIÉ le 5 novembre 2026 (issue #23).**
+**Statut : `DEMO_REAL_FIREFOX_PASS` confirmé par l'enseignant le 5 novembre 2026 sur l'issue #23 ; PR #22 prête pour revue indépendante, non fusionnée.**
 **Strictement ressources publiques/fictives** ; jamais de document professeur privé.
 **Version de référence :** `main` `7231ac4fb54ec54aebd498e72d4bd588878e631e`.
 
@@ -203,13 +203,14 @@ confirme **un seul fichier modifié, `activite.qmd`**, et `main`
 inchangé. Le bouton « Préparer demande IA » a également été
 essayé et fonctionne selon l'enseignant.
 
-**La seule preuve utilisateur manquante** pour
-`DEMO_REAL_FIREFOX_PASS` est l'aller-retour V2 → V1 → V2
-avec constat des consignes distinctes, suivi du clic
-« Retenir V2 (local) » ou « Écarter V2 (local) » et
-du message correspondant. La capture fournie affiche encore
-« Décision non prise » : statut `DEMO_PARTIAL`, ne pas
-déduire un clic absent de la présence d'un bouton.
+**Réussite finale confirmée par l'enseignant le 5 novembre 2026 :**
+la navigation V1 ↔ V2 **fonctionne** et le clic sur
+« Retenir V2 (local) » affiche exactement :
+« V2 retenue dans ce navigateur, sans écriture Git ni publication. »
+Cette confirmation humaine clôt les deux observations qui manquaient
+à la première capture. **`DEMO_REAL_FIREFOX_PASS`** est enregistré
+sur [l'issue #23](https://github.com/djibian/alliage/issues/23).
+La validation Git durable et la publication élèves restent hors du MVP.
 
 **Après un clonage effectué après le commit IA :** la branche
 locale de suivi pointe déjà sur `ecf35454...` ; **ne pas**
@@ -243,16 +244,20 @@ avec « Préparer demande IA ».
 | Écriture GitHub dans le panneau exact | Commit ecf35454… sur seule fixture | PASS réel |
 | Repli en patch si besoin | Patch appliqué avec autorisation | NON TESTÉ |
 | Rendu initial Quarto V5 → HEAD adopté | Deux SHA, actifs, HTTP, intégrité des fichiers suivis | CI réelle sur branche adoptée : PASS (run 41890947229) |
-| Navigation V1/V2 dans Firefox | V2 affichée ; aller-retour à confirmer | PARTIAL |
-| Décision humaine locale | Capture : « Décision non prise » | À effectuer dans Firefox |
+| Navigation V1/V2 dans Firefox | Aller-retour confirmé explicitement par l'enseignant (05/11/2026) | PASS réel |
+| Décision humaine locale | Clic « Retenir V2 » et message local exact rapporté (05/11/2026) | PASS réel, non durable |
 | Absence de modification du site élèves | Diff limité à la fixture, aucune publication initiée par Alliage | PASS dans le périmètre MVP |
 
-**Conclusion :** le parcours Firefox réel jusqu'au commit GitHub et
-aux deux rendus Quarto est démontré, mais la navigation complète
-V1/V2 et la décision locale n'ont pas encore été observées.
-Ne déclarer `DEMO_REAL_FIREFOX_PASS` qu'après confirmation de ces
-deux gestes. Une décision locale ne vaut toujours ni approbation
-Git durable ni publication.
+**Conclusion : `DEMO_REAL_FIREFOX_PASS`** dans le périmètre
+public/fictif : contexte et dialogue dans la sidebar native,
+écriture Git autorisée, fetch volontaire, vrais rendus Quarto,
+navigation V1/V2 et décision locale, sans publication.
+Le geste exact de copie du texte préparé par Alliage n'est
+pas instrumenté séparément ; la préparation est rapportée
+comme fonctionnelle, et le dialogue réellement contextualisé.
+La décision locale ne vaut toujours ni approbation Git
+durable ni publication. La PR #22 reste à relire indépendamment
+avant intégration éventuelle dans `main`.
 
 ### Documentation externe
 - Firefox, chatbot natif et sélection :
