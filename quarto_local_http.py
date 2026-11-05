@@ -224,8 +224,10 @@ def make_handler(preview: AttestedPreview, refresh_callback=None):
                     self.respond_json(HTTPStatus.OK, {
                         "state": "updated",
                         "url": updated.browser_url(self.server.server_port)})
-                except (ValueError, OSError, UnicodeError):
-                    # No Git traceback, paths or tokens in browser responses.
+                except Exception:
+                    # A rendering subprocess can raise CalledProcessError or
+                    # other failures; fail closed, keep the old preview, and
+                    # never expose paths, tracebacks or tokens to Firefox.
                     self.respond_json(HTTPStatus.UNPROCESSABLE_ENTITY, {
                         "state": "error",
                         "message": "Actualisation Git/Quarto refusée ; ancienne comparaison conservée."})
