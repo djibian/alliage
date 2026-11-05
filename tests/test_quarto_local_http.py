@@ -59,9 +59,9 @@ class LocalHTTPPreviewTests(unittest.TestCase):
         self.server.server_close()
         self.thread.join(timeout=5)
 
-    def request(self, path, method="GET", headers=None):
+    def request(self, path, method="GET", headers=None, server=None):
         connection = http.client.HTTPConnection("127.0.0.1",
-                                                self.server.server_port, timeout=5)
+                                                (server or self.server).server_port, timeout=5)
         try:
             connection.request(method, path, headers=headers or {})
             response = connection.getresponse()
@@ -69,6 +69,112 @@ class LocalHTTPPreviewTests(unittest.TestCase):
             return response.status, dict(response.getheaders()), body
         finally:
             connection.close()
+
+    def start_refresh_server(self, callback):
+        server = make_server(self.preview, refresh_callback=callback)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        def close():
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+        self.addCleanup(close)
+        return server
+
+    def control_headers(self, server, token=None, origin=True):
+        headers = {"Sec-Fetch-Site": "same-origin",
+                   "X-Alliage-Intent": "user-click"}
+        if origin:
+            headers["Origin"] = f"http://127.0.0.1:{server.server_port}"
+        if token is not None:
+            headers["X-Alliage-Refresh-Token"] = token
+        return headers
+
+    def test_refresh_is_disabled_on_existing_read_only_preview(self):
+        p = self.preview.prefix
+        self.assertEqual(self.request(p + "/_alliage/refresh-capability")[0], 404)
+        self.assertEqual(self.request(p + "/_alliage/refresh",
+                                      method="POST")[0], 405)
+
+    def test_opt_in_refresh_requires_same_origin_and_single_use_capability(self):
+        calls = []
+        def unchanged(_active):
+            calls.append(True)
+            return None
+        server = self.start_refresh_server(unchanged)
+        p = self.preview.prefix
+        get = p + "/_alliage/refresh-capability"
+        post = p + "/_alliage/refresh"
+        self.assertEqual(self.request(get, server=server)[0], 403)
+        self.assertEqual(self.request(get, headers={
+            "Sec-Fetch-Site": "cross-site", "X-Alliage-Intent": "user-click"
+        },server=server)[0], 403)
+        code, _, raw = self.request(get,headers=self.control_headers(server),server=server)
+        self.assertEqual(code, 200)
+        token = json.loads(raw)["token"]
+        self.assertGreater(len(token), 32)
+        self.assertEqual(self.request(post,method="POST",server=server,
+                         headers=self.control_headers(server))[0],403)
+        self.assertEqual(self.request(post,method="POST",server=server,
+                         headers=self.control_headers(server,token,False))[0],403)
+        cross=self.control_headers(server,token)
+        cross["Origin"]="http://evil.invalid"
+        self.assertEqual(self.request(post,method="POST",server=server,headers=cross)[0],403)
+        self.assertEqual(self.request(post,method="POST",server=server,
+                         headers={**self.control_headers(server,token),
+                                  "Content-Length":"3"})[0],400)
+        code, headers, raw=self.request(post,method="POST",server=server,
+                                        headers=self.control_headers(server,token))
+        self.assertEqual(code,200)
+        self.assertEqual(json.loads(raw),{"state":"unchanged"})
+        self.assertEqual(headers["Cache-Control"],"no-store")
+        self.assertNotIn("Access-Control-Allow-Origin",headers)
+        self.assertEqual(len(calls),1)
+        self.assertEqual(self.request(post,method="POST",server=server,
+                         headers=self.control_headers(server,token))[0],403)
+        self.assertEqual(len(calls),1)
+        self.assertEqual(self.request(p+"/V2/project/_site/activite.html",
+                                      server=server)[0],200)
+
+    def test_refresh_failure_keeps_previous_verified_assets(self):
+        def failed(_):
+            raise ValueError("private details should not leak into HTTP")
+        server=self.start_refresh_server(failed)
+        p=self.preview.prefix
+        old_url=urlsplit(self.preview.browser_url(server.server_port))
+        code,_,body=self.request(p+"/_alliage/refresh-capability",
+                                server=server,headers=self.control_headers(server))
+        self.assertEqual(code,200)
+        token=json.loads(body)["token"]
+        status,_,raw=self.request(p+"/_alliage/refresh",
+                 method="POST",server=server,headers=self.control_headers(server,token))
+        self.assertEqual(status,422)
+        self.assertNotIn(b"private details",raw)
+        self.assertEqual(self.request(old_url.path+"?"+old_url.query,
+                                      server=server)[0],200)
+        self.assertEqual(self.request(p+"/_alliage/refresh",method="POST",
+                 server=server,headers=self.control_headers(server,token))[0],403)
+
+    def test_success_swaps_only_after_attested_preview_and_invalidates_old_token(self):
+        replacement=AttestedPreview(self.session,self.resource_id)
+        server=self.start_refresh_server(lambda _:replacement)
+        p=self.preview.prefix
+        code,_,raw=self.request(p+"/_alliage/refresh-capability",
+                                server=server,headers=self.control_headers(server))
+        self.assertEqual(code,200)
+        token=json.loads(raw)["token"]
+        status,_,raw=self.request(p+"/_alliage/refresh",
+                 method="POST",server=server,headers=self.control_headers(server,token))
+        self.assertEqual(status,200)
+        result=json.loads(raw)
+        self.assertEqual(result["state"],"updated")
+        self.assertEqual(result["url"],replacement.browser_url(server.server_port))
+        self.assertEqual(self.request(p+"/V2/project/_site/activite.html",
+                                      server=server)[0],404)
+        self.assertEqual(self.request(urlsplit(result["url"]).path,
+                                      server=server)[0],200)
+        self.assertEqual(self.request(p+"/_alliage/refresh",method="POST",
+                 server=server,headers=self.control_headers(server,token))[0],404)
 
     def test_resource_html_is_native_unmodified_and_capability_scoped(self):
         url = urlsplit(self.preview.browser_url(self.server.server_port))
