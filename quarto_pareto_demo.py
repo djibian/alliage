@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Pareto pilot: one explicit local command after an authorized Git fetch.
+"""Pareto pilot: one explicit local command for two Git-pinned Quarto renders.
 
 Reuse P3.3 -> P3.1 -> P3.2 and HTTP verified assets. No AI API,
-Git fetch, checkout, commit, merge, publication or implicit browser launch.
-Only for an explicitly trusted, entirely PUBLIC/FICTIONAL Quarto project.
+implicit Git fetch, checkout, commit, merge, publication or browser launch.
+An opt-in --fetch-demo is limited to the trusted PUBLIC/FICTIONAL branch.
 """
 from __future__ import annotations
 
