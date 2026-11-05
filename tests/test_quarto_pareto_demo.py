@@ -208,7 +208,11 @@ class ParetoLaunchTests(unittest.TestCase):
               patch.object(pilot, "prepare") as prepare,
               patch.object(pilot, "AttestedPreview"),
               patch.object(pilot, "make_server")):
-            prepare.return_value = (result, Mock(), Mock())
+            preview = Mock()
+            preview.browser_url.return_value = "http://127.0.0.1:10000/test"
+            server = Mock()
+            server.server_port = 10000
+            prepare.return_value = (result, preview, server)
             with redirect_stdout(io.StringIO()):
                 self.assertEqual(pilot.main([
                     "--repo", "/fiction", "--demo", "--fetch-demo",
