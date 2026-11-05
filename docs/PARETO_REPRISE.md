@@ -60,22 +60,32 @@ Reporter données professeur privées, multiapplication et P3.6 (#13–#21).
   `SUCCESS` sur le commit technique `3ec749794f1eb22a1c7551f767e9bb47ab4673cd`.
   Vérifier les CI du **HEAD mutable** courant de #22.
 
-## Verdict humain et dernière action
+## Verdict humain acquis — 5 novembre 2026
 
-**`DEMO_PARTIAL` : la véritable sidebar Firefox n'est plus
-`UNPROVEN`.** Il reste exactement deux preuves humaines :
-1. Cliquer `← V1`, constater l'ancienne consigne, puis
-   `V2 →` et constater la nouvelle.
-2. Cliquer `Retenir V2 (local)` ou `Écarter V2 (local)`
-   et constater le statut local (la capture initiale affichait
-   **« Décision non prise »**).
+**`DEMO_REAL_FIREFOX_PASS`** publié sur
+[l'issue #23](https://github.com/djibian/alliage/issues/23#issuecomment-6662890609).
+Le premier essai humain a montré ChatGPT dans la sidebar native
+Firefox, la lecture puis l'écriture GitHub autorisée sur la
+branche fictive, et deux rendus Quarto réels après
+`--fetch-demo`. L'enseignant a ensuite confirmé explicitement
+la **navigation V1 ↔ V2 fonctionnelle** et le clic
+**« Retenir V2 (local) »**, avec le message exact :
+« V2 retenue dans ce navigateur, sans écriture Git ni publication. »
 
-Confirmer ces deux gestes dans
-[l'issue #23](https://github.com/djibian/alliage/issues/23)
-pour déclarer `DEMO_REAL_FIREFOX_PASS`, sans inventer
-une validation Git durable ou une publication élèves.
-Ne pas réclamer un nouveau commit : la modification GitHub
-et les rendus sont déjà réussis.
+Cela achève le MVP **public/fictif**, sans publication ni
+validation Git durable. Le collage du texte intégral préparé
+par Alliage n'a pas été attesté comme geste distinct ;
+la préparation fonctionne selon l'enseignant et le chatbot
+a reçu un contexte Git explicite.
+
+**Prochaine étape de livraison logicielle :** faire relire
+indépendamment le HEAD courant de
+[la PR #22](https://github.com/djibian/alliage/pull/22)
+(consentement, sélection, identité déclarée, fetch borné,
+CI de l'ascendance Git et absence de publication).
+Suivre `AGENTS.md` avant toute éventuelle intégration
+du **logiciel seulement** dans `main` ; ne **jamais**
+y fusionner la branche fictive.
 
 ## Simplification UX à éprouver ensuite
 
