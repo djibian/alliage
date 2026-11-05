@@ -54,15 +54,17 @@ function findAll(node,tag) {
 class EmptyKeysURLSearchParams extends URLSearchParams {
   keys() {return [][Symbol.iterator]();}
 }
-function run(url,iframe=false,SearchParams=URLSearchParams) {
+function run(url,iframe=false,SearchParams=URLSearchParams,selected="") {
   const location=new URL(url);
   const navigations=[];
   const document={
     documentElement:new Element("html"),
     getElementById:()=>null,
-    createElement:tag=>new Element(tag)
+    createElement:tag=>new Element(tag),
+    createTextNode:text=>Object.assign(new Element("text"),{textContent:text})
   };
-  const window={location:{assign:url=>navigations.push(url)}};
+  const window={location:{assign:url=>navigations.push(url)},
+    getSelection:()=>({toString:()=>selected})};
   window.self=window;
   window.top=iframe?{}:window;
   vm.runInNewContext(source,{location,window,document,URL,URLSearchParams:SearchParams,JSON,Array},{timeout:1000});
@@ -73,7 +75,7 @@ test("V2 historical Quarto resource opens directly; V1 → V2 keeps same session
   const first=run(href());
   assert.ok(first.host,"native resource toolbar should be injected");
   const buttons=findAll(first.host,"button");
-  assert.equal(buttons.length,2);
+  assert.equal(buttons.length,5);
   assert.equal(buttons[0].disabled,false);
   assert.equal(buttons[1].disabled,true);
   assert.match(findAll(first.host,"div").slice(-1)[0].textContent,/non recontrôlées/);
@@ -189,4 +191,94 @@ test("loopback host, token, version, path and explicit query are tightly scoped"
   ]) {
     assert.equal(run(candidate).host,null,candidate.slice(0,95));
   }
+});
+
+
+test("AI handoff requires conscious public/fictional disclosure and never sends data",()=>{
+  const u=httpHref();
+  const res=run(u,false,URLSearchParams,"Consigne publique pour le TP");
+  assert.ok(res.host);
+  const buttons=findAll(res.host,"button");
+  const ai=buttons[2],agree=findAll(res.host,"input")[0];
+  const output=findAll(res.host,"textarea")[0];
+  assert.equal(agree.checked,false);
+  ai.emit("click");
+  assert.equal(output.hidden,true);
+  assert.equal(output.value||"","");
+  agree.checked=true;
+  ai.emit("click");
+  assert.equal(output.hidden,false);
+  assert.match(output.value,/Passage sélectionné/);
+  assert.match(output.value,/Consigne publique pour le TP/);
+  assert.match(output.value,/quarto:fiction\/laboratoire:activite\.qmd/);
+  assert.ok(output.value.includes(sha(2)));
+  assert.ok(!output.value.includes("alliage-local-"));
+  assert.ok(!output.value.includes("alliage-history-v0"));
+  assert.ok(!output.value.includes("46273"));
+  assert.ok(!output.value.includes("http://127.0.0.1"));
+  assert.match(output.value,/autorisation explicite/i);
+  assert.match(output.value,/ne peux pas écrire/);
+  assert.match(output.value,/aucune fusion/);
+});
+test("AI handoff whole-resource mode copies only declared identity, not HTML or token",()=>{
+  const res=run(href(),false,URLSearchParams,"");
+  const ai=findAll(res.host,"button")[2];
+  const agree=findAll(res.host,"input")[0];
+  const box=findAll(res.host,"textarea")[0];
+  agree.checked=true;ai.emit("click");
+  assert.equal(box.hidden,false);
+  assert.match(box.value,/ressource entière \(aucun contenu HTML transmis\)/);
+  assert.ok(!box.value.includes("p31-final-observed-"));
+  assert.ok(!box.value.includes("file:///"));
+  assert.ok(!box.value.includes("enseignant privé"));
+  assert.ok(box.value.length<2400);
+});
+test("AI handoff rejects oversized and malformed text rather than truncating",()=>{
+  for(const selection of ["Z".repeat(2401),"un mot\u0000malveillant"]) {
+    const res=run(httpHref(),false,URLSearchParams,selection);
+    const ai=findAll(res.host,"button")[2],agree=findAll(res.host,"input")[0];
+    const box=findAll(res.host,"textarea")[0];
+    agree.checked=true;ai.emit("click");
+    assert.equal(box.hidden,true);
+    assert.equal(box.value||"","");
+  }
+});
+test("AI handoff only appears on exact authorized preview, not forged pages",()=>{
+  assert.equal(run(httpHref().split("?")[0]).host,null);
+  assert.equal(run("https://example.invalid/activite.html?"+httpHref().split("?")[1]).host,null);
+  assert.equal(run(httpHref(),true).host,null);
+});
+
+
+test("retain/reject is explicit, browser-local, and never a Git acceptance",()=>{
+  const res=run(httpHref(),false,URLSearchParams,"");
+  const buttons=findAll(res.host,"button");
+  const status=findAll(res.host,"div").find(x=>x.textContent.includes("Décision non prise"));
+  assert.ok(status);
+  buttons[3].emit("click");
+  assert.match(status.textContent,/V2 retenue/);
+  assert.match(status.textContent,/sans écriture Git ni publication/);
+  buttons[4].emit("click");
+  assert.match(status.textContent,/V2 écartée/);
+  assert.equal(res.navigations.length,0);
+});
+
+test("fictional demo context includes explicit but UNVERIFIED editing branch",()=>{
+  const p={...payload(),resource_id:"quarto:djibian/alliage:activite.qmd"};
+  const x=run(httpHref(p),false,URLSearchParams,"La consigne de tri");
+  const consent=findAll(x.host,"input")[0];
+  consent.checked=true;
+  findAll(x.host,"button")[2].emit("click");
+  const prompt=findAll(x.host,"textarea")[0].value;
+  assert.match(prompt,/experiment\/pareto-quarto-demo/);
+  assert.match(prompt,/fichier activite\.qmd/);
+  assert.match(prompt,/À VÉRIFIER/);
+  assert.ok(!prompt.includes("alliage-local-"));
+  assert.ok(!prompt.includes("127.0.0.1"));
+  const y=run(httpHref(),false,URLSearchParams,"Fiction");
+  findAll(y.host,"input")[0].checked=true;
+  findAll(y.host,"button")[2].emit("click");
+  const generic=findAll(y.host,"textarea")[0].value;
+  assert.match(generic,/Branche de travail NON IDENTIFIÉE/);
+  assert.ok(!generic.includes("experiment/pareto-quarto-demo"));
 });

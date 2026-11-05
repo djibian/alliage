@@ -46,3 +46,89 @@
 **Arbitrage ouvert :** la future topologie des branches par ressource et le registre d'attestations de publication ne sont pas imposés par P3.0. Expérimenter une branche dédiée sur un dépôt de test, puis décider à partir du parcours réel.
 
 **A013 — La chaîne de qualification n'est pas l'interface produit (26 octobre 2026).** Le scénario fictif V3→V4 a qualifié la composition explicite P3.3 (SHA Git observé) → P3.1 (aperçus Quarto réels) → P3.2 (navigation Firefox) sans publication. Pour l'incrément suivant, privilégier la réduction des manipulations au moyen d'une commande locale minimale, en conservant les identités et garanties vérifiables. Ni les commandes Python, ni les dossiers de sessions, ni `navigation.html` ne définissent le modèle produit définitif. L'objectif reste l'enseignant travaillant dans la ressource canonique, avec dialogue IA indépendant, historique de conception contextualisé et maîtrise explicite de la validation et de la publication. Ne pas imposer au navigateur le pilotage de Git/Quarto, de nouveau moteur IA ni d'infrastructure multiapplication avant une preuve de nécessité. Les mécanismes distincts de modification externe, de révision, de validation et de publication restent régis par A008–A012.
+
+## A015 — Convergence Pareto vers l'usage du chatbot natif Firefox (4 novembre 2026)
+
+**Décision adoptée pour l'itération V0, sans renier A001–A013 :**
+Alliage est un **pont de contexte et de révisions** entre
+le navigateur Firefox, le chatbot IA **déjà fourni par
+Firefox**, GitHub et Quarto. Il ne développe ni chatbot,
+ni API IA, ni orchestrateur générique. Le premier livrable
+utilise **uniquement des ressources fictives/publiques**.
+
+- Le contexte passe par une **zone de texte préparée localement
+  après consentement** ; l'enseignant le copie dans le
+  panneau latéral natif. Aucun accès aux conversations du
+  chatbot, lecture de presse-papiers, injection dans sa
+  page ou présomption d'outil GitHub. Les métadonnées de
+  l'URL locale sont *déclaratives*, non authentifiées.
+- Les écritures Git sont une action externe **sur branche
+  explicitement autorisée** ; si la version du chatbot
+  latéral ne peut pas écrire, une proposition de patch
+  constitue le contournement humain le plus court.
+  L'existence du connecteur dans une autre surface ne
+  prouve rien pour la surface Firefox réelle.
+- La restitution Quarto s'appuie sur
+  `quarto_observed_session.py`,
+  `quarto_historical_preview.py` et
+  `quarto_local_http.py` existants. Aucun fetch
+  automatique, checkout, merge ni publication.
+- Le bouton **Retenir/Écarter V2** est une **décision
+  locale dans le navigateur**, non une validation
+  durable Git ou un déploiement. Seule une preuve
+  complémentaire pourra en faire une autorisation
+  métier persistante.
+- **Branchage de démo** dans `djibian/alliage` :
+  `experiment/pareto-quarto-demo` est un arbre de
+  projet Quarto fictif autonome, qui **ne doit jamais
+  être fusionné à main** ; les modifications sont
+  restreintes à ce projet public et autorisées au cas
+  par cas. Aucun autre dépôt n'a été modifié.
+- **P3.6A–F2/O1, PR #13–#21** : développement
+  spéculatif de confinement **suspendu**, traces,
+  contre-expertises et branches **conservées**.
+  Aucune de ces PR n'est une preuve d'absence de
+  fuite dans Firefox réel. Pas de projection HTTP
+  professeur confidentielle tant que les barrières
+  correspondantes ne sont pas qualifiées.
+- **Reportés** : profils Quarto privés, multiapplication,
+  automatisation de publication élèves, connecteurs
+  multi-IA, choix Git durable, instrumentation navigateur
+  et modèles de permissions génériques.
+
+**Motif :** les mécanismes de lecture Git, rendu réel et
+comparaison ont déjà été qualifiés sur fixtures.
+Le rendement marginal d'une nouvelle couche de
+confinement HTML/Firefox est inférieur au premier
+parcours utilisateur entièrement fictif, mesurable,
+réversible et sans exposition de données sensibles.
+
+**Critère de réussite réel et non simplement CI :**
+l'enseignant constate dans **son Firefox** la sélection,
+le transfert conscient au chatbot natif, l'écriture
+Git autorisée (ou le repli patch), le nouveau rendu
+Quarto et le choix humain, sans publication automatique.
+
+
+## A016 — Actualisation Git volontaire et bornée (4 novembre 2026)
+
+Pour la **seule** démonstration publique `djibian/alliage`,
+branche `experiment/pareto-quarto-demo`, le lanceur
+`quarto_pareto_demo.py --fetch-demo` peut exécuter un
+`git fetch` **sur demande explicite de l'enseignant**,
+après confirmation que le projet Quarto est public,
+fictif et de confiance. Ce mode :
+- vérifie la racine locale exacte, l'identité de dépôt et
+  l'URL de l'origine GitHub attendue avant contact réseau ;
+- mémorise le SHA local de suivi **avant** récupération,
+  refuse toute divergence ou absence de modification par
+  la comparaison existante, et rend ensuite deux SHA épinglés ;
+- ne change jamais le checkout, ne crée pas de commit,
+  ne fusionne, ne valide ni ne publie quoi que ce soit ;
+- n'est ni une surveillance automatique ni une autorisation
+  d'appliquer ce comportement à un dépôt professeur privé.
+
+Le mode sans `--fetch-demo` reste sans réseau implicite.
+Les échanges avec le chatbot Firefox continuent d'exiger
+un consentement humain et de ne jamais présumer les droits
+GitHub de sa surface réelle.

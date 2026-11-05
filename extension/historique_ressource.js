@@ -74,7 +74,8 @@
     "button{font:inherit;padding:6px;border-radius:6px;border:1px solid #667785;",
     "background:#f7fafc;color:#14212a;cursor:pointer}",
     "button:disabled{opacity:.55;cursor:not-allowed}",
-    "button:focus-visible{outline:3px solid #2563eb}",
+    "button:focus-visible,textarea:focus-visible{outline:3px solid #2563eb}",
+    "textarea{display:block;width:100%;min-height:120px;margin-top:6px;font:12px/1.5 monospace;resize:vertical}",
     ".note{font-size:11px;color:#354a59;margin-top:5px;overflow-wrap:anywhere}"
   ].join("");
   const box = document.createElement("div");box.className="box";
@@ -85,6 +86,27 @@
   v1.type="button";v1.textContent="← V1";v1.disabled=current==="V1";
   const v2 = document.createElement("button");
   v2.type="button";v2.textContent="V2 →";v2.disabled=current==="V2";
+  // Pareto P4: a context HANDOFF to Firefox's existing native chatbot,
+  // never a chatbot API, clipboard read, conversation scraping or Git write.
+  const ai = document.createElement("button");
+  ai.type="button";ai.textContent="Préparer demande IA";
+  const keep = document.createElement("button");
+  keep.type="button";keep.textContent="Retenir V2 (local)";
+  const reject = document.createElement("button");
+  reject.type="button";reject.textContent="Écarter V2 (local)";
+  const decision = document.createElement("div");decision.className="note";
+  decision.textContent="Décision non prise ; aucun enregistrement Git ni publication.";
+  const consentLabel = document.createElement("label");
+  consentLabel.style.cssText="display:block;font:12px system-ui,sans-serif;margin-top:7px";
+  const consent = document.createElement("input");
+  consent.type="checkbox";consent.checked=false;
+  consentLabel.append(consent,document.createTextNode(
+    " Je confirme que ce contexte est public ou fictif et peut être partagé avec l’IA."));
+  const promptBox = document.createElement("textarea");
+  promptBox.readOnly=true;promptBox.hidden=true;
+  promptBox.setAttribute("aria-label","Demande à copier manuellement dans le panneau latéral Firefox");
+  const aiStatus = document.createElement("div");aiStatus.className="note";
+  aiStatus.textContent="Aucun contenu envoyé. Après préparation, copier le texte dans le chatbot latéral.";
   const note = document.createElement("div");note.className="note";
   const sha = current === "V1" ? first.commit : second.commit;
   note.textContent = current + " · SHA indiqué " + sha.slice(0,12) +
@@ -92,8 +114,83 @@
     "URL et empreintes non recontrôlées par Firefox ; aucun déploiement vérifié.";
   v1.addEventListener("click", () => { if (current !== "V1") window.location.assign(revisionUrl("V1")); });
   v2.addEventListener("click", () => { if (current !== "V2") window.location.assign(revisionUrl("V2")); });
-  row.append(title,v1,v2);
-  box.append(row,note);
+  // A click on the button may collapse the page selection in Firefox;
+  // snapshot it at pointerdown, then support keyboard activation at click.
+  let selectedAtPointerDown = "";
+  function pageSelection() {
+    try {
+      return String(window.getSelection()?.toString() || "");
+    } catch (_) { return ""; }
+  }
+  ai.addEventListener("pointerdown", () => {
+    selectedAtPointerDown = pageSelection();
+  });
+  ai.addEventListener("click", () => {
+    promptBox.hidden=true;
+    promptBox.value="";
+    if (!consent.checked) {
+      aiStatus.textContent="Confirmer d'abord que la ressource est publique ou fictive.";
+      return;
+    }
+    const selected = (selectedAtPointerDown || pageSelection()).trim();
+    selectedAtPointerDown="";
+    if (selected.length > 2400 || selected.includes("\u0000")) {
+      aiStatus.textContent="Sélection refusée (max. 2 400 caractères, sans NUL). Réduire la sélection.";
+      return;
+    }
+    // This is DECLARED provenance carried by an untrusted URL parameter,
+    // not an authenticated GitHub repository, current ref or deployment.
+    const selectedContext = selected ?
+      "Passage sélectionné (citation non vérifiée) :\n<<<PASSAGE\n" +
+      selected + "\nPASSAGE>>>" :
+      "Portée : ressource entière (aucun contenu HTML transmis).";
+    // Only the publicly documented fictional demo has a proposed branch.
+    // The URL cannot prove that ref exists, is current or is writable.
+    const branchHint = payload.resource_id === "quarto:djibian/alliage:activite.qmd"
+      ? "Branche de démonstration À VÉRIFIER : experiment/pareto-quarto-demo ; fichier activite.qmd."
+      : "Branche de travail NON IDENTIFIÉE : la demander avant toute écriture.";
+    promptBox.value = [
+      "Alliage — demande pédagogique, ressource PUBLIQUE ou FICTIVE.",
+      "Identité Git déclarée : " + payload.resource_id,
+      branchHint,
+      "Révision affichée : " + current + ", SHA Git indiqué : " + sha,
+      "Ancienne révision indiquée : " + first.commit,
+      "Nouvelle révision indiquée : " + second.commit,
+      "Attention : ces informations d'URL ne sont pas authentifiées dans Firefox.",
+      selectedContext,
+      "Tu es le chatbot IA déjà ouvert dans le panneau latéral Firefox.",
+      "Discute de la modification souhaitée. Avant toute écriture, demande",
+      "une autorisation explicite de dépôt et de branche, vérifie ton accès réel",
+      "à GitHub dans CETTE interface et respecte les règles du dépôt cible.",
+      "Si tu ne peux pas écrire depuis cette interface, produis un patch",
+      "ou une procédure GitHub explicite et n'annonce aucune modification faite.",
+      "N'autorise aucune fusion, validation de publication ni modification élève.",
+      "L'enseignant doit ensuite faire vérifier le rendu Quarto et choisir."
+    ].join("\n");
+    promptBox.hidden=false;
+    aiStatus.textContent="Demande préparée localement. Sélectionner/copier le texte puis le coller dans le chatbot latéral. Aucun envoi automatique.";
+    if (typeof promptBox.focus === "function") promptBox.focus();
+    if (typeof promptBox.select === "function") promptBox.select();
+  });
+  // This is a reversible, browser-local preference only, NOT the Git
+  // approval, edit, or publication of an educational resource.
+  const decisionKey = "alliage.local-review.v0:" + first.commit + ":" + second.commit;
+  function displayDecision(value) {
+    decision.textContent = value === "KEEP"
+      ? "V2 retenue dans ce navigateur, sans écriture Git ni publication."
+      : value === "REJECT"
+        ? "V2 écartée dans ce navigateur, sans écriture Git ni publication."
+        : "Décision non prise ; aucun enregistrement Git ni publication.";
+  }
+  function markDecision(value) {
+    try { window.sessionStorage?.setItem(decisionKey,value); } catch (_) { /* file: may forbid storage */ }
+    displayDecision(value);
+  }
+  try { displayDecision(window.sessionStorage?.getItem(decisionKey)); } catch (_) { /* non persistent */ }
+  keep.addEventListener("click", () => markDecision("KEEP"));
+  reject.addEventListener("click", () => markDecision("REJECT"));
+  row.append(title,v1,v2,ai,keep,reject);
+  box.append(row,decision,consentLabel,promptBox,aiStatus,note);
   shadow.append(style,box);
   document.documentElement.appendChild(host);
 })();

@@ -441,3 +441,353 @@ requalification locale en lecture seule par le propriétaire.
 La PR reste Draft ; aucun `main`, rendu, données pédagogiques
 ni publication ne sont modifiés.
 
+
+## P4 — convergence Pareto vers le chatbot Firefox (4 novembre 2026)
+
+**Base autoritaire non fusionnée :** `main`
+`7231ac4fb54ec54aebd498e72d4bd588878e631e`.
+**PR active : #22 Draft**, branche
+`feat/pareto-firefox-sidebar-context`, indépendante des
+PR #13–#21 P3.6 **conservées mais suspendues**. Ne
+pas fusionner cette chaîne de confinement en prérequis
+du pilote **entièrement fictif/public**.
+[Mode opératoire et critères de preuve](PARETO_MVP.md).
+[Roadmap Pareto](ROADMAP.md), ancienne roadmap archivée,
+[vision actualisée](PRODUCT_VISION.md), décisions A015–A016.
+
+**Déjà implémenté dans la PR #22 (non fusionnée) :**
+- Ressource Quarto fictive sur la branche Git **distincte**
+  `experiment/pareto-quarto-demo` du même dépôt, avec
+  V1 `1b1c0f22e4f210bb24396274f56401ade0723353`
+  et V2 initiale
+  `4a3028334a63fdd722ffd4d3da7886558127d033`.
+  **NE JAMAIS fusionner cette branche de fixture vers main.**
+  Toute écriture sur cette branche exige une autorisation
+  explicite, indépendante de l'autorisation du logiciel.
+- Sur l'overlay `historique_ressource.js`, préparation
+  locale d'un prompt avec consentement public/fictif,
+  texte sélectionné limité et SHA **déclarés**. Le
+  bouton n'interagit pas avec le chatbot : copie
+  manuelle du texte dans le panneau natif Firefox.
+  Pour la fixture connue, la branche candidate
+  `experiment/pareto-quarto-demo` est indiquée
+  comme **non authentifiée et à vérifier**.
+- Boutons `Retenir V2` et `Écarter V2` : préférence
+  locale de session navigateur **non durable** ;
+  aucune acceptation Git, fusion, ni publication.
+- `quarto_pareto_demo.py` raccorde les composants
+  existants P3.3, P3.1, P3.2, rend deux SHA
+  avec vrai Quarto et sert les fichiers inventoriés
+  via HTTP `127.0.0.1` (strictement public/fictif).
+  `--fetch-demo` effectue **seulement sur demande
+  explicite** une récupération de la branche publique
+  exacte après vérification de l'origine GitHub et
+  utilise son **ancien** SHA local comme V1 ;
+  sans option, aucun fetch automatique.
+
+**Preuves et limites :** les workflows initiaux
+de la PR #22 ont réussi :
+[Python #41859411989](https://github.com/djibian/alliage/actions/runs/41859411989)
+(**101 tests, 6 ignorés**),
+[Quarto réel vertical #41859412272](https://github.com/djibian/alliage/actions/runs/41859412272)
+(**5 tests Python dont le rendu+HTTP Quarto réel, 13 Node**),
+[Navigation #41859411813](https://github.com/djibian/alliage/actions/runs/41859411813)
+(**11+6 Python Quarto et 3+13 Node**).
+Les derniers changements `--fetch-demo`, branche dans
+le contexte et tests associés doivent être
+**requalifiés sur le HEAD final de #22** : ne pas
+reprendre les CI initiales comme preuve de ces commits.
+
+**Bloquant principal :** expérience humaine dans le
+**vrai** panneau latéral Firefox : ouverture d'une
+fixture rendue, sélection, transfert/lecture GitHub
+dans cette surface, capacité **effective** ou absence
+d'écriture GitHub, repli patch autorisé si absent,
+puis comparaison et choix local. Aucune session
+Firefox réellement testée par ce chantier ni
+écriture IA réelle prouvée. Les outils GitHub
+disponibles dans une conversation ChatGPT ne
+prouvent pas leur disponibilité dans son panneau
+latéral. **Prochain contrôleur :** revalider main,
+PR #22/CI, corriger seulement défauts déterminants,
+faire qualifier la PR et prioriser le pilote humain.
+Ne pas ouvrir un nouveau chatbot, une API IA ou une
+architecture multiapplication. Le rendu Quarto peut
+exécuter des hooks : ne pas étendre le consentement
+fictif à des dépôts/commits inconnus.
+
+## MVP Pareto — preuve sur fixture réelle et dernier blocage métier (4 novembre 2026)
+
+**`main` de référence au début de cet incrément :**
+`7231ac4fb54ec54aebd498e72d4bd588878e631e`.
+**[PR #22](https://github.com/djibian/alliage/pull/22) Draft** :
+bouton « Préparer demande IA » (consentement explicite
+public/fictif, sélection ≤ 2 400 caractères ou ressource
+entière, copie manuelle), décisions **locales sans
+validation Git durable**, lanceur
+`quarto_pareto_demo.py` réutilisant Git/Quarto/HTTP,
+roadmap et tests Pareto.
+
+**Réfutation déterminante du vrai projet fictif** :
+les deux anciens commits `1b1c0f22…` et `4a302833…`
+n'étaient PAS rendables par P3.1, parce que Quarto
+1.11.9 réécrit leur `.gitignore` suivi. Le moteur
+a **raison de refuser** : aucune relaxation du contrôle
+d'intégrité des fichiers Git suivis.
+
+**[PR #24](https://github.com/djibian/alliage/pull/24)
+Draft** (base = branche publique fictive distincte
+`experiment/pareto-quarto-demo`, toujours non modifiée),
+correction de maintenance `.gitignore` et CSS
+**strictement publique/fictive**. Paire retenue pour
+qualification en CI, **non encore adoptée dans la branche
+cible** : V5
+`5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347`,
+V6 `8e2f8b84515e9555c853c42f14cde0bca2c5de53`.
+L'exception d'écriture de `.gitignore` à l'AGENTS
+de la branche fictive doit être **revue et explicitement
+autorisée avant fusion**, et cette PR ne doit JAMAIS
+être fusionnée vers `main`.
+
+**Preuves exactes sur le code de #22** :
+- [CI verticale réelle #41873945544](https://github.com/djibian/alliage/actions/runs/41873945544)
+  `SUCCESS` : clone de la branche de **correction proposée**,
+  création d'un ref local épinglé V6, rendu réel
+  V5/V6, CSS distincts vérifiés, réponse HTTP 200,
+  et 14 tests DOM simulés. Aucun Firefox réel dans CI.
+- [CI Python #41873945472](https://github.com/djibian/alliage/actions/runs/41873945472)
+  `SUCCESS` : 104 tests (6 ignorés).
+- [CI historique #41873945565](https://github.com/djibian/alliage/actions/runs/41873945565)
+  `SUCCESS` : non-régression.
+- Ces trois CI portent sur le commit
+  `66c24f5fbc732869d30e87e6e6567ba655b2130a`.
+  Les commits suivants n'ont changé que les documents ;
+  revérifier le HEAD et la CI après chaque changement.
+
+**Deux portes réelles restantes, dans l'ordre :**
+1. Revue et autorisation **explicites** de la maintenance
+   proposée #24, puis faire avancer la branche fictive
+   et remplacer les SHA/commandes de première démonstration
+   dans `docs/PARETO_MVP.md`. Rejouer le test du
+   **vrai ref public** après adoption ; ne pas annoncer
+   l'ancien clone V1/V2 comme démonstration fonctionnelle.
+2. [Issue #23](https://github.com/djibian/alliage/issues/23) :
+   dans le **véritable panneau latéral natif Firefox Ubuntu**,
+   observer le transfert manuel, l'accès GitHub (lecture
+   et éventuellement écriture, chacun vérifié dans CETTE
+   surface), la modification autorisée/repli patch,
+   le nouveau SHA, le rendu et la décision. Le connecteur
+   GitHub standard ChatGPT est documenté **en lecture seule** ;
+   une écriture éventuelle nécessite un outil/mode réellement
+   disponible (Codex ou autre), sans automatisation fragile.
+
+**État véridique : `PARETO_VERTICAL_QUARTO_CI_PASS;
+REAL_FIREFOX_SIDEBAR_UNPROVEN; DEMO_BRANCH_ADOPTION_BLOCKED`.**
+Aucune vraie donnée professeur servie en HTTP, aucune
+fusion de #22/#24, aucune publication d'élèves,
+aucune preuve de modification Git depuis le chatbot
+latéral. Travaux P3.6 #13–#21 suspendus,
+conservés et non fusionnés.
+
+
+## Déblocage effectif fixture Quarto — PR #24 intégrée (4 novembre 2026)
+
+**Décision et gouvernance :** accord exprès du propriétaire pour
+une exception de maintenance `.gitignore` uniquement sur
+`experiment/pareto-quarto-demo`. Contre-expertise indépendante
+`APPROUVABLE` sur #24 HEAD
+`8e2f8b84515e9555c853c42f14cde0bca2c5de53`, publiée en
+revue COMMENT avec le compte GitHub du propriétaire (pas un APPROVE
+technique d'un collaborateur distinct). Vérification pré-merge :
+base `4a3028334a63fdd722ffd4d3da7886558127d033`,
+4 commits en avance, 0 derrière, diff limité à
+`.gitignore` et `styles.css`, CI réelle Quarto 1.11.9
+de la candidate `41874261209` SUCCESS. PR #24 fusionnée
+**par merge normal et exclusivement vers la branche fictive**.
+
+**État distant post-merge recontrôlé :**
+- `main` **inchangé** :
+  `7231ac4fb54ec54aebd498e72d4bd588878e631e`.
+- `experiment/pareto-quarto-demo` :
+  `affdb099bafd94099bf219c174e1ec6bbf82968f`.
+- Merge parents : `4a302833...` et V6 `8e2f8b8...` ;
+  l'arbre Git du merge est **strictement identique** à
+  l'arbre V6 `48efe8940950539cbdccc0de4e355360bf87f261`.
+  V5 `5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347`
+  est toujours ancêtre et CSS passe de bleu à vert ;
+  `.gitignore` contient `/_site/`, `/.quarto/`,
+  ligne blanche et `**/*.quarto_ipynb`.
+- **Nouvelle paire pour la démo** : V1 = V5 et V2 =
+  HEAD de merge `affdb099...`. Aucun de ces commits
+  n'est présenté comme une révision créée par le chatbot.
+
+**Requalification après adoption :** workflow de la PR #22 adapté
+pour cloner `experiment/pareto-quarto-demo` au vrai ref distant,
+en vérifier le SHA et l'égalité de tree avec V6 puis exécuter
+Git/Quarto/HTTP sans ref factice. **CI de requalification réelle
+#41890947229 SUCCESS** : étape `Verify the ADOPTED public demo ref
+with real Quarto at two pinned SHAs` **SUCCESS** sur
+`15df12fd59f1d832aa424d40f9879ad8a64e2c8f`,
+Python et navigation historiques également SUCCESS.
+**ADOPTED_FIXTURE_QUARTO_CI_PASS** sur ce HEAD ; revérifier
+après tout nouveau commit.
+Guide `PARETO_MVP.md` et reprise `PARETO_REPRISE.md`
+actualisés. **Ni Firefox réel ni la sidebar/READ/WRITE GitHub
+n'ont été observés.** #23 demeure `DEMO_PARTIAL`.
+Il faut encore une revue indépendante de #22 avant fusion du code
+et une **autorisation distincte** pour une future écriture
+pédagogique par IA sur la branche fictive.
+
+
+## Première démonstration dans Firefox natif — témoignage réel du 5 novembre 2026
+
+**Source et confidentialité :** enseignant sous Ubuntu, capture Firefox et
+transcription d'échanges du chatbot **réellement affiché dans le panneau
+latéral natif**, sorties de commandes locales fournies volontairement.
+Aucune capture de conversation ni URL de prévisualisation locale à capacité
+n'est publiée dans GitHub. La version exacte du navigateur et le nombre
+de manipulations restent à recueillir.
+
+**Chaîne observée :**
+- Firefox réel : activité Quarto fictive V2 visible, overlay Alliage
+  injecté, sélection de passage et petit raccourci IA natif visibles ;
+  « Préparer demande IA » fonctionne selon l'enseignant.
+- Le chatbot ChatGPT de **ce panneau précis** a pu lire
+  `AGENTS.md` et `styles.css` de
+  `experiment/pareto-quarto-demo` au SHA
+  `affdb099bafd94099bf219c174e1ec6bbf82968f`,
+  puis a **écrit un commit GitHub réel** après demande explicite :
+  `ecf35454aa3e0e93802041944a17241ef4866e09`.
+- Vérification indépendante via GitHub par le contrôleur :
+  branche désormais à ce SHA ; diff `affdb099...→ecf35454...`
+  un seul fichier `activite.qmd`, une seule consigne réécrite
+  (classement par contenu), `main` inchangé
+  `7231ac4fb54ec54aebd498e72d4bd588878e631e`.
+- Localement `quarto_pareto_demo.py --fetch-demo
+  --public-fictional-trusted` a rapporté les SHA
+  `affdb099bafd94099bf219c174e1ec6bbf82968f`
+  (V1) et `ecf35454aa3e0e93802041944a17241ef4866e09`
+  (V2) après **deux vrais rendus Quarto** et récupération Git
+  volontaire ; V2 avec consigne corrigée est visible dans la
+  capture Firefox.
+
+**Verdict #23 :** `DEMO_PARTIAL`, non pas parce que la sidebar est
+inconnue (elle est observée, `GITHUB_READ=PASS`,
+`GITHUB_WRITE=AVAILABLE_AND_USED`), mais car l'aller-retour
+V1→V2 n'est pas documenté par le témoignage et le message affiché
+dans l'overlay est explicitement **« Décision non prise »**.
+Il reste uniquement à observer V2→V1→V2, puis un clic
+« Retenir V2 (local) » ou « Écarter V2 (local) » et la confirmation
+visuelle. **Ne pas inventer ce geste humain et ne pas fusionner
+automatiquement la PR #22.** Le projet reste sans publication élèves.
+
+**Correction de test indispensable apportée à #22 :** l'ancienne CI
+supposait figé le HEAD de `experiment/pareto-quarto-demo` à
+`affdb099...` et aurait échoué dès la vraie modification IA.
+La CI conserve le merge de maintenance approuvé comme **ancêtre
+immuable**, vérifie le HEAD réellement cloné et rend deux
+révisions véritables (V5→merge avant toute écriture, merge→HEAD
+après écriture) sans inventer de ref. Workflow Git/Quarto réel
+[run #42060660921](https://github.com/djibian/alliage/actions/runs/42060660921)
+**SUCCESS** sur HEAD technique
+`3ec749794f1eb22a1c7551f767e9bb47ab4673cd`, avec
+Python et navigation également SUCCESS. Vérifier la CI du
+HEAD documentaire final de #22, puis demander une revue
+indépendante ciblée avant toute fusion sur `main`.
+
+**Décision Pareto :** ne pas développer d'écriture GitHub dédiée
+pour ce MVP : **elle fonctionne déjà** dans ce chatbot latéral
+précis. Tester le raccourci IA de Firefox pour des usages textuels
+avec sélection + titre de page, mais **ne pas prétendre** qu'il
+transmet l'identité Git, les SHA ou les règles `AGENTS.md`.
+Éviter toute automatisation de la sidebar.
+
+
+## Fin du MVP public/fictif — DEMO_REAL_FIREFOX_PASS (5 novembre 2026)
+
+**Verdict `DEMO_REAL_FIREFOX_PASS` consigné dans
+[l'issue #23](https://github.com/djibian/alliage/issues/23#issuecomment-6662890609).**
+La capture et les journaux réels avaient déjà établi : page
+Quarto rendue en Firefox Ubuntu, superposition Alliage, sélection,
+panneau ChatGPT natif, accès GitHub en lecture et **en écriture**,
+commit réel `ecf35454aa3e0e93802041944a17241ef4866e09`
+sur la seule branche fictive, contrôle Git de la modification
+unique dans `activite.qmd`, puis `--fetch-demo` explicite
+et rendus Quarto réels V1 = `affdb099bafd94099bf219c174e1ec6bbf82968f`
+et V2 = `ecf35454aa3e0e93802041944a17241ef4866e09`.
+
+**Deux confirmations humaines complémentaires le 5 novembre :**
+- la **navigation V1 ↔ V2 fonctionne** réellement dans Firefox ;
+- après clic « Retenir V2 (local) », le message affiché est
+  exactement **« V2 retenue dans ce navigateur, sans écriture Git
+  ni publication. »**
+
+Les critères de l'issue #23 sont donc satisfaits pour la
+**ressource publique et fictive**. La préparation de contexte a été
+testée fonctionnelle selon l'enseignant et le chatbot a reçu un
+contexte Git contextualisé ; le collage de l'intégralité du prompt
+préparé n'est pas instrumenté comme événement distinct.
+La version exacte de Firefox et le comptage des gestes ne sont
+pas disponibles. **Ne pas extrapoler** à des contenus privés,
+à une validation de Git durable, ni à une publication élèves.
+
+**Séparation des portes :** le parcours réel est réussi,
+mais [PR #22](https://github.com/djibian/alliage/pull/22)
+demeure **Ready for review**, non fusionnée dans `main` :
+revue indépendante du HEAD exact puis intégration soumise à
+la gouvernance. `main` conservé au
+`7231ac4fb54ec54aebd498e72d4bd588878e631e`
+lors de ce contrôle, et la branche de démonstration
+ne doit **jamais** être intégrée dans `main`.
+P3.6 (#13–#21), multiapplication, publication et
+ressources professeur confidentielles restent différés.
+
+
+## Itération Pareto après démonstration — réduction du CLI (5 novembre 2026)
+
+**Fait déclencheur :** [issue #23](https://github.com/djibian/alliage/issues/23)
+`DEMO_REAL_FIREFOX_PASS`, terminée. Le code reste en
+[PR #22](https://github.com/djibian/alliage/pull/22), **non fusionnée**,
+en attente d'une contre-revue indépendante. `main` était encore
+`7231ac4fb54ec54aebd498e72d4bd588878e631e` lors du contrôle.
+
+**Changement minimal du logiciel :** `quarto_pareto_demo.py --demo`
+préremplit **exclusivement** l'identité du dépôt public fictif
+`djibian/alliage` et sa branche
+`refs/remotes/origin/experiment/pareto-quarto-demo`.
+L'option **n'active ni fetch, ni rendu implicite** et ne
+remplace jamais `--public-fictional-trusted` ; `--fetch-demo`
+demeure un acte volontaire. Un conflit entre `--demo` et
+`--repository-id` ou `--tracking-ref` est refusé
+**avant** tout accès Git. La commande explicite historique
+reste prise en charge.
+
+**Tests :** nouveaux tests Python contrôlant le raccourci sans
+fetch, le fetch volontaire, le consentement requis, les
+conflits d'identité/ref et l'absence de contact Git dans
+les refus. Sur le HEAD technique
+`d3b49cb81ec4ee39fc4dc581f1ce2a1165db1aa3`,
+trois workflows **SUCCESS** :
+[Quarto réel #42072177612](https://github.com/djibian/alliage/actions/runs/42072177612),
+[Python #42072177647](https://github.com/djibian/alliage/actions/runs/42072177647)
+et [navigation #42072177553](https://github.com/djibian/alliage/actions/runs/42072177553).
+La compatibilité **du nouveau raccourci dans Firefox de l'enseignant**
+n'a pas été requalifiée manuellement : l'ancien parcours
+utilisateur reste le parcours réel attesté.
+
+**Documentation :** README désormais centré sur le MVP fictif
+actuel et non le pilote privé v0.4 ; guide de démonstration
+allégé ; roadmap V0 marquée `DEMO_REAL_FIREFOX_PASS`.
+Le prochain problème ergonomique déterminant est inscrit
+dans [#25](https://github.com/djibian/alliage/issues/25) :
+**actualisation Git/Quarto sur un clic volontaire depuis Firefox**
+sans relancer manuellement le terminal, en réutilisant le moteur
+et les garde-fous existants. **Ne pas commencer cette issue
+avant la revue favorable et l'intégration autorisée de #22.**
+
+**Prochaine porte :** contre-expertise indépendante de
+la PR #22 sur son HEAD final exact : consentement, choix
+local, identité Git, fetch opt-in, refus `--demo` contradictoire,
+CI du HEAD mutable de la fixture, aucune publication et
+aucune fuite de données privées. Ne pas fusionner la branche
+fictive dans `main`, ni réactiver P3.6.
