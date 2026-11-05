@@ -2,7 +2,38 @@
 
 **Alliage** est un atelier libre d'ingénierie pédagogique augmentée par l'IA : l'enseignant montre un élément dans une application web, dialogue, compare, expérimente et valide des modifications **réelles** sans les publier automatiquement.
 
-> **État : prototype Quarto v0.4, expérimental, parcours Firefox validé sur la Mission 02 le 19 octobre 2026.** La sélection, le rendu local de deux variantes, la comparaison et le choix expérimental ont fonctionné avec Firefox, Quarto 1.10.19 et le pont local. Les 18 tests automatisés ont aussi réussi en CI. **Aucune IA n'est intégrée, aucune source pédagogique n'est modifiée et aucune publication n'est effectuée.** Ne pas utiliser avec des données sensibles.
+> **MVP Pareto — `DEMO_REAL_FIREFOX_PASS` (5 novembre 2026).**
+> Sur une activité **Quarto fictive et publique**, un enseignant a
+> sélectionné une consigne dans Firefox, dialogué avec **ChatGPT déjà
+> présent dans le panneau latéral natif**, fait créer un commit
+> **uniquement sur la branche Git autorisée**, puis récupéré et comparé
+> **deux rendus Quarto réels**. Le choix « Retenir V2 (local) » a été
+> observé, **sans écriture Git de validation ni publication**.
+> [Preuves : issue #23](https://github.com/djibian/alliage/issues/23).
+> **Le code du MVP se trouve encore dans [la PR #22](https://github.com/djibian/alliage/pull/22)**
+> (branche `feat/pareto-firefox-sidebar-context`, non fusionnée dans
+> `main`) et doit être relu indépendamment avant intégration.
+
+### Reproduire le MVP actuel dans Firefox
+
+Suivre [le guide de démonstration Pareto](docs/PARETO_MVP.md) **depuis
+la branche de la PR #22**. Il utilise deux clones séparés du même dépôt :
+le **code Alliage** et la seule branche **publique/fictive**
+`experiment/pareto-quarto-demo`. Charger temporairement
+`extension/manifest.json` dans Firefox et exécuter
+`quarto_pareto_demo.py` sur un SHA de référence explicite,
+puis `--fetch-demo` **uniquement après une écriture autorisée**.
+Les SHA de la fixture sont mutables : ne pas réutiliser des
+valeurs historiques sans revalidation.
+
+**Le MVP n'inclut aucun nouveau chatbot, aucune API de modèle,
+aucune publication élèves et aucun traitement de données privées.**
+Pour les échanges simples, le raccourci de sélection IA de Firefox
+mérite une évaluation avant d'ajouter une interface redondante.
+
+---
+
+> **Historique v0.4 (19 octobre 2026, distinct du MVP Pareto ci-dessus).** La sélection, le rendu local de deux variantes, la comparaison et le choix expérimental ont fonctionné avec Firefox, Quarto 1.10.19 et le pont local. Les 18 tests automatisés ont aussi réussi en CI. **Aucune IA n'est intégrée, aucune source pédagogique n'est modifiée et aucune publication n'est effectuée.** Ne pas utiliser avec des données sensibles.
 
 La vision, les contraintes et les priorités figurent dans [PRODUCT_VISION](docs/PRODUCT_VISION.md), [ROADMAP](docs/ROADMAP.md), [IMPLEMENTATION_STATE](docs/IMPLEMENTATION_STATE.md) et [DECISIONS](docs/DECISIONS.md). **Agents : lire [AGENTS.md](AGENTS.md) avant toute intervention.**
 
@@ -28,7 +59,7 @@ python3 -m py_compile serveur.py experiment.py resolve_source.py
 
 Le résultat local lors de la capitalisation : **18 tests OK**, tests simulant Quarto et serveurs HTTP de test. Le workflow GitHub `Tests du prototype Alliage` exécute la même suite. Le test de navigateur et le rendu réel restent distincts.
 
-## Démonstration Quarto actuelle (requiert un accès autorisé au dépôt pédagogique séparé)
+## Ancien pilote Quarto v0.4 (dépôt pédagogique séparé, non requis pour le MVP public)
 
 Les tests automatisés sont indépendants de `djibian/pedagogie`. En revanche, **la v0.4 interactive est encore liée à une seule page pilote publiée** : ne pas prétendre qu'elle fonctionne déjà sur toute page HTML. Le dépôt public **ne contient pas la ressource source privée**. Pour la tester, disposer légitimement d'une copie locale du dépôt pédagogique dans un chemin persistant, **extérieur à Alliage** :
 
