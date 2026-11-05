@@ -24,6 +24,8 @@ SHA = re.compile(r"[0-9a-f]{40}\Z")
 TRACKED_BRANCH = re.compile(
     r"refs/remotes/origin/experiment/[a-zA-Z0-9][a-zA-Z0-9._/-]*\Z"
 )
+PUBLIC_DEMO_REPOSITORY = "djibian/alliage"
+PUBLIC_DEMO_TRACKING_REF = "refs/remotes/origin/experiment/pareto-quarto-demo"
 
 
 class DemoRefused(ValueError):
@@ -36,8 +38,8 @@ def fetch_fictional_demo(repo: Path, repository_id: str, tracking_ref: str) -> s
     Returns the FULL local tracking SHA *before* fetching, for V1.
     Never touches the checkout, creates commits or publishes to GitHub.
     """
-    if (repository_id != "djibian/alliage" or tracking_ref !=
-            "refs/remotes/origin/experiment/pareto-quarto-demo"):
+    if (repository_id != PUBLIC_DEMO_REPOSITORY or
+            tracking_ref != PUBLIC_DEMO_TRACKING_REF):
         raise DemoRefused("Actualisation autorisée uniquement sur la branche de démonstration fictive.")
     repo = Path(repo).expanduser().resolve(strict=True)
     root = _git(repo, "rev-parse", "--show-toplevel").decode("utf-8").strip()
@@ -103,8 +105,10 @@ def main(argv: list[str] | None = None) -> int:
         description="Comparer deux révisions Quarto publiques/fictives en une commande locale.")
     parser.add_argument("--repo", type=Path, required=True,
                         help="Racine exacte du clone Git autorisé")
-    parser.add_argument("--repository-id", required=True, help="owner/repo déclaré")
-    parser.add_argument("--tracking-ref", required=True,
+    parser.add_argument("--demo", action="store_true",
+                        help="Raccourci vers le SEUL dépôt et la branche fictifs publics autorisés")
+    parser.add_argument("--repository-id", help="owner/repo déclaré")
+    parser.add_argument("--tracking-ref",
                         help="refs/remotes/origin/experiment/<branche> récupérée explicitement")
     parser.add_argument("--baseline-sha",
                         help="SHA40 avant modification ; omissible avec --fetch-demo")
@@ -114,6 +118,15 @@ def main(argv: list[str] | None = None) -> int:
                         help="J'atteste une ressource exclusivement publique/fictive et Quarto de confiance")
     args = parser.parse_args(argv)
     try:
+        if args.demo:
+            if args.repository_id not in (None, PUBLIC_DEMO_REPOSITORY):
+                raise DemoRefused("--demo ne permet pas un autre dépôt Git.")
+            if args.tracking_ref not in (None, PUBLIC_DEMO_TRACKING_REF):
+                raise DemoRefused("--demo ne permet pas une autre branche Git.")
+            args.repository_id = PUBLIC_DEMO_REPOSITORY
+            args.tracking_ref = PUBLIC_DEMO_TRACKING_REF
+        elif not args.repository_id or not args.tracking_ref:
+            raise DemoRefused("--repository-id et --tracking-ref requis sans --demo.")
         if not args.baseline_sha and not args.fetch_demo:
             raise DemoRefused("--baseline-sha requis sans actualisation Git explicite.")
         # Validate user consent and arguments before any contact with GitHub.
@@ -132,6 +145,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.exit(2, "REFUSED: " + str(exc) + "\n")
     try:
         print("Alliage — Quarto réellement rendu depuis deux SHA Git ; aucune publication.", flush=True)
+        print("Dépôt / branche déclarés : " + args.repository_id +
+              " / " + args.tracking_ref, flush=True)
         print("Référence Git : " + result["baseline_commit"], flush=True)
         print("Proposition Git : " + result["observed_commit"], flush=True)
         print("Actualisation Git explicitement demandée : " +
