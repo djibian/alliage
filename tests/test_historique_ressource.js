@@ -310,7 +310,7 @@ test("demo-only refresh is never automatic and requires a separate user confirma
   assert.equal(boxes[1].checked,false,"consent must be renewed per click");
   assert.equal(r.navigations.length,0,"unchanged ref must not navigate");
   assert.ok(findAll(r.host,"div").some(d=>/Aucune nouvelle révision/.test(d.textContent)));
-  assert.ok(!findAll(r.host,"textarea")[0].value.includes("X".repeat(44)));
+  assert.ok(!(findAll(r.host,"textarea")[0].value||"").includes("X".repeat(44)));
 });
 
 test("successful demo refresh moves to server-attested V2 URL, not arbitrary target",async()=>{
