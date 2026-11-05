@@ -402,5 +402,120 @@ class RealParetoQuartoTests(unittest.TestCase):
                     thread.join(timeout=5)
 
 
+    @unittest.skipUnless(__import__("os").environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
+                         "Only dedicated CI with genuine Quarto executes this test")
+    def test_real_quarto_after_explicit_browser_refresh_post(self):
+        """One local POST performs one mocked fetch, real Git/Quarto/HTTP."""
+        import http.client
+        import json
+        import subprocess
+        import tempfile
+        import threading
+        from urllib.parse import urlsplit
+
+        def git(repo, *args):
+            return subprocess.check_output(
+                ["git", "-C", str(repo), *args], text=True).strip()
+
+        with tempfile.TemporaryDirectory(prefix="alliage-refresh-quarto-") as tmp:
+            home = Path(tmp)
+            repo = home / "fixture"
+            repo.mkdir()
+            git(repo, "init", "-q")
+            git(repo, "config", "user.name", "Fiction CI")
+            git(repo, "config", "user.email", "fixture@example.invalid")
+            (repo / "_quarto.yml").write_text(
+                "project:\n  type: default\n  output-dir: _site\n\n"
+                "format:\n  html:\n    css: styles.css\n\n"
+                "execute:\n  enabled: false\n", encoding="utf-8")
+            (repo / "activite.qmd").write_text(
+                "---\ntitle: Fiction\n---\n\n"
+                "## Consigne\nVersion initiale.\n", encoding="utf-8")
+            (repo / "styles.css").write_text(
+                "h2 { color: #991b1b; }\n", encoding="utf-8")
+            git(repo, "add", "-A")
+            git(repo, "commit", "-qm", "Public V1")
+            first = git(repo, "rev-parse", "HEAD")
+            (repo / "styles.css").write_text(
+                "h2 { color: #15803d; }\n", encoding="utf-8")
+            git(repo, "add", "-A")
+            git(repo, "commit", "-qm", "Public V2")
+            second = git(repo, "rev-parse", "HEAD")
+            tracking = pilot.PUBLIC_DEMO_TRACKING_REF
+            git(repo, "update-ref", tracking, second)
+
+            with patch("quarto_observed_session.Path.home", return_value=home):
+                old_result, old_preview = pilot.prepare_preview(
+                    repo, pilot.PUBLIC_DEMO_REPOSITORY, tracking, first,
+                    public_fictional_trusted=True)
+                self.assertEqual(old_result["observed_commit"], second)
+                # Simulate a new authorized commit made by an external AI:
+                # only a LOCAL Git commit, never an external GitHub write.
+                (repo / "activite.qmd").write_text(
+                    "---\ntitle: Fiction\n---\n\n"
+                    "## Consigne\nVersion modifiée par IA fictive.\n",
+                    encoding="utf-8")
+                git(repo, "add", "activite.qmd")
+                git(repo, "commit", "-qm", "Public V3")
+                third = git(repo, "rev-parse", "HEAD")
+                git(repo, "update-ref", tracking, third)
+                prior_checkout=(git(repo, "rev-parse", "HEAD"),
+                                git(repo, "status", "--porcelain"))
+                callback = pilot.browser_refresh_callback(repo, second)
+                with patch.object(pilot, "fetch_fictional_demo",
+                                  return_value=second) as fetch:
+                    server=pilot.make_server(old_preview, refresh_callback=callback)
+                    thread=threading.Thread(target=server.serve_forever,daemon=True)
+                    thread.start()
+                    try:
+                        def request(method, path, headers=None):
+                            conn=http.client.HTTPConnection(
+                                "127.0.0.1",server.server_port,timeout=40)
+                            try:
+                                conn.request(method,path,headers=headers or {})
+                                resp=conn.getresponse()
+                                return resp.status,resp.read()
+                            finally:
+                                conn.close()
+
+                        prefix=old_preview.prefix
+                        intent={"X-Alliage-Intent":"user-click",
+                                "Sec-Fetch-Site":"same-origin"}
+                        old_html=urlsplit(old_preview.browser_url(server.server_port))
+                        self.assertEqual(request("GET",old_html.path)[0],200)
+                        code,body=request("GET",
+                                         prefix+"/_alliage/refresh-capability",
+                                         headers=intent)
+                        self.assertEqual(code,200)
+                        token=json.loads(body)["token"]
+                        code,body=request("POST",prefix+"/_alliage/refresh",
+                          headers={**intent,
+                            "Origin":f"http://127.0.0.1:{server.server_port}",
+                            "X-Alliage-Refresh-Token":token})
+                        self.assertEqual(code,200)
+                        report=json.loads(body)
+                        self.assertEqual(report["state"],"updated")
+                        new_url=urlsplit(report["url"])
+                        self.assertEqual(new_url.hostname,"127.0.0.1")
+                        self.assertEqual(new_url.port,server.server_port)
+                        status,new_html=request("GET",new_url.path)
+                        self.assertEqual(status,200)
+                        self.assertIn("Version modifiée".encode("utf-8"),new_html)
+                        older=new_url.path.replace("/V2/","/V1/")
+                        status,old_new_html=request("GET",older)
+                        self.assertEqual(status,200)
+                        self.assertIn(b"Version initiale.",old_new_html)
+                        self.assertEqual(request("GET",old_html.path)[0],404)
+                        self.assertEqual(fetch.call_count,1)
+                        self.assertEqual(
+                            prior_checkout,(git(repo,"rev-parse","HEAD"),
+                                            git(repo,"status","--porcelain")))
+                    finally:
+                        server.shutdown()
+                        server.server_close()
+                        thread.join(timeout=5)
+
+
+
 if __name__ == "__main__":
     unittest.main()
