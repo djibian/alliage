@@ -40,7 +40,7 @@ class Element {
   attachShadow() {this.shadow=new Element("shadow");return this.shadow;}
   setAttribute(key,value) {this.attributes[key]=value;}
   addEventListener(event,callback) {this.events[event]=callback;}
-  emit(event) {if(this.events[event]) this.events[event]();}
+  emit(event,payload={isTrusted:true}) {if(this.events[event]) return this.events[event](payload);}
 }
 function findAll(node,tag) {
   let nodes=node.tagName===tag?[node]:[];
@@ -54,7 +54,7 @@ function findAll(node,tag) {
 class EmptyKeysURLSearchParams extends URLSearchParams {
   keys() {return [][Symbol.iterator]();}
 }
-function run(url,iframe=false,SearchParams=URLSearchParams,selected="") {
+function run(url,iframe=false,SearchParams=URLSearchParams,selected="",fetcher=null) {
   const location=new URL(url);
   const navigations=[];
   const document={
@@ -64,7 +64,8 @@ function run(url,iframe=false,SearchParams=URLSearchParams,selected="") {
     createTextNode:text=>Object.assign(new Element("text"),{textContent:text})
   };
   const window={location:{assign:url=>navigations.push(url)},
-    getSelection:()=>({toString:()=>selected})};
+    getSelection:()=>({toString:()=>selected}),
+    fetch:fetcher||(()=>{throw Error("No fetch expected");})};
   window.self=window;
   window.top=iframe?{}:window;
   vm.runInNewContext(source,{location,window,document,URL,URLSearchParams:SearchParams,JSON,Array},{timeout:1000});
@@ -281,4 +282,78 @@ test("fictional demo context includes explicit but UNVERIFIED editing branch",()
   const generic=findAll(y.host,"textarea")[0].value;
   assert.match(generic,/Branche de travail NON IDENTIFIÉE/);
   assert.ok(!generic.includes("experiment/pareto-quarto-demo"));
+});
+
+
+test("demo-only refresh is never automatic and requires a separate user confirmation",async()=>{
+  const demo={...payload(),resource_id:"quarto:djibian/alliage:activite.qmd"};
+  const calls=[];
+  const fake=async(url,opts)=>{
+    calls.push({url,method:opts.method,headers:opts.headers});
+    if(opts.method==="GET") return {ok:true,json:async()=>({token:"X".repeat(44)})};
+    return {ok:true,json:async()=>({state:"unchanged"})};
+  };
+  const r=run(httpHref(demo),false,URLSearchParams,"",fake);
+  const buttons=findAll(r.host,"button");
+  assert.equal(buttons.length,6);
+  assert.equal(calls.length,0,"no fetch on page load");
+  const boxes=findAll(r.host,"input");
+  boxes[1].checked=true;
+  await buttons[5].emit("click",{isTrusted:false});
+  assert.equal(calls.length,0,"synthetic DOM click must not fetch");
+  boxes[1].checked=false;
+  await buttons[5].emit("click");
+  assert.equal(calls.length,0,"no fetch without user checking the separate box");
+  assert.equal(boxes.length,2);
+  boxes[1].checked=true;
+  await buttons[5].emit("click");
+  assert.equal(calls.length,2,"one GET capability and one explicit POST");
+  assert.match(calls[0].url,/\/_[a]lliage\/refresh-capability$/);
+  assert.equal(calls[1].method,"POST");
+  assert.equal(calls[1].headers["X-Alliage-Refresh-Token"],"X".repeat(44));
+  assert.equal(boxes[1].checked,false,"consent must be renewed per click");
+  assert.equal(r.navigations.length,0,"unchanged ref must not navigate");
+  assert.ok(findAll(r.host,"div").some(d=>/Aucune nouvelle révision/.test(d.textContent)));
+  assert.ok(!(findAll(r.host,"textarea")[0].value||"").includes("X".repeat(44)));
+});
+
+test("successful demo refresh moves to server-attested V2 URL, not arbitrary target",async()=>{
+  const demo={...payload(),resource_id:"quarto:djibian/alliage:activite.qmd"};
+  const target=httpHref({...demo,entries:[
+    {id:"V1",commit:sha(2)},{id:"V2",commit:sha(3)}
+  ]}).replace("a".repeat(32),"b".repeat(32));
+  let post=0;
+  const f=async(_url,opts)=>opts.method==="GET"
+    ?{ok:true,json:async()=>({token:"T".repeat(45)})}
+    :{ok:true,json:async()=>{post++;return {state:"updated",url:target};}};
+  const res=run(httpHref(demo),false,URLSearchParams,"",f);
+  findAll(res.host,"input")[1].checked=true;
+  await findAll(res.host,"button")[5].emit("click");
+  assert.equal(post,1);
+  assert.equal(res.navigations.length,1);
+  assert.equal(res.navigations[0],target);
+});
+
+test("refresh failures preserve the displayed V1/V2 and cannot navigate off-origin",async()=>{
+  const demo={...payload(),resource_id:"quarto:djibian/alliage:activite.qmd"};
+  for(const candidate of ["https://evil.invalid/collect?secret=true",
+     "http://127.0.0.1:46273/other/activite.html?alliage-history-v0=1"]){
+    const f=async(_url,opts)=>opts.method==="GET"
+      ?{ok:true,json:async()=>({token:"T".repeat(45)})}
+      :{ok:true,json:async()=>({state:"updated",url:candidate})};
+    const res=run(httpHref(demo),false,URLSearchParams,"",f);
+    findAll(res.host,"input")[1].checked=true;
+    await findAll(res.host,"button")[5].emit("click");
+    assert.equal(res.navigations.length,0);
+    assert.ok(findAll(res.host,"div").some(d=>/comparaison précédente conservée/.test(d.textContent)));
+  }
+  const missing=run(httpHref(demo),false,URLSearchParams,"",
+    async()=>({ok:false}));
+  findAll(missing.host,"input")[1].checked=true;
+  await findAll(missing.host,"button")[5].emit("click");
+  assert.equal(missing.navigations.length,0);
+  assert.equal(findAll(missing.host,"input")[1].checked,false);
+  // No control added outside the exact fictional HTTP resource.
+  assert.equal(findAll(run(href(demo)).host,"button").length,5);
+  assert.equal(findAll(run(httpHref()).host,"button").length,5);
 });

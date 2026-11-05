@@ -15,6 +15,7 @@ import json
 import mimetypes
 from pathlib import Path
 import secrets
+import threading
 from urllib.parse import quote, urlsplit
 
 from quarto_navigation import NavigationError, _load_version, _regular_within
@@ -93,7 +94,12 @@ class AttestedPreview:
         return data, mime
 
 
-def make_handler(preview: AttestedPreview):
+def make_handler(preview: AttestedPreview, refresh_callback=None):
+    # Keep the verified asset inventory immutable for each preview. Only an
+    # explicitly enabled, successful refresh atomically swaps this pointer.
+    state = {"preview": preview, "nonce": None}
+    gate = threading.Lock()
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "AlliageHistoricalPreview/0"
         sys_version = ""
@@ -137,19 +143,96 @@ def make_handler(preview: AttestedPreview):
             if len(query) > MAX_QUERY or (sep and "#" in query):
                 return self.respond(HTTPStatus.NOT_FOUND, send_body=send_body)
             try:
-                content, mime = preview.get_asset(path)
+                content, mime = state["preview"].get_asset(path)
             except (FileNotFoundError, HTTPPreviewError):
                 return self.respond(HTTPStatus.NOT_FOUND, send_body=send_body)
             return self.respond(HTTPStatus.OK, content, mime, send_body)
 
+        def control_request_allowed(self, require_origin=False):
+            if not self.authorized_request():
+                return False
+            if self.headers.get("Sec-Fetch-Site") != "same-origin":
+                return False
+            if self.headers.get("X-Alliage-Intent") != "user-click":
+                return False
+            if require_origin:
+                expected = f"http://{BIND}:{self.server.server_port}"
+                if self.headers.get("Origin") != expected:
+                    return False
+            return True
+
+        def respond_json(self, code, payload):
+            data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self.respond(code, data, "application/json; charset=utf-8")
+
         def do_GET(self):
+            active = state["preview"]
+            capability_path = active.prefix + "/_alliage/refresh-capability"
+            if refresh_callback is not None and self.path == capability_path:
+                # Only the explicitly enabled PUBLIC/FICTIONAL demo has a
+                # control endpoint. Reject non-browser and cross-site requests.
+                if not self.control_request_allowed():
+                    return self.respond(HTTPStatus.FORBIDDEN)
+                if not gate.acquire(blocking=False):
+                    return self.respond(HTTPStatus.CONFLICT)
+                try:
+                    state["nonce"] = secrets.token_urlsafe(32)
+                    self.respond_json(HTTPStatus.OK, {"token": state["nonce"]})
+                finally:
+                    gate.release()
+                return
             self.handle_asset()
 
         def do_HEAD(self):
             self.handle_asset(send_body=False)
 
         def do_POST(self):
-            self.respond(HTTPStatus.METHOD_NOT_ALLOWED)
+            if refresh_callback is None:
+                return self.respond(HTTPStatus.METHOD_NOT_ALLOWED)
+            active = state["preview"]
+            if self.path != active.prefix + "/_alliage/refresh":
+                return self.respond(HTTPStatus.NOT_FOUND)
+            if not self.control_request_allowed(require_origin=True):
+                return self.respond(HTTPStatus.FORBIDDEN)
+            # No request body, query, JSON payload, user-provided ref or path.
+            if (self.headers.get("Transfer-Encoding") is not None or
+                    self.headers.get("Content-Length") not in (None, "0")):
+                return self.respond(HTTPStatus.BAD_REQUEST)
+            if not gate.acquire(blocking=False):
+                return self.respond(HTTPStatus.CONFLICT)
+            try:
+                provided = self.headers.get("X-Alliage-Refresh-Token", "")
+                nonce = state["nonce"]
+                if not nonce or not secrets.compare_digest(provided, nonce):
+                    return self.respond(HTTPStatus.FORBIDDEN)
+                # Consume before any Git or Quarto operation. A replay with
+                # the same capability is never accepted.
+                state["nonce"] = None
+                try:
+                    updated = refresh_callback(active)
+                    if updated is None:
+                        return self.respond_json(HTTPStatus.OK,
+                                                 {"state": "unchanged"})
+                    if (not isinstance(updated, AttestedPreview) or
+                            updated.query == "" or
+                            updated.query.split("=", 1)[0] !=
+                                active.query.split("=", 1)[0]):
+                        raise HTTPPreviewError("Aperçu actualisé non attesté.")
+                    # Keep existing GET routes live until all Git+Quarto
+                    # verification succeeded; then publish the new inventory.
+                    state["preview"] = updated
+                    self.respond_json(HTTPStatus.OK, {
+                        "state": "updated",
+                        "url": updated.browser_url(self.server.server_port)})
+                except Exception:
+                    # A rendering subprocess can raise CalledProcessError or
+                    # other failures; fail closed, keep the old preview, and
+                    # never expose paths, tracebacks or tokens to Firefox.
+                    self.respond_json(HTTPStatus.UNPROCESSABLE_ENTITY, {
+                        "state": "error",
+                        "message": "Actualisation Git/Quarto refusée ; ancienne comparaison conservée."})
+            finally:
+                gate.release()
 
         def do_OPTIONS(self):
             self.respond(HTTPStatus.METHOD_NOT_ALLOWED)
@@ -157,8 +240,9 @@ def make_handler(preview: AttestedPreview):
     return Handler
 
 
-def make_server(preview: AttestedPreview) -> ThreadingHTTPServer:
-    server = ThreadingHTTPServer((BIND, 0), make_handler(preview))
+def make_server(preview: AttestedPreview, refresh_callback=None) -> ThreadingHTTPServer:
+    server = ThreadingHTTPServer((BIND, 0),
+                                 make_handler(preview, refresh_callback))
     server.daemon_threads = True
     return server
 

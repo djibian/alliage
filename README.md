@@ -10,14 +10,15 @@
 > **deux rendus Quarto réels**. Le choix « Retenir V2 (local) » a été
 > observé, **sans écriture Git de validation ni publication**.
 > [Preuves : issue #23](https://github.com/djibian/alliage/issues/23).
-> **Le code du MVP se trouve encore dans [la PR #22](https://github.com/djibian/alliage/pull/22)**
-> (branche `feat/pareto-firefox-sidebar-context`, non fusionnée dans
-> `main`) et doit être relu indépendamment avant intégration.
+> Le MVP est **intégré dans `main`** via
+> [la PR #22](https://github.com/djibian/alliage/pull/22), après
+> contre-expertise indépendante et avec trois CI post-fusion vertes
+> sur `3494ec2b9112dfd98e13936de7d5a8eb9b204c5d`.
 
 ### Reproduire le MVP actuel dans Firefox
 
-Suivre [le guide de démonstration Pareto](docs/PARETO_MVP.md) **depuis
-la branche de la PR #22**. Il utilise deux clones séparés du même dépôt :
+Suivre [le guide de démonstration Pareto](docs/PARETO_MVP.md)
+depuis `main`. Il utilise deux clones séparés du même dépôt :
 le **code Alliage** et la seule branche **publique/fictive**
 `experiment/pareto-quarto-demo`. Charger temporairement
 `extension/manifest.json` dans Firefox et exécuter
@@ -30,6 +31,47 @@ valeurs historiques sans revalidation.
 aucune publication élèves et aucun traitement de données privées.**
 Pour les échanges simples, le raccourci de sélection IA de Firefox
 mérite une évaluation avant d'ajouter une interface redondante.
+
+### Candidat expérimental #25 — actualisation volontaire depuis Firefox
+
+**Uniquement dans [la PR #26](https://github.com/djibian/alliage/pull/26),
+non fusionnée** : un bouton « Actualiser les révisions » évite le cycle
+`Ctrl+C` → relance du lanceur → nouvelle URL. Ce bouton n'effectue
+aucune opération automatiquement au chargement.
+
+La fonction doit être **activée explicitement au démarrage** avec
+`--demo --browser-refresh --public-fictional-trusted`, et la page
+demande **une confirmation distincte à chaque clic**. Le serveur
+loopback déjà existant exige une capacité éphémère à usage unique,
+la même origine et un POST sans paramètres Git. Il n'accepte de
+récupérer que `experiment/pareto-quarto-demo`. Une absence de
+nouveau commit ou un échec Git/Quarto conserve la comparaison précédente.
+
+Pour un essai **seulement après qualification de la PR #26**,
+utiliser un clone de la branche `feat/pareto-firefox-voluntary-refresh`
+**distinct du clone de production**, puis :
+
+```sh
+python3 "$HOME/projets/alliage-refresh-test/quarto_pareto_demo.py" \
+  --repo "$HOME/projets/alliage-demo" --demo \
+  --baseline-sha affdb099bafd94099bf219c174e1ec6bbf82968f \
+  --browser-refresh --public-fictional-trusted
+```
+
+Le SHA ci-dessus est celui **d'avant la première intervention IA** ;
+revalider la branche distante avant l'essai. Avec le clone déjà à
+`ecf35454...`, un clic sans nouveau commit rend simplement
+« Aucune nouvelle révision ». Pour tester une véritable actualisation,
+un **nouveau commit explicitement autorisé** sur la seule branche
+fictive sera nécessaire.
+
+Cette expérience reste **strictement publique/fictive** :
+Quarto peut exécuter des hooks, et une page servie de la même
+origine possède des capacités web que le serveur ne peut pas
+attribuer cryptographiquement à un clic humain. Ne jamais utiliser
+l'option sur un projet privé, externe ou non fiable. La preuve
+finale exige un test dans le **véritable Firefox** ; les simulations
+DOM et les CI ne la remplacent pas.
 
 ---
 
