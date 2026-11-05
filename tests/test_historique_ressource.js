@@ -40,7 +40,7 @@ class Element {
   attachShadow() {this.shadow=new Element("shadow");return this.shadow;}
   setAttribute(key,value) {this.attributes[key]=value;}
   addEventListener(event,callback) {this.events[event]=callback;}
-  emit(event) {if(this.events[event]) return this.events[event]();}
+  emit(event,payload={isTrusted:true}) {if(this.events[event]) return this.events[event](payload);}
 }
 function findAll(node,tag) {
   let nodes=node.tagName===tag?[node]:[];
@@ -297,9 +297,13 @@ test("demo-only refresh is never automatic and requires a separate user confirma
   const buttons=findAll(r.host,"button");
   assert.equal(buttons.length,6);
   assert.equal(calls.length,0,"no fetch on page load");
+  const boxes=findAll(r.host,"input");
+  boxes[1].checked=true;
+  await buttons[5].emit("click",{isTrusted:false});
+  assert.equal(calls.length,0,"synthetic DOM click must not fetch");
+  boxes[1].checked=false;
   await buttons[5].emit("click");
   assert.equal(calls.length,0,"no fetch without user checking the separate box");
-  const boxes=findAll(r.host,"input");
   assert.equal(boxes.length,2);
   boxes[1].checked=true;
   await buttons[5].emit("click");
