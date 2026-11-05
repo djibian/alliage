@@ -274,7 +274,7 @@ class ParetoLaunchTests(unittest.TestCase):
         callback=pilot.browser_refresh_callback(Path("/fiction"),old)
         new_preview=Mock()
         def fake_git(*_):
-            return (new+"\\n").encode()
+            return new.encode()
         with (patch.object(pilot,"fetch_fictional_demo",return_value=old) as fetch,
               patch.object(pilot,"_git",side_effect=fake_git),
               patch.object(pilot,"prepare_preview",
@@ -288,7 +288,7 @@ class ParetoLaunchTests(unittest.TestCase):
             self.assertEqual(prepare.call_args_list[1].args[3],old)
             self.assertEqual(fetch.call_count,2)
         with (patch.object(pilot,"fetch_fictional_demo") as fetch,
-              patch.object(pilot,"_git",return_value=(new+"\\n").encode()),
+              patch.object(pilot,"_git",return_value=new.encode()),
               patch.object(pilot,"prepare_preview") as preview):
             self.assertIsNone(callback(Mock()))
             fetch.assert_called_once()
