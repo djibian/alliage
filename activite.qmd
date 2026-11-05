@@ -7,7 +7,7 @@ title: "Tri de fichiers — activité entièrement fictive"
 Une classe fictive prépare un dossier contenant quatre fichiers : `verger.txt`, `plan.svg`, `notes.csv` et `photo.png`.
 
 1. Classe les quatre fichiers selon leur contenu : texte, données en tableau ou image. Regroupe ceux qui appartiennent à la même catégorie.
-2. Explique en une phrase la différence entre un nom de fichier et son extension.
+2. À partir de `photo.png`, indique le nom du fichier et son extension, puis explique le rôle de cette extension.
 
 ## Vérification
 
