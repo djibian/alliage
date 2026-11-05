@@ -637,3 +637,67 @@ n'ont été observés.** #23 demeure `DEMO_PARTIAL`.
 Il faut encore une revue indépendante de #22 avant fusion du code
 et une **autorisation distincte** pour une future écriture
 pédagogique par IA sur la branche fictive.
+
+
+## Première démonstration dans Firefox natif — témoignage réel du 5 novembre 2026
+
+**Source et confidentialité :** enseignant sous Ubuntu, capture Firefox et
+transcription d'échanges du chatbot **réellement affiché dans le panneau
+latéral natif**, sorties de commandes locales fournies volontairement.
+Aucune capture de conversation ni URL de prévisualisation locale à capacité
+n'est publiée dans GitHub. La version exacte du navigateur et le nombre
+de manipulations restent à recueillir.
+
+**Chaîne observée :**
+- Firefox réel : activité Quarto fictive V2 visible, overlay Alliage
+  injecté, sélection de passage et petit raccourci IA natif visibles ;
+  « Préparer demande IA » fonctionne selon l'enseignant.
+- Le chatbot ChatGPT de **ce panneau précis** a pu lire
+  `AGENTS.md` et `styles.css` de
+  `experiment/pareto-quarto-demo` au SHA
+  `affdb099bafd94099bf219c174e1ec6bbf82968f`,
+  puis a **écrit un commit GitHub réel** après demande explicite :
+  `ecf35454aa3e0e93802041944a17241ef4866e09`.
+- Vérification indépendante via GitHub par le contrôleur :
+  branche désormais à ce SHA ; diff `affdb099...→ecf35454...`
+  un seul fichier `activite.qmd`, une seule consigne réécrite
+  (classement par contenu), `main` inchangé
+  `7231ac4fb54ec54aebd498e72d4bd588878e631e`.
+- Localement `quarto_pareto_demo.py --fetch-demo
+  --public-fictional-trusted` a rapporté les SHA
+  `affdb099bafd94099bf219c174e1ec6bbf82968f`
+  (V1) et `ecf35454aa3e0e93802041944a17241ef4866e09`
+  (V2) après **deux vrais rendus Quarto** et récupération Git
+  volontaire ; V2 avec consigne corrigée est visible dans la
+  capture Firefox.
+
+**Verdict #23 :** `DEMO_PARTIAL`, non pas parce que la sidebar est
+inconnue (elle est observée, `GITHUB_READ=PASS`,
+`GITHUB_WRITE=AVAILABLE_AND_USED`), mais car l'aller-retour
+V1→V2 n'est pas documenté par le témoignage et le message affiché
+dans l'overlay est explicitement **« Décision non prise »**.
+Il reste uniquement à observer V2→V1→V2, puis un clic
+« Retenir V2 (local) » ou « Écarter V2 (local) » et la confirmation
+visuelle. **Ne pas inventer ce geste humain et ne pas fusionner
+automatiquement la PR #22.** Le projet reste sans publication élèves.
+
+**Correction de test indispensable apportée à #22 :** l'ancienne CI
+supposait figé le HEAD de `experiment/pareto-quarto-demo` à
+`affdb099...` et aurait échoué dès la vraie modification IA.
+La CI conserve le merge de maintenance approuvé comme **ancêtre
+immuable**, vérifie le HEAD réellement cloné et rend deux
+révisions véritables (V5→merge avant toute écriture, merge→HEAD
+après écriture) sans inventer de ref. Workflow Git/Quarto réel
+[run #42060660921](https://github.com/djibian/alliage/actions/runs/42060660921)
+**SUCCESS** sur HEAD technique
+`3ec749794f1eb22a1c7551f767e9bb47ab4673cd`, avec
+Python et navigation également SUCCESS. Vérifier la CI du
+HEAD documentaire final de #22, puis demander une revue
+indépendante ciblée avant toute fusion sur `main`.
+
+**Décision Pareto :** ne pas développer d'écriture GitHub dédiée
+pour ce MVP : **elle fonctionne déjà** dans ce chatbot latéral
+précis. Tester le raccourci IA de Firefox pour des usages textuels
+avec sélection + titre de page, mais **ne pas prétendre** qu'il
+transmet l'identité Git, les SHA ou les règles `AGENTS.md`.
+Éviter toute automatisation de la sidebar.
