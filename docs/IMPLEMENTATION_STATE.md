@@ -701,3 +701,43 @@ précis. Tester le raccourci IA de Firefox pour des usages textuels
 avec sélection + titre de page, mais **ne pas prétendre** qu'il
 transmet l'identité Git, les SHA ou les règles `AGENTS.md`.
 Éviter toute automatisation de la sidebar.
+
+
+## Fin du MVP public/fictif — DEMO_REAL_FIREFOX_PASS (5 novembre 2026)
+
+**Verdict `DEMO_REAL_FIREFOX_PASS` consigné dans
+[l'issue #23](https://github.com/djibian/alliage/issues/23#issuecomment-6662890609).**
+La capture et les journaux réels avaient déjà établi : page
+Quarto rendue en Firefox Ubuntu, superposition Alliage, sélection,
+panneau ChatGPT natif, accès GitHub en lecture et **en écriture**,
+commit réel `ecf35454aa3e0e93802041944a17241ef4866e09`
+sur la seule branche fictive, contrôle Git de la modification
+unique dans `activite.qmd`, puis `--fetch-demo` explicite
+et rendus Quarto réels V1 = `affdb099bafd94099bf219c174e1ec6bbf82968f`
+et V2 = `ecf35454aa3e0e93802041944a17241ef4866e09`.
+
+**Deux confirmations humaines complémentaires le 5 novembre :**
+- la **navigation V1 ↔ V2 fonctionne** réellement dans Firefox ;
+- après clic « Retenir V2 (local) », le message affiché est
+  exactement **« V2 retenue dans ce navigateur, sans écriture Git
+  ni publication. »**
+
+Les critères de l'issue #23 sont donc satisfaits pour la
+**ressource publique et fictive**. La préparation de contexte a été
+testée fonctionnelle selon l'enseignant et le chatbot a reçu un
+contexte Git contextualisé ; le collage de l'intégralité du prompt
+préparé n'est pas instrumenté comme événement distinct.
+La version exacte de Firefox et le comptage des gestes ne sont
+pas disponibles. **Ne pas extrapoler** à des contenus privés,
+à une validation de Git durable, ni à une publication élèves.
+
+**Séparation des portes :** le parcours réel est réussi,
+mais [PR #22](https://github.com/djibian/alliage/pull/22)
+demeure **Ready for review**, non fusionnée dans `main` :
+revue indépendante du HEAD exact puis intégration soumise à
+la gouvernance. `main` conservé au
+`7231ac4fb54ec54aebd498e72d4bd588878e631e`
+lors de ce contrôle, et la branche de démonstration
+ne doit **jamais** être intégrée dans `main`.
+P3.6 (#13–#21), multiapplication, publication et
+ressources professeur confidentielles restent différés.
