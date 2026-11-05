@@ -211,7 +211,14 @@
     row.append(refresh);
     // The browser's page origin can access only this loopback port, not
     // arbitrary Git endpoints. No network request until a deliberate click.
-    refresh.addEventListener("click", async () => {
+    refresh.addEventListener("click", async (event) => {
+      // Reject script-synthesized clicks on the extension's closed shadow
+      // control. This is NOT a cryptographic guarantee against a malicious
+      // script already running from the trusted same-origin Quarto page.
+      if (!event || event.isTrusted !== true) {
+        refreshStatus.textContent="Actualisation réservée à un clic réel dans Firefox.";
+        return;
+      }
       if (!refreshConsent.checked) {
         refreshStatus.textContent="Confirmer d’abord le fetch et le rendu de la ressource fictive.";
         return;
