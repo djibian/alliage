@@ -1,4 +1,4 @@
-# Alliage — roadmap opérationnelle Pareto (4 novembre 2026)
+# Alliage — roadmap opérationnelle Pareto (5 novembre 2026)
 
 **But produit :** dans Firefox, l'enseignant visualise une activité Quarto
 publique/fictive, dialogue avec le **chatbot natif du panneau latéral**,
@@ -10,7 +10,55 @@ L'ancienne roadmap, ses expérimentations et décisions restent conservées
 dans [ROADMAP_ARCHIVE_202610.md](ROADMAP_ARCHIVE_202610.md).
 Contrats inchangés : `AGENTS.md`, `PRODUCT_VISION.md`, `DECISIONS.md`.
 
-## V0 pédagogique — chemin critique à terminer AVANT toute autre phase
+## V0 pédagogique — `DEMO_REAL_FIREFOX_PASS`, livraison logicielle à terminer
+
+**Preuve métier acquise le 5 novembre 2026** :
+[issue #23 clôturée](https://github.com/djibian/alliage/issues/23).
+Dans le véritable Firefox Ubuntu, l'enseignant a sélectionné
+un passage Quarto fictif, utilisé ChatGPT dans le panneau
+latéral natif, obtenu la lecture puis l'écriture GitHub
+sur la branche autorisée, déclenché la récupération Git
+volontaire et deux rendus Quarto réels, navigué V1/V2
+et choisi « Retenir V2 (local) », sans publication.
+L'IA de la sidebar disposait effectivement d'outils
+GitHub en lecture **et en écriture dans cette configuration**.
+Cela ne garantit pas l'accès sur toutes les installations.
+
+**Livraison du logiciel en attente** :
+[PR #22](https://github.com/djibian/alliage/pull/22)
+`feat/pareto-firefox-sidebar-context` doit recevoir une
+**contre-expertise indépendante sur son HEAD exact** avant
+éventuelle fusion dans `main`. Une CI verte et la preuve
+humaine #23 ne remplacent pas cette revue. **Ne jamais
+fusionner la branche fictive `experiment/pareto-quarto-demo`
+dans `main`.**
+
+**Itération suivante, Pareto :** éliminer les manipulations
+récurrentes sans inventer d'infrastructure IA.
+1. Premier gain livré dans la PR #22 : raccourci
+   `quarto_pareto_demo.py --demo` pour éviter de répéter
+   dépôt et ref, **sans** retirer la confirmation de confiance
+   ou autoriser un fetch implicite.
+2. **Après intégration de #22** : mesurer l'intérêt du
+   raccourci IA natif de sélection Firefox pour le
+   dialogue simple. La sélection et le titre ne prouvent
+   ni SHA Git ni branche autorisée : le bouton Alliage
+   demeure utile pour une demande de modification de source.
+3. Évaluer une **actualisation Quarto volontaire depuis
+   la page Firefox**, afin de supprimer le cycle
+   Ctrl+C → relancement terminal après chaque commit.
+   Ne pas écrire de nouveau serveur généraliste.
+   Réutiliser le lanceur et le pont local existants ;
+   avant implémentation, exiger une action humaine visible,
+   une branche autorisée, un périmètre fictif, aucun
+   fetch caché, aucun checkout et aucune publication.
+   La nécessité d'un endpoint local et son contrôle
+   d'accès doivent être justifiés par un essai réel.
+
+Les étapes ci-dessous constituent le **contrat historique
+qui a été validé**, et non des travaux à relancer :
+
+
 
 1. **Fournir une activité Quarto publiable sans secrets** : branche
    `experiment/pareto-quarto-demo` du seul dépôt `djibian/alliage`,
