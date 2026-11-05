@@ -167,6 +167,86 @@ class ParetoLaunchTests(unittest.TestCase):
             self.assertEqual(fetch.call_count, 1)
 
 
+    def test_demo_shortcut_uses_exact_fixture_with_no_implicit_fetch(self):
+        result = {
+            "resource_id": "quarto:djibian/alliage:activite.qmd",
+            "session_path": "/fiction/session",
+            "baseline_commit": self.SHA,
+            "observed_commit": "b" * 40,
+        }
+        preview = Mock()
+        preview.browser_url.return_value = "http://127.0.0.1:10000/test"
+        server = Mock()
+        server.server_port = 10000
+        with (patch.object(pilot, "prepare",
+                           return_value=(result, preview, server)) as prepare,
+              patch.object(pilot, "fetch_fictional_demo") as fetch):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                self.assertEqual(pilot.main([
+                    "--repo", "/fiction", "--demo",
+                    "--baseline-sha", self.SHA,
+                    "--public-fictional-trusted",
+                ]), 0)
+        prepare.assert_called_once_with(
+            Path("/fiction"), pilot.PUBLIC_DEMO_REPOSITORY,
+            pilot.PUBLIC_DEMO_TRACKING_REF, self.SHA,
+            public_fictional_trusted=True)
+        fetch.assert_not_called()
+        self.assertIn(pilot.PUBLIC_DEMO_TRACKING_REF, buf.getvalue())
+        self.assertIn("Actualisation Git explicitement demandée : NON", buf.getvalue())
+
+    def test_demo_shortcut_preserves_explicit_fetch_and_consent(self):
+        result = {
+            "resource_id": "quarto:djibian/alliage:activite.qmd",
+            "session_path": "/fiction/session",
+            "baseline_commit": self.SHA,
+            "observed_commit": "b" * 40,
+        }
+        with (patch.object(pilot, "fetch_fictional_demo",
+                           return_value=self.SHA) as fetch,
+              patch.object(pilot, "prepare") as prepare,
+              patch.object(pilot, "AttestedPreview"),
+              patch.object(pilot, "make_server")):
+            prepare.return_value = (result, Mock(), Mock())
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(pilot.main([
+                    "--repo", "/fiction", "--demo", "--fetch-demo",
+                    "--public-fictional-trusted",
+                ]), 0)
+            fetch.assert_called_once_with(
+                Path("/fiction"), pilot.PUBLIC_DEMO_REPOSITORY,
+                pilot.PUBLIC_DEMO_TRACKING_REF)
+            self.assertEqual(prepare.call_args.args[3], self.SHA)
+
+            with self.assertRaises(SystemExit) as refused:
+                pilot.main(["--repo", "/fiction", "--demo", "--fetch-demo"])
+            self.assertEqual(refused.exception.code, 2)
+            self.assertEqual(fetch.call_count, 1)
+
+    def test_demo_shortcut_rejects_conflicting_targets_before_git(self):
+        cases = [
+            ["--repository-id", "other/repo"],
+            ["--tracking-ref", "refs/remotes/origin/experiment/other"],
+        ]
+        with (patch.object(pilot, "prepare") as prepare,
+              patch.object(pilot, "fetch_fictional_demo") as fetch):
+            for extra in cases:
+                with self.subTest(extra=extra), self.assertRaises(SystemExit) as refused:
+                    pilot.main([
+                        "--repo", "/fiction", "--demo", "--fetch-demo",
+                        "--public-fictional-trusted", *extra,
+                    ])
+                self.assertEqual(refused.exception.code, 2)
+            with self.assertRaises(SystemExit) as missing_explicit:
+                pilot.main(["--repo", "/fiction",
+                            "--baseline-sha", self.SHA,
+                            "--public-fictional-trusted"])
+            self.assertEqual(missing_explicit.exception.code, 2)
+            prepare.assert_not_called()
+            fetch.assert_not_called()
+
+
 class RealParetoQuartoTests(unittest.TestCase):
     """Opt-in CI test: genuine Quarto rendering, local Git, local HTTP, no Firefox."""
     REF = ParetoLaunchTests.REF
