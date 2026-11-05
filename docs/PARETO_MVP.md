@@ -1,6 +1,6 @@
 # Alliage — première démonstration pédagogique Pareto (Firefox + IA + Git + Quarto)
 
-**Statut : PR #22 prête pour revue indépendante, non fusionnée et NON QUALIFIÉE dans le Firefox réel.**
+**Statut : PR #22 prête pour revue indépendante, non fusionnée ; parcours Firefox réel PARTIELLEMENT QUALIFIÉ le 5 novembre 2026 (issue #23).**
 **Strictement ressources publiques/fictives** ; jamais de document professeur privé.
 **Version de référence :** `main` `7231ac4fb54ec54aebd498e72d4bd588878e631e`.
 
@@ -76,7 +76,8 @@ git clone --branch experiment/pareto-quarto-demo --single-branch \
   https://github.com/djibian/alliage.git "$HOME/projets/alliage-demo"
 
 git -C "$HOME/projets/alliage-demo" rev-parse HEAD
-# Doit donner au départ : affdb099bafd94099bf219c174e1ec6bbf82968f
+# Au 5 novembre après un premier commit IA : ecf35454aa3e0e93802041944a17241ef4866e09
+# La branche est mutable : vérifier le HEAD réel, ne jamais exiger une valeur figée.
 ```
 
 Charger temporairement **uniquement** `extension/manifest.json`
@@ -186,25 +187,72 @@ conservent **au plus un état navigateur de session** :
 ce n'est **pas** une validation durable dans Git.
 **Aucune fusion ni publication élèves** n'est autorisée.
 
+## Première qualification réelle Firefox — 5 novembre 2026
+
+**Preuves humaines transmises pour l'issue #23 :** Quarto a rendu
+deux instantanés avec les SHA
+`affdb099bafd94099bf219c174e1ec6bbf82968f` (avant modification)
+et `ecf35454aa3e0e93802041944a17241ef4866e09` (après
+modification), grâce à `--fetch-demo --public-fictional-trusted`.
+La capture réelle Firefox montre la nouvelle consigne, l'extension
+Alliage et le chatbot natif dans la même fenêtre. La conversation
+du panneau a vérifié le SHA de branche, lu `AGENTS.md` et
+`styles.css` puis créé le commit directement grâce à ses
+outils GitHub, sur demande explicite de l'enseignant. Le diff GitHub
+confirme **un seul fichier modifié, `activite.qmd`**, et `main`
+inchangé. Le bouton « Préparer demande IA » a également été
+essayé et fonctionne selon l'enseignant.
+
+**La seule preuve utilisateur manquante** pour
+`DEMO_REAL_FIREFOX_PASS` est l'aller-retour V2 → V1 → V2
+avec constat des consignes distinctes, suivi du clic
+« Retenir V2 (local) » ou « Écarter V2 (local) » et
+du message correspondant. La capture fournie affiche encore
+« Décision non prise » : statut `DEMO_PARTIAL`, ne pas
+déduire un clic absent de la présence d'un bouton.
+
+**Après un clonage effectué après le commit IA :** la branche
+locale de suivi pointe déjà sur `ecf35454...` ; **ne pas**
+lancer `--fetch-demo` sans nouveau commit : ce mode refuse
+correctement l'absence de nouvelle révision. Pour revoir la
+comparaison correspondant à l'intervention IA, employer
+`--baseline-sha affdb099bafd94099bf219c174e1ec6bbf82968f`
+dans la première commande **sans fetch**. Après un prochain
+commit explicitement autorisé, `--fetch-demo` redevient
+pertinent.
+
+**Raccourci natif Firefox après sélection :** l'icône
+étincelante fournit déjà des actions de texte vers le
+chatbot du panneau latéral. Mozilla précise que le
+raccourci transmet le passage sélectionné et le titre
+de page ; il **ne remplace pas** le contexte Git vérifié
+(SHA, dépôt, branche, règles `AGENTS.md`) ni un
+consentement à l'écriture. Tester l'intérêt UX sur
+**la seule fixture publique/fictive**, sans automatiser
+ou extraire la conversation, et comparer la friction
+avec « Préparer demande IA ».
+
+
 ## Protocole d'acceptation à renseigner
 
 | Critère | Preuve requise | État actuel |
 | --- | --- | --- |
-| Page initiale Quarto affichée dans Firefox | Capture fictive / version Firefox | NON OBSERVÉ |
-| Texte transféré au panneau IA | Copie manuelle explicitement consentie | NON OBSERVÉ |
-| Lecture GitHub dans le panneau exact | Réponse avec branche et SHA vérifiables | UNPROVEN |
-| Écriture GitHub dans le panneau exact | Commit SHA réellement créé | UNPROVEN |
+| Page initiale Quarto affichée dans Firefox | Capture fictive (version Firefox exacte non consignée) | PASS réel |
+| Texte transféré au panneau IA | Dialogues natifs + préparation testée par l'enseignant | PASS rapporté (geste précis non instrumenté) |
+| Lecture GitHub dans le panneau exact | SHA, fichiers et blobs vérifiés sur GitHub | PASS réel |
+| Écriture GitHub dans le panneau exact | Commit ecf35454… sur seule fixture | PASS réel |
 | Repli en patch si besoin | Patch appliqué avec autorisation | NON TESTÉ |
 | Rendu initial Quarto V5 → HEAD adopté | Deux SHA, actifs, HTTP, intégrité des fichiers suivis | CI réelle sur branche adoptée : PASS (run 41890947229) |
-| Navigation V1/V2 dans Firefox | Différence visible, aucune erreur CORS | NON OBSERVÉ |
-| Décision humaine locale | Choix puis état affiché, aucune publication | DOM SIMULÉ |
-| Absence de modification du site élèves | Git/HTTP et revue du diff | À CONTRÔLER |
+| Navigation V1/V2 dans Firefox | V2 affichée ; aller-retour à confirmer | PARTIAL |
+| Décision humaine locale | Capture : « Décision non prise » | À effectuer dans Firefox |
+| Absence de modification du site élèves | Diff limité à la fixture, aucune publication initiée par Alliage | PASS dans le périmètre MVP |
 
-**Conclusion autorisée au stade de cette PR :** expérimentation
-préparée ; ni le panneau IA réel ni son éventuelle écriture GitHub
-n'ont été observés. La décision locale n'est pas une
-approbation Git ; un mécanisme durable devra être conçu
-**après la première démonstration**, si utile.
+**Conclusion :** le parcours Firefox réel jusqu'au commit GitHub et
+aux deux rendus Quarto est démontré, mais la navigation complète
+V1/V2 et la décision locale n'ont pas encore été observées.
+Ne déclarer `DEMO_REAL_FIREFOX_PASS` qu'après confirmation de ces
+deux gestes. Une décision locale ne vaut toujours ni approbation
+Git durable ni publication.
 
 ### Documentation externe
 - Firefox, chatbot natif et sélection :
