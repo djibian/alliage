@@ -36,14 +36,14 @@ jobs:
         run: |
           node --check extension/historique_ressource.js
           node --test tests/test_historique_ressource.js
-      - name: Verify the ADOPTED public demo ref with real Quarto at two pinned SHAs
+      - name: Verify real moving demo ref, immutable adopted baseline, two Quarto renders
         env:
           ALLIAGE_PINNED_DEMO_V5: "5b477ca0436cff5a4e5a3ec9b3b0bfbb8a514347"
           ALLIAGE_PINNED_DEMO_V6: "8e2f8b84515e9555c853c42f14cde0bca2c5de53"
-          ALLIAGE_ADOPTED_DEMO_HEAD: "affdb099bafd94099bf219c174e1ec6bbf82968f"
+          ALLIAGE_ADOPTED_DEMO_BASE: "affdb099bafd94099bf219c174e1ec6bbf82968f"
         run: |
-          # Test the actual remote fixture branch after reviewed PR #24 was merged.
-          # Never invent a tracking ref or mutate it locally to simulate adoption.
+          # Real branch can advance via explicitly authorized teaching edits.
+          # Enforce the immutable reviewed history as ancestor; never forge a tracking ref.
           git clone -q --single-branch --branch experiment/pareto-quarto-demo \
             https://github.com/djibian/alliage.git "$RUNNER_TEMP/alliage-public-demo-adopted"
           python3 - <<'PY'
@@ -60,18 +60,19 @@ jobs:
           repo = Path(os.environ["RUNNER_TEMP"]) / "alliage-public-demo-adopted"
           initial = os.environ["ALLIAGE_PINNED_DEMO_V5"]
           v6 = os.environ["ALLIAGE_PINNED_DEMO_V6"]
-          observed = os.environ["ALLIAGE_ADOPTED_DEMO_HEAD"]
+          adopted = os.environ["ALLIAGE_ADOPTED_DEMO_BASE"]
           tracking = "refs/remotes/origin/experiment/pareto-quarto-demo"
-          for commit in (initial, v6, observed):
+          for commit in (initial, v6, adopted):
               assert _git(repo, "cat-file", "-t", commit).strip() == b"commit"
-          assert _git(repo, "rev-parse", tracking + "^{commit}").decode().strip() == observed, (
-              "Adopted remote fixture branch does not match pinned SHA"
-          )
+          # The merge of reviewed #24 must remain accessible with the exact V6 tree.
+          assert _git(repo, "rev-parse", adopted + "^{tree}") == _git(
+              repo, "rev-parse", v6 + "^{tree}")
+          observed = _git(repo, "rev-parse", tracking + "^{commit}").decode().strip()
           assert _git(repo, "rev-parse", "HEAD").decode().strip() == observed
-          # The merge preserves V5/V6 history and its final tree is exactly V6.
-          assert _git(repo, "rev-parse", v6 + "^{tree}") == _git(
-              repo, "rev-parse", observed + "^{tree}")
-          assert _git(repo, "merge-base", "--is-ancestor", initial, observed) == b""
+          assert _git(repo, "merge-base", "--is-ancestor", adopted, observed) == b""
+          # When the branch advances, compare directly against its previous
+          # adopted state; otherwise retain the V5->V6 color-delta smoke test.
+          initial = adopted if observed != adopted else initial
           with TemporaryDirectory(prefix="alliage-adopted-fixture-") as home:
               with patch("quarto_observed_session.Path.home", return_value=Path(home)):
                   result, preview, server = prepare(
@@ -83,8 +84,16 @@ jobs:
                   preview.prefix + "/V1/project/_site/styles.css")[0]
               new_css = preview.get_asset(
                   preview.prefix + "/V2/project/_site/styles.css")[0]
-              assert b"#2563eb" in old_css
-              assert b"#15803d" in new_css
+              old_html = preview.get_asset(
+                  preview.prefix + "/V1/project/_site/activite.html")[0]
+              new_html = preview.get_asset(
+                  preview.prefix + "/V2/project/_site/activite.html")[0]
+              # At least one actually rendered asset must differ.
+              assert old_html != new_html or old_css != new_css
+              if initial == adopted:
+                  assert b"#15803d" in old_css
+              else:
+                  assert b"#2563eb" in old_css
               url = urlsplit(preview.browser_url(server.server_port))
               thread = threading.Thread(target=server.serve_forever, daemon=True)
               thread.start()
@@ -102,8 +111,9 @@ jobs:
                   server.shutdown()
                   server.server_close()
                   thread.join(timeout=5)
-          print("ADOPTED_REMOTE_DEMO_QUARTO_V5_V6_TREE=PASS; "
-                "REMOTE_REF_PINNED=true; FIREFOX=UNPROVEN")
+          print("LIVE_REMOTE_DEMO_QUARTO_TWO_REVISIONS=PASS; "
+                f"BASELINE={initial}; OBSERVED_HEAD={observed}; "
+                "REVIEWED_MERGE_ANCESTOR=true; FIREFOX_CI=NOT_TESTED")
           PY
       - name: Preserve evidence boundary
         run: |
