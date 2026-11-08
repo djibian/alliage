@@ -881,3 +881,53 @@ la seule branche fictive. Décrire les observations
 HTTP/Origin réelles sans déduire une compatibilité
 Firefox de la simulation Node. **Ne pas fusionner
 cette PR tant que ces preuves ne sont pas réunies**.
+
+
+## #25 — Confirmation de la nouvelle révision dans Firefox réel (8 novembre 2026)
+
+**Témoignage humain explicite de l'enseignant :**
+- Le 6 novembre, après lancement de la PR #26 expérimentale,
+  le clic volontaire sur « Actualiser les révisions » **sans
+  nouveau commit** affichait exactement :
+  « Aucune nouvelle révision : comparaison conservée ».
+- Sur autorisation **distincte et explicite** de l'enseignant,
+  une seule ligne de `activite.qmd` a ensuite été modifiée
+  sur la branche fictive `experiment/pareto-quarto-demo` :
+  la consigne 2 utilise désormais l'exemple `photo.png`.
+  GitHub a confirmé le nouveau commit
+  `5a236ebfa5b78c648a0ab3c76cda88ec53b8d656`,
+  descendant direct de
+  `ecf35454aa3e0e93802041944a17241ef4866e09`,
+  **sans modification de `main`**, ni des autres
+  fichiers de la fixture.
+- Le 8 novembre, l'enseignant a confirmé dans son **Firefox
+  réel**, après avoir suivi le protocole de clic volontaire,
+  que **la nouvelle consigne apparaît dans V2** et qu'il
+  peut **revenir à V1** où figure l'ancienne révision.
+  Il n'a pas fourni de nouvelle capture réseau ou de
+  chronométrage ; ne pas présenter ces éléments comme
+  instrumentés. L'absence de redémarrage du serveur
+  est la condition du protocole fourni, pas un
+  évènement instrumenté séparément.
+
+**Verdicts fonctionnels :**
+`FIREFOX_REFRESH_NO_CHANGE_PASS` et
+`FIREFOX_REFRESH_NEW_COMMIT_PASS` sur la seule
+ressource fictive/publique. Ces preuves humaines
+complètent les CI Quarto/Git/HTTP réelles
+préexistantes. Le changement intervenu sur la
+branche fictive nécessite de **relancer les CI du
+candidat logiciel** pour qualifier son HEAD avec
+ce nouveau pointeur Git mutable ; l'actualisation
+de ce document déclenche ces CI.
+
+**Gouvernance restante :** PR #26 non fusionnée
+dans `main`, contre-expertise indépendante
+sur HEAD exact indispensable avant une éventuelle
+fusion autorisée par le propriétaire. Conserver
+la limite *fixture publique/fictive de confiance
+uniquement* : `isTrusted` + same-origin + jeton
+à usage unique ne forment pas une enclave
+contre des scripts Quarto malveillants de même
+origine. Aucune validation Git durable,
+publication ni extension aux ressources privées.
