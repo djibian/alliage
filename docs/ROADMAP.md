@@ -46,14 +46,20 @@ récurrentes sans inventer d'infrastructure IA.
 3. [Issue #25](https://github.com/djibian/alliage/issues/25) :
    **actualisation Quarto volontaire depuis Firefox**,
    après un commit autorisé. Candidat
-   [PR #26](https://github.com/djibian/alliage/pull/26) en Draft :
-   réemploi du serveur loopback existant, ouverture explicite
-   `--browser-refresh` sur la seule fixture publique, confirmation
-   distincte et token HTTP à usage unique. Le rendu antérieur
-   reste actif jusqu'à vérification complète du nouveau.
-   **CI Quarto réelle et contrôles HTTP nécessaires ; une
-   preuve Firefox réelle est obligatoire avant livraison.**
-   Aucun fetch caché, checkout, écriture source ou publication.
+   [PR #26](https://github.com/djibian/alliage/pull/26) Ready,
+   **NON FUSIONNÉE** : réemploi du serveur loopback existant,
+   ouverture explicite `--browser-refresh` sur la seule fixture
+   publique, confirmation distincte et token HTTP à usage unique.
+   Les deux scénarios ont réussi en **Firefox réel** (aucune
+   nouvelle révision / nouveau commit Git et retour V1).
+   **Revue indépendante du 8 novembre : `CORRECTIONS_REQUIRED`** :
+   contrôler l'origine Git du clone **avant le premier rendu**
+   et garantir que les anciennes URL V1/V2 restent accessibles
+   après une réponse d'actualisation perdue.
+   Correctifs ciblés et tests sur la même PR ; **nouvelle
+   contre-expertise obligatoire** sur le HEAD final, puis
+   autorisation explicite de fusion. Aucune publication, aucun
+   checkout ni accès aux ressources privées.
 
 Les étapes ci-dessous constituent le **contrat historique
 qui a été validé**, et non des travaux à relancer :
