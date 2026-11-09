@@ -294,6 +294,48 @@ class ParetoLaunchTests(unittest.TestCase):
             fetch.assert_called_once()
             preview.assert_not_called()
 
+    def test_browser_refresh_refuses_foreign_or_missing_origin_before_quarto(self):
+        """A forged local tracking ref is not proof of an authorized clone."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            repo=Path(tmp)
+            def git(*args):
+                return subprocess.check_output(
+                    ["git","-C",str(repo),*args],text=True).strip()
+            git("init","-q")
+            git("config","user.name","Fiction")
+            git("config","user.email","fixture@example.invalid")
+            (repo/"activite.qmd").write_text(
+                "---\\ntitle: Foreign\\n---\\n\\nNot trusted.\\n",encoding="utf-8")
+            git("add","activite.qmd")
+            git("commit","-qm","Foreign V1")
+            first=git("rev-parse","HEAD")
+            (repo/"activite.qmd").write_text(
+                "---\\ntitle: Foreign\\n---\\n\\nStill not trusted.\\n",encoding="utf-8")
+            git("add","activite.qmd")
+            git("commit","-qm","Foreign V2")
+            git("update-ref",pilot.PUBLIC_DEMO_TRACKING_REF,"HEAD")
+            args=["--repo",str(repo),"--demo","--browser-refresh",
+                  "--baseline-sha",first,"--public-fictional-trusted"]
+            with (patch.object(pilot,"prepare_preview") as render,
+                  patch.object(pilot,"fetch_fictional_demo") as fetch,
+                  patch.object(pilot,"make_server") as server):
+                for origin in (None,"https://example.invalid/other.git"):
+                    with self.subTest(origin=origin):
+                        if origin is not None:
+                            git("remote","add","origin",origin)
+                        with self.assertRaises(SystemExit) as refused:
+                            pilot.main(args)
+                        self.assertEqual(refused.exception.code,2)
+                render.assert_not_called()
+                fetch.assert_not_called()
+                server.assert_not_called()
+            # A matching configured origin is a necessary local check; it is
+            # not proof that a locally fabricated tracking ref came from it.
+            git("remote","set-url","origin",
+                "https://github.com/djibian/alliage.git")
+            self.assertEqual(pilot.verify_public_demo_clone(repo),repo)
+
     def test_browser_refresh_opt_in_reuses_one_server_without_implicit_fetch(self):
         result={"baseline_commit":self.SHA,"observed_commit":"b"*40,
                 "resource_id":"quarto:djibian/alliage:activite.qmd",
@@ -302,7 +344,9 @@ class ParetoLaunchTests(unittest.TestCase):
         preview.browser_url.return_value="http://127.0.0.1:9000/test"
         server=Mock()
         server.server_port=9000
-        with (patch.object(pilot,"prepare_preview",
+        with (patch.object(pilot,"verify_public_demo_clone",
+                           return_value=Path("/fiction")) as verify,
+              patch.object(pilot,"prepare_preview",
                            return_value=(result,preview)) as prepare,
               patch.object(pilot,"make_server",return_value=server) as make,
               patch.object(pilot,"fetch_fictional_demo") as fetch):
@@ -311,6 +355,7 @@ class ParetoLaunchTests(unittest.TestCase):
                     "--repo","/fiction","--demo","--browser-refresh",
                     "--baseline-sha",self.SHA,
                     "--public-fictional-trusted"]),0)
+            verify.assert_called_once_with(Path("/fiction"))
         prepare.assert_called_once_with(
             Path("/fiction"),pilot.PUBLIC_DEMO_REPOSITORY,
             pilot.PUBLIC_DEMO_TRACKING_REF,self.SHA,
