@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Serve only attested Quarto _site assets on loopback for an opt-in Firefox test.
+"""Serve only attested Quarto _site assets on loopback for a Firefox test.
 
-Ephemeral read-only transport. No Git, rendering, API, write or publication.
+Read-only by default. A separately enabled demo-only HTTP control can call
+the supplied Git/Quarto refresh callback after same-origin token checks.
+The latest and two former inventories stay GET/HEAD-only and rehashed.
+No source edits, checkout, merge, publication or general-purpose API.
 The unguessable URL prefix is a local capability, not user authentication.
 """
 from __future__ import annotations
