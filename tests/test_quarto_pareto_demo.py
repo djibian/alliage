@@ -550,7 +550,11 @@ class RealParetoQuartoTests(unittest.TestCase):
                         status,old_new_html=request("GET",older)
                         self.assertEqual(status,200)
                         self.assertIn(b"Version initiale.",old_new_html)
-                        self.assertEqual(request("GET",old_html.path)[0],404)
+                        # Both previous browser tabs stay usable if the
+                        # redirect response is not acknowledged by Firefox.
+                        self.assertEqual(request("GET",old_html.path)[0],200)
+                        self.assertEqual(request("GET",old_html.path.replace(
+                            "/V2/","/V1/"))[0],200)
                         self.assertEqual(fetch.call_count,1)
                         self.assertEqual(
                             prior_checkout,(git(repo,"rev-parse","HEAD"),
