@@ -24,6 +24,10 @@ from quarto_resource_entry import resource_entry_url
 BIND = "127.0.0.1"
 MAX_QUERY = 4096
 ASSET_PREFIX = "project/_site/"
+# Retain two earlier complete, read-only Quarto comparisons in memory.
+# A browser tab or interrupted POST can still load its verified V1/V2.
+# Older ones expire after further refreshes; no background cleanup service.
+MAX_RETAINED_PREVIEWS = 2
 
 
 class HTTPPreviewError(ValueError):
@@ -96,8 +100,9 @@ class AttestedPreview:
 
 def make_handler(preview: AttestedPreview, refresh_callback=None):
     # Keep the verified asset inventory immutable for each preview. Only an
-    # explicitly enabled, successful refresh atomically swaps this pointer.
-    state = {"preview": preview, "nonce": None}
+    # explicitly enabled, successful refresh swaps the active pointer.
+    # Earlier snapshots stay GET/HEAD-only for bounded browser recovery.
+    state = {"preview": preview, "retained": [], "nonce": None}
     gate = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
@@ -142,11 +147,18 @@ def make_handler(preview: AttestedPreview, refresh_callback=None):
             path, sep, query = self.path.partition("?")
             if len(query) > MAX_QUERY or (sep and "#" in query):
                 return self.respond(HTTPStatus.NOT_FOUND, send_body=send_body)
-            try:
-                content, mime = state["preview"].get_asset(path)
-            except (FileNotFoundError, HTTPPreviewError):
-                return self.respond(HTTPStatus.NOT_FOUND, send_body=send_body)
-            return self.respond(HTTPStatus.OK, content, mime, send_body)
+            # Existing tabs and interrupted POST responses must remain
+            # readable. A previous prefix has NO refresh-control routes.
+            snapshots = [state["preview"], *state["retained"]]
+            for historical in snapshots:
+                if path not in historical.routes:
+                    continue
+                try:
+                    content, mime = historical.get_asset(path)
+                except (FileNotFoundError, HTTPPreviewError):
+                    return self.respond(HTTPStatus.NOT_FOUND, send_body=send_body)
+                return self.respond(HTTPStatus.OK, content, mime, send_body)
+            return self.respond(HTTPStatus.NOT_FOUND, send_body=send_body)
 
         def control_request_allowed(self, require_origin=False):
             if not self.authorized_request():
@@ -218,8 +230,16 @@ def make_handler(preview: AttestedPreview, refresh_callback=None):
                             updated.query.split("=", 1)[0] !=
                                 active.query.split("=", 1)[0]):
                         raise HTTPPreviewError("Aperçu actualisé non attesté.")
-                    # Keep existing GET routes live until all Git+Quarto
-                    # verification succeeded; then publish the new inventory.
+                    # A successful render does NOT mean the response reached
+                    # Firefox. Retain earlier read-only V1/V2 inventories so
+                    # old tabs and an interrupted POST never become broken
+                    # links. Only the current prefix may request another
+                    # refresh. Limit memory to two previous comparisons.
+                    if (updated.prefix == active.prefix or any(
+                            updated.prefix == old.prefix
+                            for old in state["retained"])):
+                        raise HTTPPreviewError("Collision de capacité d'aperçu.")
+                    state["retained"] = ([active] + state["retained"])[:MAX_RETAINED_PREVIEWS]
                     state["preview"] = updated
                     self.respond_json(HTTPStatus.OK, {
                         "state": "updated",
