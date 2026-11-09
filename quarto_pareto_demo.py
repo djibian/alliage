@@ -32,6 +32,23 @@ class DemoRefused(ValueError):
     """Unsafe or ambiguous pilot usage: refuse a demo operation."""
 
 
+def verify_public_demo_clone(repo: Path) -> Path:
+    """Fail before executing trusted-demo Quarto if clone/origin is wrong.
+
+    This checks the local Git configuration, not cryptographic provenance of
+    every commit on a local tracking ref. No network or fetch happens here.
+    """
+    repo = Path(repo).expanduser().resolve(strict=True)
+    root = _git(repo, "rev-parse", "--show-toplevel").decode("utf-8").strip()
+    if Path(root).resolve(strict=True) != repo:
+        raise DemoRefused("Racine Git exacte requise.")
+    remote = _git(repo, "remote", "get-url", "origin").decode("utf-8").strip()
+    if remote not in ("https://github.com/djibian/alliage.git",
+                      "git@github.com:djibian/alliage.git"):
+        raise DemoRefused("Origine GitHub différente de la démonstration publique attendue.")
+    return repo
+
+
 def fetch_fictional_demo(repo: Path, repository_id: str, tracking_ref: str) -> str:
     """One user-initiated fetch, tightly bound to the public demo branch.
 
@@ -41,14 +58,7 @@ def fetch_fictional_demo(repo: Path, repository_id: str, tracking_ref: str) -> s
     if (repository_id != PUBLIC_DEMO_REPOSITORY or
             tracking_ref != PUBLIC_DEMO_TRACKING_REF):
         raise DemoRefused("Actualisation autorisée uniquement sur la branche de démonstration fictive.")
-    repo = Path(repo).expanduser().resolve(strict=True)
-    root = _git(repo, "rev-parse", "--show-toplevel").decode("utf-8").strip()
-    if Path(root).resolve(strict=True) != repo:
-        raise DemoRefused("Racine Git exacte requise.")
-    remote = _git(repo, "remote", "get-url", "origin").decode("utf-8").strip()
-    if remote not in ("https://github.com/djibian/alliage.git",
-                      "git@github.com:djibian/alliage.git"):
-        raise DemoRefused("Origine GitHub différente de la démonstration publique attendue.")
+    repo = verify_public_demo_clone(repo)
     before = _git(repo, "rev-parse", "--verify", tracking_ref + "^{commit}").decode("ascii").strip()
     if SHA.fullmatch(before) is None:
         raise DemoRefused("Ancien SHA de suivi absent ou invalide.")
@@ -170,6 +180,11 @@ def main(argv: list[str] | None = None) -> int:
             raise DemoRefused("--browser-refresh exige --demo et --public-fictional-trusted.")
         if not args.baseline_sha and not args.fetch_demo:
             raise DemoRefused("--baseline-sha requis sans actualisation Git explicite.")
+        # A browser-refresh launch executes unsandboxed Quarto immediately.
+        # Verify the real clone and origin BEFORE any first render, even when
+        # --fetch-demo is absent. This is a local-only preflight, NOT a fetch.
+        if args.browser_refresh:
+            verify_public_demo_clone(args.repo)
         # Validate user consent and arguments before any contact with GitHub.
         if args.fetch_demo:
             validate_inputs(args.repository_id, args.baseline_sha or "0" * 40,
