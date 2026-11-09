@@ -931,3 +931,81 @@ uniquement* : `isTrusted` + same-origin + jeton
 contre des scripts Quarto malveillants de même
 origine. Aucune validation Git durable,
 publication ni extension aux ressources privées.
+
+
+## #26 — Correction des deux défauts bloquants de contre-expertise (9 novembre 2026)
+
+**Revue indépendante du 8 novembre 2026** : `CORRECTIONS_REQUIRED`
+sur `c72ba693cd0668c121f2d54feda41a27dccc0bc8`,
+base `main` `3494ec2b9112dfd98e13936de7d5a8eb9b204c5d`.
+La revue attribue deux défauts bloquants **au périmètre
+public/fictif réellement développé**, sans remettre en
+cause les preuves humaines du bouton Firefox :
+1. La racine Git et l'URL `origin` ne sont contrôlées
+   qu'au premier clic de fetch, alors que le démarrage
+   `--demo --browser-refresh` peut déjà exécuter
+   les hooks/filters d'un projet Quarto local non fiable.
+2. Le basculement sur un nouvel inventaire HTTP invalide
+   immédiatement les anciennes URL avant tout acquittement
+   navigateur de la réponse POST. Si la réponse est perdue,
+   la comparaison annoncée « conservée » n'est plus
+   navigable, notamment depuis plusieurs onglets.
+
+**Correctifs minimaux introduits sur la même PR #26 :**
+- `verify_public_demo_clone(repo)` mutualise le contrôle
+  strict de la racine Git et de `git remote get-url origin`
+  effectué par le fetch. Le mode `--browser-refresh`
+  l'exécute **avant tout rendu initial Quarto**, même
+  si l'enseignant n'a pas sélectionné `--fetch-demo`.
+  Le contrôle est **local**, sans fetch ni checkout
+  implicite ; échec = aucun appel à `prepare_preview`,
+  aucun serveur et aucun rendu.
+- `quarto_local_http.py` conserve **les deux
+  précédents inventaires de fichiers attestés en
+  lecture seule** à côté de l'aperçu actif, dans le
+  même serveur loopback et sans stockage externe.
+  Même si une réponse POST de succès est interrompue,
+  les anciens HTML, CSS et liens de navigation
+  V1↔V2 restent accessibles. Seul le préfixe actif
+  peut obtenir un nouveau token et déclencher un POST ;
+  les anciens deviennent strictement GET/HEAD.
+  La rétention est **bornée à deux comparaisons
+  précédentes**, et les plus anciens préfixes peuvent
+  ensuite retourner 404 ; il ne s'agit pas d'une
+  conservation durable des versions publiées.
+
+**Tests de non-régression supplémentaires :**
+- dépôt local fictif avec deux commits et fausse ref de
+  suivi, sans `origin` puis avec une origine étrangère :
+  aucun appel au rendu Quarto, au serveur ou au fetch.
+  Le cas configuré `origin` attendu est distinct.
+- HTTP réel : POST dont le client ne lit pas la réponse
+  puis vérification des deux anciennes URL et des assets
+  pendant que le nouvel aperçu est servi ;
+  plusieurs onglets, limites de rétention après
+  trois actualisations et refus de POST via un
+  ancien préfixe. Le test vertical avec **Quarto
+  réel** vérifie également que l'ancien V1/V2
+  reste accessible après une nouvelle révision.
+
+**Limite de confiance résiduelle conservée :**
+un `origin` local conforme **ne prouve pas
+cryptographiquement** que la ref Git locale provient
+de GitHub, et le rendu Quarto n'est pas sandboxé.
+L'enseignant atteste donc explicitement que
+**son clone et sa fixture sont de confiance**.
+Le contrôle `isTrusted`, les en-têtes same-origin
+et le nonce HTTP n'authentifient pas un geste humain
+face à un script hostile déjà exécuté sur la même
+origine. Le mode reste **strictement fictif/public**.
+
+**Porte restante :** vérifier les CI sur le
+**nouveau HEAD final**, puis exiger une
+**nouvelle contre-expertise indépendante ciblée**
+sur les deux correctifs et leurs tests. La
+première revue `CORRECTIONS_REQUIRED` n'est
+pas annulée par une modification de code.
+La PR #26 **reste non fusionnée** jusqu'à un avis
+favorable et une autorisation de fusion distincte
+du propriétaire. Ne jamais fusionner la branche
+`experiment/pareto-quarto-demo` dans `main`.
