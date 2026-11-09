@@ -306,12 +306,12 @@ class ParetoLaunchTests(unittest.TestCase):
             git("config","user.name","Fiction")
             git("config","user.email","fixture@example.invalid")
             (repo/"activite.qmd").write_text(
-                "---\\ntitle: Foreign\\n---\\n\\nNot trusted.\\n",encoding="utf-8")
+                "---\ntitle: Foreign\n---\n\nNot trusted.\n",encoding="utf-8")
             git("add","activite.qmd")
             git("commit","-qm","Foreign V1")
             first=git("rev-parse","HEAD")
             (repo/"activite.qmd").write_text(
-                "---\\ntitle: Foreign\\n---\\n\\nStill not trusted.\\n",encoding="utf-8")
+                "---\ntitle: Foreign\n---\n\nStill not trusted.\n",encoding="utf-8")
             git("add","activite.qmd")
             git("commit","-qm","Foreign V2")
             git("update-ref",pilot.PUBLIC_DEMO_TRACKING_REF,"HEAD")
