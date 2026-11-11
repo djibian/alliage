@@ -7,6 +7,7 @@ import http.client
 import json
 from pathlib import Path
 import threading
+import time
 import unittest
 from urllib.parse import urlsplit
 from unittest.mock import patch
@@ -59,9 +60,9 @@ class LocalHTTPPreviewTests(unittest.TestCase):
         self.server.server_close()
         self.thread.join(timeout=5)
 
-    def request(self, path, method="GET", headers=None):
+    def request(self, path, method="GET", headers=None, server=None):
         connection = http.client.HTTPConnection("127.0.0.1",
-                                                self.server.server_port, timeout=5)
+                                                (server or self.server).server_port, timeout=5)
         try:
             connection.request(method, path, headers=headers or {})
             response = connection.getresponse()
@@ -69,6 +70,195 @@ class LocalHTTPPreviewTests(unittest.TestCase):
             return response.status, dict(response.getheaders()), body
         finally:
             connection.close()
+
+    def start_refresh_server(self, callback):
+        server = make_server(self.preview, refresh_callback=callback)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        def close():
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+        self.addCleanup(close)
+        return server
+
+    def control_headers(self, server, token=None, origin=True):
+        headers = {"Sec-Fetch-Site": "same-origin",
+                   "X-Alliage-Intent": "user-click"}
+        if origin:
+            headers["Origin"] = f"http://127.0.0.1:{server.server_port}"
+        if token is not None:
+            headers["X-Alliage-Refresh-Token"] = token
+        return headers
+
+    def test_refresh_is_disabled_on_existing_read_only_preview(self):
+        p = self.preview.prefix
+        self.assertEqual(self.request(p + "/_alliage/refresh-capability")[0], 404)
+        self.assertEqual(self.request(p + "/_alliage/refresh",
+                                      method="POST")[0], 405)
+
+    def test_opt_in_refresh_requires_same_origin_and_single_use_capability(self):
+        calls = []
+        def unchanged(_active):
+            calls.append(True)
+            return None
+        server = self.start_refresh_server(unchanged)
+        p = self.preview.prefix
+        get = p + "/_alliage/refresh-capability"
+        post = p + "/_alliage/refresh"
+        self.assertEqual(self.request(get, server=server)[0], 403)
+        self.assertEqual(self.request(get, headers={
+            "Sec-Fetch-Site": "cross-site", "X-Alliage-Intent": "user-click"
+        },server=server)[0], 403)
+        code, _, raw = self.request(get,headers=self.control_headers(server),server=server)
+        self.assertEqual(code, 200)
+        token = json.loads(raw)["token"]
+        self.assertGreater(len(token), 32)
+        self.assertEqual(self.request(post,method="POST",server=server,
+                         headers=self.control_headers(server))[0],403)
+        self.assertEqual(self.request(post,method="POST",server=server,
+                         headers=self.control_headers(server,token,False))[0],403)
+        cross=self.control_headers(server,token)
+        cross["Origin"]="http://evil.invalid"
+        self.assertEqual(self.request(post,method="POST",server=server,headers=cross)[0],403)
+        self.assertEqual(self.request(post,method="POST",server=server,
+                         headers={**self.control_headers(server,token),
+                                  "Content-Length":"3"})[0],400)
+        code, headers, raw=self.request(post,method="POST",server=server,
+                                        headers=self.control_headers(server,token))
+        self.assertEqual(code,200)
+        self.assertEqual(json.loads(raw),{"state":"unchanged"})
+        self.assertEqual(headers["Cache-Control"],"no-store")
+        self.assertNotIn("Access-Control-Allow-Origin",headers)
+        self.assertEqual(len(calls),1)
+        self.assertEqual(self.request(post,method="POST",server=server,
+                         headers=self.control_headers(server,token))[0],403)
+        self.assertEqual(len(calls),1)
+        self.assertEqual(self.request(p+"/V2/project/_site/activite.html",
+                                      server=server)[0],200)
+
+    def test_refresh_failure_keeps_previous_verified_assets(self):
+        def failed(_):
+            raise ValueError("private details should not leak into HTTP")
+        server=self.start_refresh_server(failed)
+        p=self.preview.prefix
+        old_url=urlsplit(self.preview.browser_url(server.server_port))
+        code,_,body=self.request(p+"/_alliage/refresh-capability",
+                                server=server,headers=self.control_headers(server))
+        self.assertEqual(code,200)
+        token=json.loads(body)["token"]
+        status,_,raw=self.request(p+"/_alliage/refresh",
+                 method="POST",server=server,headers=self.control_headers(server,token))
+        self.assertEqual(status,422)
+        self.assertNotIn(b"private details",raw)
+        self.assertEqual(self.request(old_url.path+"?"+old_url.query,
+                                      server=server)[0],200)
+        self.assertEqual(self.request(p+"/_alliage/refresh",method="POST",
+                 server=server,headers=self.control_headers(server,token))[0],403)
+
+    def test_success_swaps_only_after_attested_preview_and_invalidates_old_token(self):
+        replacement=AttestedPreview(self.session,self.resource_id)
+        server=self.start_refresh_server(lambda _:replacement)
+        p=self.preview.prefix
+        code,_,raw=self.request(p+"/_alliage/refresh-capability",
+                                server=server,headers=self.control_headers(server))
+        self.assertEqual(code,200)
+        token=json.loads(raw)["token"]
+        status,_,raw=self.request(p+"/_alliage/refresh",
+                 method="POST",server=server,headers=self.control_headers(server,token))
+        self.assertEqual(status,200)
+        result=json.loads(raw)
+        self.assertEqual(result["state"],"updated")
+        self.assertEqual(result["url"],replacement.browser_url(server.server_port))
+        # The old V1 and V2 HTML remain available after switching active
+        # previews. Stale control routes are not authorized to POST again.
+        self.assertEqual(self.request(p+"/V2/project/_site/activite.html",
+                                      server=server)[0],200)
+        self.assertEqual(self.request(p+"/V1/project/_site/activite.html",
+                                      server=server)[0],200)
+        self.assertEqual(self.request(urlsplit(result["url"]).path,
+                                      server=server)[0],200)
+        self.assertEqual(self.request(p+"/_alliage/refresh",method="POST",
+                 server=server,headers=self.control_headers(server,token))[0],404)
+
+    def test_lost_refresh_response_keeps_previous_tabs_and_history_readable(self):
+        """Client closes before reading POST result; old V1/V2 still work."""
+        reached=threading.Event()
+        updated=AttestedPreview(self.session,self.resource_id)
+        def callback(_):
+            reached.set()
+            return updated
+        server=self.start_refresh_server(callback)
+        p=self.preview.prefix
+        old_url=urlsplit(self.preview.browser_url(server.server_port))
+        old_v1=old_url.path.replace("/V2/","/V1/")
+        status,_,raw=self.request(p+"/_alliage/refresh-capability",
+            server=server,headers=self.control_headers(server))
+        self.assertEqual(status,200)
+        token=json.loads(raw)["token"]
+        # Deliberately do not call getresponse(): Firefox may cancel the
+        # POST, lose connectivity or close a tab after rendering succeeds.
+        conn=http.client.HTTPConnection("127.0.0.1",server.server_port,timeout=5)
+        try:
+            conn.request("POST",p+"/_alliage/refresh",
+                         headers=self.control_headers(server,token))
+            self.assertTrue(reached.wait(5))
+        finally:
+            conn.close()
+        new_path=urlsplit(updated.browser_url(server.server_port)).path
+        for _ in range(30):
+            if self.request(new_path,server=server)[0]==200:
+                break
+            time.sleep(.05)
+        else:
+            self.fail("New verified preview was not installed")
+        # Both old tabs remain in the browser even if the response was lost.
+        self.assertEqual(self.request(old_url.path+"?"+old_url.query,
+                                      server=server)[0],200)
+        self.assertEqual(self.request(old_v1+"?"+old_url.query,
+                                      server=server)[0],200)
+        self.assertEqual(self.request(p+"/V2/project/_site/styles.css",
+                                      server=server)[0],200)
+        self.assertEqual(self.request(p+"/_alliage/refresh",
+                                      method="POST",server=server,
+                                      headers=self.control_headers(server,token))[0],404)
+
+    def test_multiple_open_tabs_receive_bounded_read_only_retention(self):
+        """Only two old verified snapshots remain, never their POST controls."""
+        versions=[AttestedPreview(self.session,self.resource_id)
+                  for _ in range(3)]
+        pending=iter(versions)
+        server=self.start_refresh_server(lambda _:next(pending))
+        current=self.preview
+        seen=[self.preview]
+        for nxt in versions:
+            old_prefix=current.prefix
+            status,_,raw=self.request(old_prefix+"/_alliage/refresh-capability",
+                            server=server,headers=self.control_headers(server))
+            self.assertEqual(status,200)
+            ticket=json.loads(raw)["token"]
+            code,_,body=self.request(old_prefix+"/_alliage/refresh",
+                method="POST",server=server,
+                headers=self.control_headers(server,ticket))
+            self.assertEqual(code,200)
+            self.assertEqual(json.loads(body)["url"],
+                             nxt.browser_url(server.server_port))
+            self.assertEqual(self.request(old_prefix+
+                             "/V1/project/_site/activite.html",
+                             server=server)[0],200)
+            self.assertEqual(self.request(old_prefix+
+                             "/_alliage/refresh-capability",
+                             headers=self.control_headers(server),server=server)[0],404)
+            current=nxt
+            seen.append(nxt)
+        for prev in seen[-3:]:
+            for version in ("V1","V2"):
+                self.assertEqual(self.request(prev.prefix+
+                    f"/{version}/project/_site/activite.html",
+                    server=server)[0],200)
+        self.assertEqual(self.request(seen[0].prefix+
+            "/V2/project/_site/activite.html",server=server)[0],404)
+        # The evicted preview is an expected, documented retention limit.
 
     def test_resource_html_is_native_unmodified_and_capability_scoped(self):
         url = urlsplit(self.preview.browser_url(self.server.server_port))

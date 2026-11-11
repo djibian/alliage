@@ -10,7 +10,7 @@ L'ancienne roadmap, ses expérimentations et décisions restent conservées
 dans [ROADMAP_ARCHIVE_202610.md](ROADMAP_ARCHIVE_202610.md).
 Contrats inchangés : `AGENTS.md`, `PRODUCT_VISION.md`, `DECISIONS.md`.
 
-## V0 pédagogique — `DEMO_REAL_FIREFOX_PASS`, livraison logicielle à terminer
+## V0 pédagogique — `DEMO_REAL_FIREFOX_PASS`, logiciel intégré dans `main`
 
 **Preuve métier acquise le 5 novembre 2026** :
 [issue #23 clôturée](https://github.com/djibian/alliage/issues/23).
@@ -24,14 +24,13 @@ L'IA de la sidebar disposait effectivement d'outils
 GitHub en lecture **et en écriture dans cette configuration**.
 Cela ne garantit pas l'accès sur toutes les installations.
 
-**Livraison du logiciel en attente** :
-[PR #22](https://github.com/djibian/alliage/pull/22)
-`feat/pareto-firefox-sidebar-context` doit recevoir une
-**contre-expertise indépendante sur son HEAD exact** avant
-éventuelle fusion dans `main`. Une CI verte et la preuve
-humaine #23 ne remplacent pas cette revue. **Ne jamais
-fusionner la branche fictive `experiment/pareto-quarto-demo`
-dans `main`.**
+**Logiciel livré :** [PR #22](https://github.com/djibian/alliage/pull/22)
+fusionnée dans `main` après contre-expertise indépendante favorable
+et autorisation explicite du propriétaire ; commit
+`3494ec2b9112dfd98e13936de7d5a8eb9b204c5d`,
+trois workflows post-fusion verts. La branche
+`experiment/pareto-quarto-demo` est restée séparée : **ne jamais
+la fusionner dans `main`.**
 
 **Itération suivante, Pareto :** éliminer les manipulations
 récurrentes sans inventer d'infrastructure IA.
@@ -44,16 +43,23 @@ récurrentes sans inventer d'infrastructure IA.
    dialogue simple. La sélection et le titre ne prouvent
    ni SHA Git ni branche autorisée : le bouton Alliage
    demeure utile pour une demande de modification de source.
-3. Évaluer une **actualisation Quarto volontaire depuis
-   la page Firefox**, afin de supprimer le cycle
-   Ctrl+C → relancement terminal après chaque commit.
-   Ne pas écrire de nouveau serveur généraliste.
-   Réutiliser le lanceur et le pont local existants ;
-   avant implémentation, exiger une action humaine visible,
-   une branche autorisée, un périmètre fictif, aucun
-   fetch caché, aucun checkout et aucune publication.
-   La nécessité d'un endpoint local et son contrôle
-   d'accès doivent être justifiés par un essai réel.
+3. [Issue #25](https://github.com/djibian/alliage/issues/25) :
+   **actualisation Quarto volontaire depuis Firefox**,
+   après un commit autorisé. Candidat
+   [PR #26](https://github.com/djibian/alliage/pull/26) Ready,
+   **NON FUSIONNÉE** : réemploi du serveur loopback existant,
+   ouverture explicite `--browser-refresh` sur la seule fixture
+   publique, confirmation distincte et token HTTP à usage unique.
+   Les deux scénarios ont réussi en **Firefox réel** (aucune
+   nouvelle révision / nouveau commit Git et retour V1).
+   **Revue indépendante du 8 novembre : `CORRECTIONS_REQUIRED`** :
+   contrôler l'origine Git du clone **avant le premier rendu**
+   et garantir que les anciennes URL V1/V2 restent accessibles
+   après une réponse d'actualisation perdue.
+   Correctifs ciblés et tests sur la même PR ; **nouvelle
+   contre-expertise obligatoire** sur le HEAD final, puis
+   autorisation explicite de fusion. Aucune publication, aucun
+   checkout ni accès aux ressources privées.
 
 Les étapes ci-dessous constituent le **contrat historique
 qui a été validé**, et non des travaux à relancer :

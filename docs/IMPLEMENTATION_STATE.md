@@ -791,3 +791,221 @@ local, identité Git, fetch opt-in, refus `--demo` contradictoire,
 CI du HEAD mutable de la fixture, aucune publication et
 aucune fuite de données privées. Ne pas fusionner la branche
 fictive dans `main`, ni réactiver P3.6.
+
+
+## #25 — Actualisation Firefox volontaire, candidat #26 (5 novembre 2026)
+
+**Base vérifiée :** `main`
+`3494ec2b9112dfd98e13936de7d5a8eb9b204c5d`,
+issue #23 `DEMO_REAL_FIREFOX_PASS`, logiciel MVP #22
+fusionné et trois CI post-fusion vertes. **Aucune écriture**
+sur `main` ni sur la fixture publique
+`experiment/pareto-quarto-demo` (dernier SHA connu
+`ecf35454aa3e0e93802041944a17241ef4866e09`).
+
+**[PR #26 Draft](https://github.com/djibian/alliage/pull/26)**
+sur branche `feat/pareto-firefox-voluntary-refresh`
+en vue de [#25](https://github.com/djibian/alliage/issues/25).
+Changement Pareto limité :
+- Le lanceur existant accepte désormais l'option
+  `--demo --browser-refresh --public-fictional-trusted`.
+  **Désactivée par défaut**, cette option est impossible
+  hors du dépôt public `djibian/alliage` et de sa
+  seule branche fictive approuvée.
+- Dans le vrai HTML Quarto, l'extension déjà installée
+  ajoute « Actualiser les révisions » pour cette
+  **seule fixture**, avec une confirmation explicite
+  renouvelée à chaque clic. Un clic synthétique DOM
+  est refusé en amont. Aucune lecture Git implicite
+  ni action au chargement de la page.
+- Le serveur HTTP loopback existant conserve son
+  inventaire d'actifs SHA-256 et sa liaison
+  `127.0.0.1`. L'option explicite active uniquement
+  deux routes de contrôle `_alliage`, exigeant
+  même origine, en-têtes de navigateur, capacité
+  aléatoire **à usage unique**, POST sans corps,
+  sans paramètre source/branche libre, et refus du
+  rejeu. L'ancien serveur par défaut reste totalement
+  **en lecture seule**.
+- Le callback reprend `fetch_fictional_demo`,
+  `create_observed_session` et
+  `AttestedPreview` sans nouveau moteur. Un nouveau
+  commit donne deux rendus Quarto épinglés et un
+  nouveau prévisualiseur actif **seulement après
+  vérification complète**. Même après un échec
+  de rendu ayant avancé la ref locale Git, la
+  base de comparaison reste le dernier SHA
+  **réellement servi** ; un nouvel essai reste possible.
+  Absence de commit ou erreur => page précédente
+  conservée, aucun déploiement.
+- Contrôle d'UI et du HTTP avec tests adversariaux :
+  permission absente, origin/cross-site, capacité
+  manquante, rejeu, blocage clic synthétique,
+  rollback, URL interdite, échec et retry.
+  Test vertical supplémentaire dans la CI Quarto
+  réelle : **troisième commit Git purement local**
+  sur une fixture fictive → capacité HTTP → POST →
+  rendus Quarto réels V1/V2 → HTTP et source Git
+  inchangée.
+
+**Propriété et limite exactes :** le couple
+`isTrusted` + capacité à usage unique protège le
+contrôle d'interface contre les clics synthétiques
+simples et les POST inter-origines. **Il ne peut pas
+certifier cryptographiquement une intention humaine
+face à un script malveillant déjà actif dans la
+page Quarto de la même origine**, lequel pourrait
+solliciter la capacité en HTTP. Le mode est donc
+**strictement réservé à la fixture publique/fictive
+explicitement déclarée de confiance**, jamais aux
+ressources privées ou à un dépôt non fiable.
+Quarto n'est pas sandboxé ; les hooks/filters restent
+potentiellement exécutables. Ne pas présenter ce
+pilotage navigateur comme une barrière de sécurité.
+
+**Preuves automatisées initiales :**
+[CI réelle Quarto #42091495253](https://github.com/djibian/alliage/actions/runs/42091495253),
+incluant le nouveau test vertical, `SUCCESS` sur
+`100d33280b883b93479619b81ddf65630af73148` ;
+Python, DOM Node et contrôle Quarto/HTTP avaient
+également réussi sur ce SHA. Les changements
+suivants concernent la documentation et la vérification
+`isTrusted` avec test associé. **Revérifier le
+HEAD actuel et les CI avant toute revue.**
+
+**Condition de sortie restant ouverte :**
+contre-expertise ciblée du HEAD final de la PR #26
+puis premier **test humain réel dans Firefox**
+avec nouveau commit explicitement autorisé sur
+la seule branche fictive. Décrire les observations
+HTTP/Origin réelles sans déduire une compatibilité
+Firefox de la simulation Node. **Ne pas fusionner
+cette PR tant que ces preuves ne sont pas réunies**.
+
+
+## #25 — Confirmation de la nouvelle révision dans Firefox réel (8 novembre 2026)
+
+**Témoignage humain explicite de l'enseignant :**
+- Le 6 novembre, après lancement de la PR #26 expérimentale,
+  le clic volontaire sur « Actualiser les révisions » **sans
+  nouveau commit** affichait exactement :
+  « Aucune nouvelle révision : comparaison conservée ».
+- Sur autorisation **distincte et explicite** de l'enseignant,
+  une seule ligne de `activite.qmd` a ensuite été modifiée
+  sur la branche fictive `experiment/pareto-quarto-demo` :
+  la consigne 2 utilise désormais l'exemple `photo.png`.
+  GitHub a confirmé le nouveau commit
+  `5a236ebfa5b78c648a0ab3c76cda88ec53b8d656`,
+  descendant direct de
+  `ecf35454aa3e0e93802041944a17241ef4866e09`,
+  **sans modification de `main`**, ni des autres
+  fichiers de la fixture.
+- Le 8 novembre, l'enseignant a confirmé dans son **Firefox
+  réel**, après avoir suivi le protocole de clic volontaire,
+  que **la nouvelle consigne apparaît dans V2** et qu'il
+  peut **revenir à V1** où figure l'ancienne révision.
+  Il n'a pas fourni de nouvelle capture réseau ou de
+  chronométrage ; ne pas présenter ces éléments comme
+  instrumentés. L'absence de redémarrage du serveur
+  est la condition du protocole fourni, pas un
+  évènement instrumenté séparément.
+
+**Verdicts fonctionnels :**
+`FIREFOX_REFRESH_NO_CHANGE_PASS` et
+`FIREFOX_REFRESH_NEW_COMMIT_PASS` sur la seule
+ressource fictive/publique. Ces preuves humaines
+complètent les CI Quarto/Git/HTTP réelles
+préexistantes. Le changement intervenu sur la
+branche fictive nécessite de **relancer les CI du
+candidat logiciel** pour qualifier son HEAD avec
+ce nouveau pointeur Git mutable ; l'actualisation
+de ce document déclenche ces CI.
+
+**Gouvernance restante :** PR #26 non fusionnée
+dans `main`, contre-expertise indépendante
+sur HEAD exact indispensable avant une éventuelle
+fusion autorisée par le propriétaire. Conserver
+la limite *fixture publique/fictive de confiance
+uniquement* : `isTrusted` + same-origin + jeton
+à usage unique ne forment pas une enclave
+contre des scripts Quarto malveillants de même
+origine. Aucune validation Git durable,
+publication ni extension aux ressources privées.
+
+
+## #26 — Correction des deux défauts bloquants de contre-expertise (9 novembre 2026)
+
+**Revue indépendante du 8 novembre 2026** : `CORRECTIONS_REQUIRED`
+sur `c72ba693cd0668c121f2d54feda41a27dccc0bc8`,
+base `main` `3494ec2b9112dfd98e13936de7d5a8eb9b204c5d`.
+La revue attribue deux défauts bloquants **au périmètre
+public/fictif réellement développé**, sans remettre en
+cause les preuves humaines du bouton Firefox :
+1. La racine Git et l'URL `origin` ne sont contrôlées
+   qu'au premier clic de fetch, alors que le démarrage
+   `--demo --browser-refresh` peut déjà exécuter
+   les hooks/filters d'un projet Quarto local non fiable.
+2. Le basculement sur un nouvel inventaire HTTP invalide
+   immédiatement les anciennes URL avant tout acquittement
+   navigateur de la réponse POST. Si la réponse est perdue,
+   la comparaison annoncée « conservée » n'est plus
+   navigable, notamment depuis plusieurs onglets.
+
+**Correctifs minimaux introduits sur la même PR #26 :**
+- `verify_public_demo_clone(repo)` mutualise le contrôle
+  strict de la racine Git et de `git remote get-url origin`
+  effectué par le fetch. Le mode `--browser-refresh`
+  l'exécute **avant tout rendu initial Quarto**, même
+  si l'enseignant n'a pas sélectionné `--fetch-demo`.
+  Le contrôle est **local**, sans fetch ni checkout
+  implicite ; échec = aucun appel à `prepare_preview`,
+  aucun serveur et aucun rendu.
+- `quarto_local_http.py` conserve **les deux
+  précédents inventaires de fichiers attestés en
+  lecture seule** à côté de l'aperçu actif, dans le
+  même serveur loopback et sans stockage externe.
+  Même si une réponse POST de succès est interrompue,
+  les anciens HTML, CSS et liens de navigation
+  V1↔V2 restent accessibles. Seul le préfixe actif
+  peut obtenir un nouveau token et déclencher un POST ;
+  les anciens deviennent strictement GET/HEAD.
+  La rétention est **bornée à deux comparaisons
+  précédentes**, et les plus anciens préfixes peuvent
+  ensuite retourner 404 ; il ne s'agit pas d'une
+  conservation durable des versions publiées.
+
+**Tests de non-régression supplémentaires :**
+- dépôt local fictif avec deux commits et fausse ref de
+  suivi, sans `origin` puis avec une origine étrangère :
+  aucun appel au rendu Quarto, au serveur ou au fetch.
+  Le cas configuré `origin` attendu est distinct.
+- HTTP réel : POST dont le client ne lit pas la réponse
+  puis vérification des deux anciennes URL et des assets
+  pendant que le nouvel aperçu est servi ;
+  plusieurs onglets, limites de rétention après
+  trois actualisations et refus de POST via un
+  ancien préfixe. Le test vertical avec **Quarto
+  réel** vérifie également que l'ancien V1/V2
+  reste accessible après une nouvelle révision.
+
+**Limite de confiance résiduelle conservée :**
+un `origin` local conforme **ne prouve pas
+cryptographiquement** que la ref Git locale provient
+de GitHub, et le rendu Quarto n'est pas sandboxé.
+L'enseignant atteste donc explicitement que
+**son clone et sa fixture sont de confiance**.
+Le contrôle `isTrusted`, les en-têtes same-origin
+et le nonce HTTP n'authentifient pas un geste humain
+face à un script hostile déjà exécuté sur la même
+origine. Le mode reste **strictement fictif/public**.
+
+**Porte restante :** vérifier les CI sur le
+**nouveau HEAD final**, puis exiger une
+**nouvelle contre-expertise indépendante ciblée**
+sur les deux correctifs et leurs tests. La
+première revue `CORRECTIONS_REQUIRED` n'est
+pas annulée par une modification de code.
+La PR #26 **reste non fusionnée** jusqu'à un avis
+favorable et une autorisation de fusion distincte
+du propriétaire. Ne jamais fusionner la branche
+`experiment/pareto-quarto-demo` dans `main`.

@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Serve only attested Quarto _site assets on loopback for an opt-in Firefox test.
+"""Serve only attested Quarto _site assets on loopback for a Firefox test.
 
-Ephemeral read-only transport. No Git, rendering, API, write or publication.
+Read-only by default. A separately enabled demo-only HTTP control can call
+the supplied Git/Quarto refresh callback after same-origin token checks.
+The latest and two former inventories stay GET/HEAD-only and rehashed.
+No source edits, checkout, merge, publication or general-purpose API.
 The unguessable URL prefix is a local capability, not user authentication.
 """
 from __future__ import annotations
@@ -15,6 +18,7 @@ import json
 import mimetypes
 from pathlib import Path
 import secrets
+import threading
 from urllib.parse import quote, urlsplit
 
 from quarto_navigation import NavigationError, _load_version, _regular_within
@@ -23,6 +27,10 @@ from quarto_resource_entry import resource_entry_url
 BIND = "127.0.0.1"
 MAX_QUERY = 4096
 ASSET_PREFIX = "project/_site/"
+# Retain two earlier complete, read-only Quarto comparisons in memory.
+# A browser tab or interrupted POST can still load its verified V1/V2.
+# Older ones expire after further refreshes; no background cleanup service.
+MAX_RETAINED_PREVIEWS = 2
 
 
 class HTTPPreviewError(ValueError):
@@ -93,7 +101,13 @@ class AttestedPreview:
         return data, mime
 
 
-def make_handler(preview: AttestedPreview):
+def make_handler(preview: AttestedPreview, refresh_callback=None):
+    # Keep the verified asset inventory immutable for each preview. Only an
+    # explicitly enabled, successful refresh swaps the active pointer.
+    # Earlier snapshots stay GET/HEAD-only for bounded browser recovery.
+    state = {"preview": preview, "retained": [], "nonce": None}
+    gate = threading.Lock()
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "AlliageHistoricalPreview/0"
         sys_version = ""
@@ -136,20 +150,112 @@ def make_handler(preview: AttestedPreview):
             path, sep, query = self.path.partition("?")
             if len(query) > MAX_QUERY or (sep and "#" in query):
                 return self.respond(HTTPStatus.NOT_FOUND, send_body=send_body)
-            try:
-                content, mime = preview.get_asset(path)
-            except (FileNotFoundError, HTTPPreviewError):
-                return self.respond(HTTPStatus.NOT_FOUND, send_body=send_body)
-            return self.respond(HTTPStatus.OK, content, mime, send_body)
+            # Existing tabs and interrupted POST responses must remain
+            # readable. A previous prefix has NO refresh-control routes.
+            snapshots = [state["preview"], *state["retained"]]
+            for historical in snapshots:
+                if path not in historical.routes:
+                    continue
+                try:
+                    content, mime = historical.get_asset(path)
+                except (FileNotFoundError, HTTPPreviewError):
+                    return self.respond(HTTPStatus.NOT_FOUND, send_body=send_body)
+                return self.respond(HTTPStatus.OK, content, mime, send_body)
+            return self.respond(HTTPStatus.NOT_FOUND, send_body=send_body)
+
+        def control_request_allowed(self, require_origin=False):
+            if not self.authorized_request():
+                return False
+            if self.headers.get("Sec-Fetch-Site") != "same-origin":
+                return False
+            if self.headers.get("X-Alliage-Intent") != "user-click":
+                return False
+            if require_origin:
+                expected = f"http://{BIND}:{self.server.server_port}"
+                if self.headers.get("Origin") != expected:
+                    return False
+            return True
+
+        def respond_json(self, code, payload):
+            data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self.respond(code, data, "application/json; charset=utf-8")
 
         def do_GET(self):
+            active = state["preview"]
+            capability_path = active.prefix + "/_alliage/refresh-capability"
+            if refresh_callback is not None and self.path == capability_path:
+                # Only the explicitly enabled PUBLIC/FICTIONAL demo has a
+                # control endpoint. Reject non-browser and cross-site requests.
+                if not self.control_request_allowed():
+                    return self.respond(HTTPStatus.FORBIDDEN)
+                if not gate.acquire(blocking=False):
+                    return self.respond(HTTPStatus.CONFLICT)
+                try:
+                    state["nonce"] = secrets.token_urlsafe(32)
+                    self.respond_json(HTTPStatus.OK, {"token": state["nonce"]})
+                finally:
+                    gate.release()
+                return
             self.handle_asset()
 
         def do_HEAD(self):
             self.handle_asset(send_body=False)
 
         def do_POST(self):
-            self.respond(HTTPStatus.METHOD_NOT_ALLOWED)
+            if refresh_callback is None:
+                return self.respond(HTTPStatus.METHOD_NOT_ALLOWED)
+            active = state["preview"]
+            if self.path != active.prefix + "/_alliage/refresh":
+                return self.respond(HTTPStatus.NOT_FOUND)
+            if not self.control_request_allowed(require_origin=True):
+                return self.respond(HTTPStatus.FORBIDDEN)
+            # No request body, query, JSON payload, user-provided ref or path.
+            if (self.headers.get("Transfer-Encoding") is not None or
+                    self.headers.get("Content-Length") not in (None, "0")):
+                return self.respond(HTTPStatus.BAD_REQUEST)
+            if not gate.acquire(blocking=False):
+                return self.respond(HTTPStatus.CONFLICT)
+            try:
+                provided = self.headers.get("X-Alliage-Refresh-Token", "")
+                nonce = state["nonce"]
+                if not nonce or not secrets.compare_digest(provided, nonce):
+                    return self.respond(HTTPStatus.FORBIDDEN)
+                # Consume before any Git or Quarto operation. A replay with
+                # the same capability is never accepted.
+                state["nonce"] = None
+                try:
+                    updated = refresh_callback(active)
+                    if updated is None:
+                        return self.respond_json(HTTPStatus.OK,
+                                                 {"state": "unchanged"})
+                    if (not isinstance(updated, AttestedPreview) or
+                            updated.query == "" or
+                            updated.query.split("=", 1)[0] !=
+                                active.query.split("=", 1)[0]):
+                        raise HTTPPreviewError("Aperçu actualisé non attesté.")
+                    # A successful render does NOT mean the response reached
+                    # Firefox. Retain earlier read-only V1/V2 inventories so
+                    # old tabs and an interrupted POST never become broken
+                    # links. Only the current prefix may request another
+                    # refresh. Limit memory to two previous comparisons.
+                    if (updated.prefix == active.prefix or any(
+                            updated.prefix == old.prefix
+                            for old in state["retained"])):
+                        raise HTTPPreviewError("Collision de capacité d'aperçu.")
+                    state["retained"] = ([active] + state["retained"])[:MAX_RETAINED_PREVIEWS]
+                    state["preview"] = updated
+                    self.respond_json(HTTPStatus.OK, {
+                        "state": "updated",
+                        "url": updated.browser_url(self.server.server_port)})
+                except Exception:
+                    # A rendering subprocess can raise CalledProcessError or
+                    # other failures; fail closed, keep the old preview, and
+                    # never expose paths, tracebacks or tokens to Firefox.
+                    self.respond_json(HTTPStatus.UNPROCESSABLE_ENTITY, {
+                        "state": "error",
+                        "message": "Actualisation Git/Quarto refusée ; ancienne comparaison conservée."})
+            finally:
+                gate.release()
 
         def do_OPTIONS(self):
             self.respond(HTTPStatus.METHOD_NOT_ALLOWED)
@@ -157,8 +263,9 @@ def make_handler(preview: AttestedPreview):
     return Handler
 
 
-def make_server(preview: AttestedPreview) -> ThreadingHTTPServer:
-    server = ThreadingHTTPServer((BIND, 0), make_handler(preview))
+def make_server(preview: AttestedPreview, refresh_callback=None) -> ThreadingHTTPServer:
+    server = ThreadingHTTPServer((BIND, 0),
+                                 make_handler(preview, refresh_callback))
     server.daemon_threads = True
     return server
 

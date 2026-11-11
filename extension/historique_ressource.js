@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-/* Experimental resource-first P3.2 surface: local, read-only and opt-in.
+/* Experimental resource-first P3.2 surface with opt-in public-demo refresh.
  * The URL query parameter is not a signature or a live integrity proof.
- * No Git, filesystem fetch, network access, token or publication action.
+ * Git+Quarto refresh requires separate launcher opt-in and a conscious click;
+ * no AI API, source write, merge or publication is initiated here.
  */
 (() => {
   "use strict";
@@ -94,6 +95,22 @@
   keep.type="button";keep.textContent="Retenir V2 (local)";
   const reject = document.createElement("button");
   reject.type="button";reject.textContent="Écarter V2 (local)";
+  // Visible only on the one explicitly public/fictional Quarto demo.
+  // The local HTTP server independently checks launcher opt-in, ref,
+  // one-use token and the browser's same-origin POST; URL claims alone
+  // cannot enable Git operations.
+  const demoRefresh = httpPreview &&
+    payload.resource_id === "quarto:djibian/alliage:activite.qmd";
+  const refresh = document.createElement("button");
+  refresh.type="button";refresh.textContent="Actualiser les révisions";
+  const refreshConsentLabel = document.createElement("label");
+  refreshConsentLabel.style.cssText="display:block;font:12px system-ui,sans-serif;margin-top:7px";
+  const refreshConsent = document.createElement("input");
+  refreshConsent.type="checkbox";refreshConsent.checked=false;
+  refreshConsentLabel.append(refreshConsent,document.createTextNode(
+    " Je demande explicitement un fetch Git et un rendu Quarto de la seule activité PUBLIQUE/FICTIVE de confiance."));
+  const refreshStatus = document.createElement("div");refreshStatus.className="note";
+  refreshStatus.textContent="Actualisation désactivée par défaut ; lancer avec --browser-refresh pour l'autoriser.";
   const decision = document.createElement("div");decision.className="note";
   decision.textContent="Décision non prise ; aucun enregistrement Git ni publication.";
   const consentLabel = document.createElement("label");
@@ -190,7 +207,68 @@
   keep.addEventListener("click", () => markDecision("KEEP"));
   reject.addEventListener("click", () => markDecision("REJECT"));
   row.append(title,v1,v2,ai,keep,reject);
-  box.append(row,decision,consentLabel,promptBox,aiStatus,note);
+  if (demoRefresh) {
+    row.append(refresh);
+    // The browser's page origin can access only this loopback port, not
+    // arbitrary Git endpoints. No network request until a deliberate click.
+    refresh.addEventListener("click", async (event) => {
+      // Reject script-synthesized clicks on the extension's closed shadow
+      // control. This is NOT a cryptographic guarantee against a malicious
+      // script already running from the trusted same-origin Quarto page.
+      if (!event || event.isTrusted !== true) {
+        refreshStatus.textContent="Actualisation réservée à un clic réel dans Firefox.";
+        return;
+      }
+      if (!refreshConsent.checked) {
+        refreshStatus.textContent="Confirmer d’abord le fetch et le rendu de la ressource fictive.";
+        return;
+      }
+      if (refresh.disabled) return;
+      refresh.disabled=true;
+      refreshStatus.textContent="Récupération Git volontaire et rendus Quarto en cours…";
+      try {
+        const endpoint = directory + "/_alliage/";
+        const headers = {"X-Alliage-Intent":"user-click"};
+        const options = {method:"GET",headers,cache:"no-store",
+                         credentials:"omit",redirect:"error"};
+        const capability = await window.fetch(endpoint+"refresh-capability",options);
+        if (!capability.ok) throw new Error("Contrôle d'actualisation indisponible.");
+        const ticket = await capability.json();
+        if (!ticket || typeof ticket.token !== "string" ||
+            !/^[A-Za-z0-9_-]{32,100}$/.test(ticket.token))
+          throw new Error("Capacité locale invalide.");
+        const resultResponse = await window.fetch(endpoint+"refresh",{
+          method:"POST",cache:"no-store",credentials:"omit",redirect:"error",
+          headers:{"X-Alliage-Intent":"user-click",
+                   "X-Alliage-Refresh-Token":ticket.token}
+        });
+        if (!resultResponse.ok) throw new Error("Git/Quarto refusé, ancien aperçu conservé.");
+        const result = await resultResponse.json();
+        if (result.state === "unchanged") {
+          refreshStatus.textContent="Aucune nouvelle révision : comparaison conservée.";
+        } else if (result.state === "updated" && typeof result.url === "string") {
+          const target = new URL(result.url);
+          if (target.origin !== location.origin ||
+              !/^\/alliage-local-[0-9a-f]{32}\/V2\/project\/_site\/activite\.html$/.test(target.pathname) ||
+              !/^[?]alliage-history-v0=[^&]+$/.test(target.search))
+            throw new Error("Nouvelle URL non autorisée.");
+          refreshStatus.textContent="Deux rendus réels vérifiés : ouverture de V2…";
+          window.location.assign(target.href);
+        } else {
+          throw new Error("Réponse d'actualisation inconnue.");
+        }
+      } catch (_) {
+        refreshStatus.textContent="Actualisation indisponible ou refusée ; comparaison précédente conservée.";
+      } finally {
+        refresh.disabled=false;
+        // The consent is explicit for each individual refresh.
+        refreshConsent.checked=false;
+      }
+    });
+  }
+  box.append(row,decision,consentLabel,promptBox,aiStatus);
+  if (demoRefresh) box.append(refreshConsentLabel,refreshStatus);
+  box.append(note);
   shadow.append(style,box);
   document.documentElement.appendChild(host);
 })();

@@ -251,6 +251,122 @@ class ParetoLaunchTests(unittest.TestCase):
             fetch.assert_not_called()
 
 
+    def test_browser_refresh_requires_demo_and_explicit_public_trust(self):
+        with (patch.object(pilot,"prepare_preview") as preview,
+              patch.object(pilot,"fetch_fictional_demo") as fetch,
+              patch.object(pilot,"make_server") as server):
+            candidates=[
+                ["--browser-refresh","--repository-id","djibian/alliage",
+                 "--tracking-ref",pilot.PUBLIC_DEMO_TRACKING_REF,
+                 "--baseline-sha",self.SHA,"--public-fictional-trusted"],
+                ["--browser-refresh","--demo","--baseline-sha",self.SHA],
+            ]
+            for args in candidates:
+                with self.subTest(args=args), self.assertRaises(SystemExit) as denied:
+                    pilot.main(["--repo","/fiction",*args])
+                self.assertEqual(denied.exception.code,2)
+            preview.assert_not_called()
+            fetch.assert_not_called()
+            server.assert_not_called()
+
+    def test_browser_refresh_retries_failed_render_from_last_successful_SHA(self):
+        old,new="a"*40,"b"*40
+        callback=pilot.browser_refresh_callback(Path("/fiction"),old)
+        new_preview=Mock()
+        def fake_git(*_):
+            return new.encode()
+        with (patch.object(pilot,"fetch_fictional_demo",return_value=old) as fetch,
+              patch.object(pilot,"_git",side_effect=fake_git),
+              patch.object(pilot,"prepare_preview",
+                           side_effect=[ValueError("Quarto refuses"),
+                                        ({"observed_commit":new},new_preview)]) as prepare):
+            with self.assertRaises(ValueError):
+                callback(Mock())
+            self.assertIs(callback(Mock()),new_preview)
+            self.assertEqual(prepare.call_count,2)
+            self.assertEqual(prepare.call_args_list[0].args[3],old)
+            self.assertEqual(prepare.call_args_list[1].args[3],old)
+            self.assertEqual(fetch.call_count,2)
+        with (patch.object(pilot,"fetch_fictional_demo") as fetch,
+              patch.object(pilot,"_git",return_value=new.encode()),
+              patch.object(pilot,"prepare_preview") as preview):
+            self.assertIsNone(callback(Mock()))
+            fetch.assert_called_once()
+            preview.assert_not_called()
+
+    def test_browser_refresh_refuses_foreign_or_missing_origin_before_quarto(self):
+        """A forged local tracking ref is not proof of an authorized clone."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            repo=Path(tmp)
+            def git(*args):
+                return subprocess.check_output(
+                    ["git","-C",str(repo),*args],text=True).strip()
+            git("init","-q")
+            git("config","user.name","Fiction")
+            git("config","user.email","fixture@example.invalid")
+            (repo/"activite.qmd").write_text(
+                "---\ntitle: Foreign\n---\n\nNot trusted.\n",encoding="utf-8")
+            git("add","activite.qmd")
+            git("commit","-qm","Foreign V1")
+            first=git("rev-parse","HEAD")
+            (repo/"activite.qmd").write_text(
+                "---\ntitle: Foreign\n---\n\nStill not trusted.\n",encoding="utf-8")
+            git("add","activite.qmd")
+            git("commit","-qm","Foreign V2")
+            git("update-ref",pilot.PUBLIC_DEMO_TRACKING_REF,"HEAD")
+            args=["--repo",str(repo),"--demo","--browser-refresh",
+                  "--baseline-sha",first,"--public-fictional-trusted"]
+            with (patch.object(pilot,"prepare_preview") as render,
+                  patch.object(pilot,"fetch_fictional_demo") as fetch,
+                  patch.object(pilot,"make_server") as server):
+                for origin in (None,"https://example.invalid/other.git"):
+                    with self.subTest(origin=origin):
+                        if origin is not None:
+                            git("remote","add","origin",origin)
+                        with self.assertRaises(SystemExit) as refused:
+                            pilot.main(args)
+                        self.assertEqual(refused.exception.code,2)
+                render.assert_not_called()
+                fetch.assert_not_called()
+                server.assert_not_called()
+            # A matching configured origin is a necessary local check; it is
+            # not proof that a locally fabricated tracking ref came from it.
+            git("remote","set-url","origin",
+                "https://github.com/djibian/alliage.git")
+            self.assertEqual(pilot.verify_public_demo_clone(repo),repo)
+
+    def test_browser_refresh_opt_in_reuses_one_server_without_implicit_fetch(self):
+        result={"baseline_commit":self.SHA,"observed_commit":"b"*40,
+                "resource_id":"quarto:djibian/alliage:activite.qmd",
+                "session_path":"/fiction/session"}
+        preview=Mock()
+        preview.browser_url.return_value="http://127.0.0.1:9000/test"
+        server=Mock()
+        server.server_port=9000
+        with (patch.object(pilot,"verify_public_demo_clone",
+                           return_value=Path("/fiction")) as verify,
+              patch.object(pilot,"prepare_preview",
+                           return_value=(result,preview)) as prepare,
+              patch.object(pilot,"make_server",return_value=server) as make,
+              patch.object(pilot,"fetch_fictional_demo") as fetch):
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(pilot.main([
+                    "--repo","/fiction","--demo","--browser-refresh",
+                    "--baseline-sha",self.SHA,
+                    "--public-fictional-trusted"]),0)
+            verify.assert_called_once_with(Path("/fiction"))
+        prepare.assert_called_once_with(
+            Path("/fiction"),pilot.PUBLIC_DEMO_REPOSITORY,
+            pilot.PUBLIC_DEMO_TRACKING_REF,self.SHA,
+            public_fictional_trusted=True)
+        self.assertEqual(make.call_count,1)
+        self.assertTrue(callable(make.call_args.kwargs["refresh_callback"]))
+        fetch.assert_not_called()
+        server.serve_forever.assert_called_once_with()
+
+
+
 class RealParetoQuartoTests(unittest.TestCase):
     """Opt-in CI test: genuine Quarto rendering, local Git, local HTTP, no Firefox."""
     REF = ParetoLaunchTests.REF
@@ -329,6 +445,125 @@ class RealParetoQuartoTests(unittest.TestCase):
                     server.shutdown()
                     server.server_close()
                     thread.join(timeout=5)
+
+
+    @unittest.skipUnless(__import__("os").environ.get("ALLIAGE_TEST_REAL_QUARTO") == "1",
+                         "Only dedicated CI with genuine Quarto executes this test")
+    def test_real_quarto_after_explicit_browser_refresh_post(self):
+        """One local POST performs one mocked fetch, real Git/Quarto/HTTP."""
+        import http.client
+        import json
+        import subprocess
+        import tempfile
+        import threading
+        from urllib.parse import urlsplit
+
+        def git(repo, *args):
+            return subprocess.check_output(
+                ["git", "-C", str(repo), *args], text=True).strip()
+
+        with tempfile.TemporaryDirectory(prefix="alliage-refresh-quarto-") as tmp:
+            home = Path(tmp)
+            repo = home / "fixture"
+            repo.mkdir()
+            git(repo, "init", "-q")
+            git(repo, "config", "user.name", "Fiction CI")
+            git(repo, "config", "user.email", "fixture@example.invalid")
+            (repo / "_quarto.yml").write_text(
+                "project:\n  type: default\n  output-dir: _site\n\n"
+                "format:\n  html:\n    css: styles.css\n\n"
+                "execute:\n  enabled: false\n", encoding="utf-8")
+            (repo / "activite.qmd").write_text(
+                "---\ntitle: Fiction\n---\n\n"
+                "## Consigne\nVersion initiale.\n", encoding="utf-8")
+            (repo / "styles.css").write_text(
+                "h2 { color: #991b1b; }\n", encoding="utf-8")
+            git(repo, "add", "-A")
+            git(repo, "commit", "-qm", "Public V1")
+            first = git(repo, "rev-parse", "HEAD")
+            (repo / "styles.css").write_text(
+                "h2 { color: #15803d; }\n", encoding="utf-8")
+            git(repo, "add", "-A")
+            git(repo, "commit", "-qm", "Public V2")
+            second = git(repo, "rev-parse", "HEAD")
+            tracking = pilot.PUBLIC_DEMO_TRACKING_REF
+            git(repo, "update-ref", tracking, second)
+
+            with patch("quarto_observed_session.Path.home", return_value=home):
+                old_result, old_preview = pilot.prepare_preview(
+                    repo, pilot.PUBLIC_DEMO_REPOSITORY, tracking, first,
+                    public_fictional_trusted=True)
+                self.assertEqual(old_result["observed_commit"], second)
+                # Simulate a new authorized commit made by an external AI:
+                # only a LOCAL Git commit, never an external GitHub write.
+                (repo / "activite.qmd").write_text(
+                    "---\ntitle: Fiction\n---\n\n"
+                    "## Consigne\nVersion modifiée par IA fictive.\n",
+                    encoding="utf-8")
+                git(repo, "add", "activite.qmd")
+                git(repo, "commit", "-qm", "Public V3")
+                third = git(repo, "rev-parse", "HEAD")
+                git(repo, "update-ref", tracking, third)
+                prior_checkout=(git(repo, "rev-parse", "HEAD"),
+                                git(repo, "status", "--porcelain"))
+                callback = pilot.browser_refresh_callback(repo, second)
+                with patch.object(pilot, "fetch_fictional_demo",
+                                  return_value=second) as fetch:
+                    server=pilot.make_server(old_preview, refresh_callback=callback)
+                    thread=threading.Thread(target=server.serve_forever,daemon=True)
+                    thread.start()
+                    try:
+                        def request(method, path, headers=None):
+                            conn=http.client.HTTPConnection(
+                                "127.0.0.1",server.server_port,timeout=40)
+                            try:
+                                conn.request(method,path,headers=headers or {})
+                                resp=conn.getresponse()
+                                return resp.status,resp.read()
+                            finally:
+                                conn.close()
+
+                        prefix=old_preview.prefix
+                        intent={"X-Alliage-Intent":"user-click",
+                                "Sec-Fetch-Site":"same-origin"}
+                        old_html=urlsplit(old_preview.browser_url(server.server_port))
+                        self.assertEqual(request("GET",old_html.path)[0],200)
+                        code,body=request("GET",
+                                         prefix+"/_alliage/refresh-capability",
+                                         headers=intent)
+                        self.assertEqual(code,200)
+                        token=json.loads(body)["token"]
+                        code,body=request("POST",prefix+"/_alliage/refresh",
+                          headers={**intent,
+                            "Origin":f"http://127.0.0.1:{server.server_port}",
+                            "X-Alliage-Refresh-Token":token})
+                        self.assertEqual(code,200)
+                        report=json.loads(body)
+                        self.assertEqual(report["state"],"updated")
+                        new_url=urlsplit(report["url"])
+                        self.assertEqual(new_url.hostname,"127.0.0.1")
+                        self.assertEqual(new_url.port,server.server_port)
+                        status,new_html=request("GET",new_url.path)
+                        self.assertEqual(status,200)
+                        self.assertIn("Version modifiée".encode("utf-8"),new_html)
+                        older=new_url.path.replace("/V2/","/V1/")
+                        status,old_new_html=request("GET",older)
+                        self.assertEqual(status,200)
+                        self.assertIn(b"Version initiale.",old_new_html)
+                        # Both previous browser tabs stay usable if the
+                        # redirect response is not acknowledged by Firefox.
+                        self.assertEqual(request("GET",old_html.path)[0],200)
+                        self.assertEqual(request("GET",old_html.path.replace(
+                            "/V2/","/V1/"))[0],200)
+                        self.assertEqual(fetch.call_count,1)
+                        self.assertEqual(
+                            prior_checkout,(git(repo,"rev-parse","HEAD"),
+                                            git(repo,"status","--porcelain")))
+                    finally:
+                        server.shutdown()
+                        server.server_close()
+                        thread.join(timeout=5)
+
 
 
 if __name__ == "__main__":
