@@ -34,7 +34,11 @@ class Element {
     this.attributes={};
     this.textContent="";
     this.disabled=false;
+    this.focused=false;
+    this.selected=false;
   }
+  focus() {this.focused=true;}
+  select() {this.selected=true;}
   append(...items) {this.children.push(...items);}
   appendChild(node) {this.children.push(node);}
   attachShadow() {this.shadow=new Element("shadow");return this.shadow;}
@@ -54,7 +58,7 @@ function findAll(node,tag) {
 class EmptyKeysURLSearchParams extends URLSearchParams {
   keys() {return [][Symbol.iterator]();}
 }
-function run(url,iframe=false,SearchParams=URLSearchParams,selected="",fetcher=null) {
+function run(url,iframe=false,SearchParams=URLSearchParams,selected="",fetcher=null,clipboard=null) {
   const location=new URL(url);
   const navigations=[];
   const document={
@@ -65,6 +69,7 @@ function run(url,iframe=false,SearchParams=URLSearchParams,selected="",fetcher=n
   };
   const window={location:{assign:url=>navigations.push(url)},
     getSelection:()=>({toString:()=>selected}),
+    navigator:{clipboard},
     fetch:fetcher||(()=>{throw Error("No fetch expected");})};
   window.self=window;
   window.top=iframe?{}:window;
@@ -76,7 +81,7 @@ test("V2 historical Quarto resource opens directly; V1 → V2 keeps same session
   const first=run(href());
   assert.ok(first.host,"native resource toolbar should be injected");
   const buttons=findAll(first.host,"button");
-  assert.equal(buttons.length,5);
+  assert.equal(buttons.length,6);
   assert.equal(buttons[0].disabled,false);
   assert.equal(buttons[1].disabled,true);
   assert.match(findAll(first.host,"div").slice(-1)[0].textContent,/non recontrôlées/);
@@ -295,7 +300,7 @@ test("demo-only refresh is never automatic and requires a separate user confirma
   };
   const r=run(httpHref(demo),false,URLSearchParams,"",fake);
   const buttons=findAll(r.host,"button");
-  assert.equal(buttons.length,6);
+  assert.equal(buttons.length,7);
   assert.equal(calls.length,0,"no fetch on page load");
   const boxes=findAll(r.host,"input");
   boxes[1].checked=true;
@@ -354,6 +359,101 @@ test("refresh failures preserve the displayed V1/V2 and cannot navigate off-orig
   assert.equal(missing.navigations.length,0);
   assert.equal(findAll(missing.host,"input")[1].checked,false);
   // No control added outside the exact fictional HTTP resource.
-  assert.equal(findAll(run(href(demo)).host,"button").length,5);
-  assert.equal(findAll(run(httpHref()).host,"button").length,5);
+  assert.equal(findAll(run(href(demo)).host,"button").length,6);
+  assert.equal(findAll(run(httpHref()).host,"button").length,6);
+});
+
+
+test("clipboard handoff requires a separate real click and copies only reviewed text",async()=>{
+  const copied=[];
+  const clipboard={writeText:async t=>{copied.push(t);}};
+  const res=run(httpHref({...payload(),resource_id:
+    "quarto:djibian/alliage:activite.qmd"}),false,URLSearchParams,
+    "Le passage fictif à clarifier",null,clipboard);
+  const buttons=findAll(res.host,"button");
+  const inputs=findAll(res.host,"input");
+  const out=findAll(res.host,"textarea")[0];
+  const copy=buttons[6];
+  assert.equal(copied.length,0);
+  assert.equal(copy.disabled,true);
+  assert.equal(copy.hidden,true);
+  await copy.emit("click");
+  assert.equal(copied.length,0,"no copy without prepared request");
+  buttons[2].emit("click");
+  assert.equal(copied.length,0,"no copy without consent");
+  inputs[0].checked=true;
+  buttons[2].emit("click");
+  assert.equal(out.hidden,false);
+  assert.equal(copy.hidden,false);
+  assert.equal(copy.disabled,false);
+  assert.equal(copied.length,0,"preparing must never overwrite clipboard");
+  await copy.emit("click",{isTrusted:false});
+  assert.equal(copied.length,0,"synthetic DOM click must not access clipboard");
+  await copy.emit("click");
+  assert.equal(copied.length,1);
+  assert.equal(copied[0],out.value,"copied bytes must match visible preview");
+  assert.match(copied[0],/Le passage fictif à clarifier/);
+  assert.match(copied[0],/expériment/);
+  assert.ok(!copied[0].includes("alliage-local-"));
+  assert.ok(!copied[0].includes("127.0.0.1"));
+  assert.ok(!copied[0].includes("alliage-history-v0"));
+  assert.ok(findAll(res.host,"div").some(d=>
+    /Demande copiée.*rien n'a été envoyé/.test(d.textContent)));
+  assert.equal(res.navigations.length,0);
+});
+
+test("withdrawn consent or rejected re-prepare invalidates clipboard handoff",async()=>{
+  const written=[];
+  const clipboard={writeText:async t=>written.push(t)};
+  const res=run(httpHref(),false,URLSearchParams,"Document fictif",null,clipboard);
+  const buttons=findAll(res.host,"button");
+  const agree=findAll(res.host,"input")[0];
+  const copy=buttons[5];
+  agree.checked=true;
+  buttons[2].emit("click");
+  assert.equal(copy.hidden,false);
+  agree.checked=false;
+  await copy.emit("click");
+  assert.equal(written.length,0,"withdrawal must refuse stale prepared text");
+  buttons[2].emit("click");
+  assert.equal(copy.hidden,true);
+  assert.equal(copy.disabled,true);
+  assert.equal(findAll(res.host,"textarea")[0].value,"");
+  await copy.emit("click");
+  assert.equal(written.length,0);
+});
+
+test("clipboard rejection and unavailable API fall back to manual Ctrl+C, never false success",async()=>{
+  for(const clipboard of [null,{writeText:async()=>{throw Error("Denied");}}]){
+    const res=run(httpHref(),false,URLSearchParams,
+                  "Texte public",null,clipboard);
+    const buttons=findAll(res.host,"button");
+    const agree=findAll(res.host,"input")[0];
+    const out=findAll(res.host,"textarea")[0];
+    agree.checked=true;
+    buttons[2].emit("click");
+    out.selected=false;
+    await buttons[5].emit("click");
+    assert.equal(out.hidden,false);
+    assert.ok(out.value.includes("Texte public"));
+    assert.equal(out.selected,true,"manual fallback must select request");
+    assert.ok(findAll(res.host,"div").some(d=>
+      /Copie automatique indisponible.*Ctrl\+C/.test(d.textContent)));
+    assert.ok(!findAll(res.host,"div").some(d=>
+      /Demande copiée/.test(d.textContent)));
+  }
+});
+
+test("clipboard handoff never copies rejected oversized selection or secret session URL",async()=>{
+  const written=[];
+  const clipboard={writeText:async t=>written.push(t)};
+  const res=run(httpHref(),false,URLSearchParams,
+                "A".repeat(2500),null,clipboard);
+  findAll(res.host,"input")[0].checked=true;
+  findAll(res.host,"button")[2].emit("click");
+  const copy=findAll(res.host,"button")[5];
+  assert.equal(copy.disabled,true);
+  assert.equal(copy.hidden,true);
+  await copy.emit("click");
+  assert.equal(written.length,0);
 });
