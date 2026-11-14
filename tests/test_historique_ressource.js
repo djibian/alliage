@@ -393,7 +393,7 @@ test("clipboard handoff requires a separate real click and copies only reviewed 
   assert.equal(copied.length,1);
   assert.equal(copied[0],out.value,"copied bytes must match visible preview");
   assert.match(copied[0],/Le passage fictif à clarifier/);
-  assert.match(copied[0],/expériment/);
+  assert.match(copied[0],/experiment\/pareto-quarto-demo/);
   assert.ok(!copied[0].includes("alliage-local-"));
   assert.ok(!copied[0].includes("127.0.0.1"));
   assert.ok(!copied[0].includes("alliage-history-v0"));
