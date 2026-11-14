@@ -32,62 +32,50 @@ aucune publication élèves et aucun traitement de données privées.**
 Pour les échanges simples, le raccourci de sélection IA de Firefox
 mérite une évaluation avant d'ajouter une interface redondante.
 
-### Candidat expérimental #25 — actualisation volontaire depuis Firefox
+### Actualisation depuis Firefox — livrée dans `main`
 
-**Uniquement dans [la PR #26](https://github.com/djibian/alliage/pull/26),
-non fusionnée** : un bouton « Actualiser les révisions » évite le cycle
-`Ctrl+C` → relance du lanceur → nouvelle URL. Ce bouton n'effectue
-aucune opération automatiquement au chargement.
+[La PR #26](https://github.com/djibian/alliage/pull/26) a été fusionnée
+sur `main` au SHA `bcf02026048a36a8b12038cdcaf76721c5b6461c`,
+après revue indépendante `APPROUVABLE` et trois workflows post-fusion verts.
+L'enseignant peut désormais cocher la confirmation puis cliquer
+« Actualiser les révisions » **sans relancer le terminal** pour la
+seule fixture Quarto publique/fictive de confiance. L'option
+`--demo --browser-refresh --public-fictional-trusted` reste
+**explicite et désactivée par défaut**. Les deux anciennes
+comparaisons sont conservées en lecture seule ; au-delà, les URL
+peuvent expirer. Le mécanisme n'est ni une publication ni une
+sauvegarde durable des validations pédagogiques.
 
-La fonction doit être **activée explicitement au démarrage** avec
-`--demo --browser-refresh --public-fictional-trusted`, et la page
-demande **une confirmation distincte à chaque clic**. Le serveur
-loopback déjà existant exige une capacité éphémère à usage unique,
-la même origine et un POST sans paramètres Git. Il n'accepte de
-récupérer que `experiment/pareto-quarto-demo`. Avant le premier rendu,
-le lanceur vérifie aussi **la racine Git réelle et l'URL d'origin** du
-clone local, même sans `--fetch-demo` : aucun `fetch` implicite.
-Une origine Git configurée correctement **n'authentifie pas** à elle
-seule les commits déjà présents dans la référence de suivi locale.
-C'est toujours une **fixture locale explicitement déclarée fiable**.
+La racine du clone et l'URL `origin` sont contrôlées avant le
+premier rendu de la démo. Cependant, un `origin` correct ne
+garantit pas l'authenticité des commits locaux ; Quarto n'est
+pas sandboxé. Une page malveillante de même origine pourrait
+contourner l'intention humaine du contrôle HTTP. **N'utiliser
+que la fixture publique/fictive de confiance.**
 
-Une absence de nouveau commit ou un échec Git/Quarto conserve la
-comparaison précédente. Après un nouveau rendu réussi, le serveur
-maintient **les deux comparaisons précédentes en lecture seule**
-(V1 et V2), au cas où la réponse HTTP est perdue ou si plusieurs
-onglets restent ouverts. Seule la comparaison la plus récente
-peut demander une nouvelle actualisation. Les URL plus anciennes
-expirent au-delà de cette limite de rétention : il ne s'agit pas
-d'un historique durable de sessions ni d'une publication.
+### Itération ergonomique expérimentale — issue #27
 
-Pour un essai **seulement après qualification de la PR #26**,
-utiliser un clone de la branche `feat/pareto-firefox-voluntary-refresh`
-**distinct du clone de production**, puis :
+[La PR #28](https://github.com/djibian/alliage/pull/28)
+propose une commande distincte « Copier la demande » après
+« Préparer demande IA ». Elle ne copie que le contexte
+**visible et déjà consenti**, lors d'un second clic explicite.
+Elle n'envoie **rien automatiquement** au chatbot, ne lit jamais
+le presse-papiers, n'ajoute pas de permission et ne provoque
+aucune écriture Git. Après copie, l'enseignant conserve
+la responsabilité de coller le texte dans le panneau natif
+de Firefox, de dialoguer et d'autoriser une éventuelle
+modification de la branche fictive.
 
-```sh
-python3 "$HOME/projets/alliage-refresh-test/quarto_pareto_demo.py" \
-  --repo "$HOME/projets/alliage-demo" --demo \
-  --baseline-sha affdb099bafd94099bf219c174e1ec6bbf82968f \
-  --browser-refresh --public-fictional-trusted
-```
+Firefox peut refuser l'écriture clipboard dans un script
+d'extension injecté sur l'aperçu HTTP : dans ce cas,
+le texte reste sélectionné et un message indique le
+repli **Ctrl+C puis Ctrl+V**. Un message de succès n'est
+affiché qu'après confirmation de l'API de copie.
 
-Le SHA ci-dessus est celui **d'avant la première intervention IA** ;
-revalider les deux références locales et la branche distante avant
-l'essai. Une première qualification humaine de Firefox a réussi sur
-l'ancienne version de la PR #26, sans commit puis avec le commit
-fictif `5a236ebfa5b78c648a0ab3c76cda88ec53b8d656`.
-Cette preuve **ne valide pas automatiquement les correctifs**
-apportés après la contre-expertise `CORRECTIONS_REQUIRED`.
-Leurs nouvelles CI et la seconde revue indépendante restent
-nécessaires avant toute fusion.
-
-Cette expérience reste **strictement publique/fictive** :
-Quarto peut exécuter des hooks, et une page servie de la même
-origine possède des capacités web que le serveur ne peut pas
-attribuer cryptographiquement à un clic humain. Ne jamais utiliser
-l'option sur un projet privé, externe ou non fiable. La preuve
-finale exige un test dans le **véritable Firefox** ; les simulations
-DOM et les CI ne la remplacent pas.
+**Cette fonctionnalité est expérimentale** : tests DOM/CI
+nécessaires, puis essai dans le véritable Firefox avant
+revue et intégration. Les ressources privées, Grist, Moodle,
+Snap! et la publication élèves restent hors périmètre.
 
 ---
 
