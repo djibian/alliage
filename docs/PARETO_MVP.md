@@ -1,5 +1,69 @@
 # Alliage — première démonstration pédagogique Pareto (Firefox + IA + Git + Quarto)
 
+> **Note de mise à jour — 14 novembre 2026.**
+> Les sections historiques ci-dessous décrivent surtout le
+> parcours et les SHA du **5 novembre 2026** ; les mentions
+> « PR #22 non fusionnée » ou « actualisation terminal uniquement »
+> y sont **archivées**, pas les consignes actuelles.
+> PR #22 et PR #26 sont intégrées dans `main` au SHA
+> `bcf02026048a36a8b12038cdcaf76721c5b6461c`.
+> Le bouton « Actualiser les révisions » a déjà été
+> testé dans Firefox et ne nécessite plus de redémarrer
+> le terminal après chaque commit.
+
+## Expérience actuelle — livraison #26 et candidat #27
+
+La seule ressource autorisée demeure le projet Quarto
+**public/fictif de confiance** sur la branche séparée
+`experiment/pareto-quarto-demo`. Ne jamais fusionner cette
+branche dans `main` ni publier automatiquement vers les élèves.
+
+Le parcours actuellement livré :
+
+1. Ouvrir l'aperçu Quarto local dans Firefox avec l'extension Alliage,
+   sélectionner une phrase **entièrement publique/fictive** ;
+2. cocher « Je confirme que ce contexte est public ou fictif »
+   puis « Préparer demande IA » ;
+3. sélectionner et copier manuellement le prompt prévisualisé
+   dans le panneau latéral natif ChatGPT, puis dialoguer ;
+4. autoriser séparément toute modification GitHub de la
+   seule branche fictive ; cliquer « Actualiser les révisions »
+   avec sa confirmation spécifique, puis observer V2 et V1 ;
+5. « Retenir/Écarter V2 » reste **une décision locale du navigateur**,
+   jamais une publication, une validation Git durable ni un déploiement.
+
+**Nouvelle UX en test — [PR #28](https://github.com/djibian/alliage/pull/28) :**
+
+Après avoir coché le consentement et cliqué
+« Préparer demande IA », l'enseignant doit voir un bouton
+**« Copier la demande »**. En cliquant une seconde fois,
+il copie exactement le contenu du champ prévisualisé,
+puis le colle avec **Ctrl+V** dans ChatGPT.
+**Alliage ne transmet rien automatiquement**.
+En cas de refus du presse-papiers, le champ doit rester
+sélectionné et la consigne **Ctrl+C puis Ctrl+V** s'afficher.
+Retirer la confirmation avant le clic de copie doit
+refuser l'opération.
+
+Pour essayer ce candidat sans perturber `main`,
+cloner `feat/pareto-firefox-copy-ai-handoff` à part,
+puis charger temporairement
+`extension/manifest.json` de ce clone dans
+`about:debugging`. Si le serveur Quarto déjà lancé
+fonctionne toujours, **ne pas le redémarrer** :
+recharger simplement sa page dans Firefox.
+Si le serveur est arrêté, reproduire le démarrage
+explicite depuis `main`, avec les SHA du clone
+pédagogique effectivement vérifiés.
+
+**Statut :** code et tests DOM expérimentaux,
+essai humain Firefox puis contre-expertise indépendante
+obligatoires avant fusion. Aucune source élève,
+enseignant privée ou autre application n'est couverte.
+
+---
+
+
 **Statut : `DEMO_REAL_FIREFOX_PASS` confirmé par l'enseignant le 5 novembre 2026 sur l'issue #23 ; PR #22 prête pour revue indépendante, non fusionnée.**
 **Strictement ressources publiques/fictives** ; jamais de document professeur privé.
 **Version de référence :** `main` `7231ac4fb54ec54aebd498e72d4bd588878e631e`.
