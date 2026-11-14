@@ -58,14 +58,15 @@ function findAll(node,tag) {
 class EmptyKeysURLSearchParams extends URLSearchParams {
   keys() {return [][Symbol.iterator]();}
 }
-function run(url,iframe=false,SearchParams=URLSearchParams,selected="",fetcher=null,clipboard=null) {
+function run(url,iframe=false,SearchParams=URLSearchParams,selected="",fetcher=null,clipboard=null,execCopy=null) {
   const location=new URL(url);
   const navigations=[];
   const document={
     documentElement:new Element("html"),
     getElementById:()=>null,
     createElement:tag=>new Element(tag),
-    createTextNode:text=>Object.assign(new Element("text"),{textContent:text})
+    createTextNode:text=>Object.assign(new Element("text"),{textContent:text}),
+    execCommand:(command)=>execCopy?execCopy(command):false
   };
   const window={location:{assign:url=>navigations.push(url)},
     getSelection:()=>({toString:()=>selected}),
@@ -456,4 +457,26 @@ test("clipboard handoff never copies rejected oversized selection or secret sess
   assert.equal(copy.hidden,true);
   await copy.emit("click");
   assert.equal(written.length,0);
+});
+
+
+test("Firefox HTTP clipboard uses trusted-click execCommand without extra permissions",async()=>{
+  const legacy=[];
+  const res=run(httpHref(),false,URLSearchParams,"Une consigne fictive",
+    null,null,cmd=>{legacy.push(cmd); return cmd==="copy";});
+  const buttons=findAll(res.host,"button");
+  const box=findAll(res.host,"textarea")[0];
+  const agree=findAll(res.host,"input")[0];
+  assert.equal(legacy.length,0);
+  agree.checked=true;
+  buttons[2].emit("click");
+  assert.equal(legacy.length,0,"preparing does not mutate clipboard");
+  await buttons[5].emit("click",{isTrusted:false});
+  assert.equal(legacy.length,0,"scripted click is not a clipboard gesture");
+  await buttons[5].emit("click");
+  assert.equal(legacy.length,1);
+  assert.equal(legacy[0],"copy");
+  assert.equal(box.selected,true);
+  assert.ok(findAll(res.host,"div").some(d=>
+    /Demande copiée.*rien n'a été envoyé/.test(d.textContent)));
 });
