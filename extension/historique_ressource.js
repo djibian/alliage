@@ -211,16 +211,29 @@
       return;
     }
     const text = promptBox.value;
+    let copied=false;
+    // Firefox content scripts on the local HTTP page may lack the async
+    // Clipboard API. execCommand("copy") works on a selection when invoked
+    // synchronously from a trusted click, without clipboardWrite permission.
     try {
-      // No clipboard read, no added extension permissions and no transmission.
-      if (!window.navigator?.clipboard?.writeText) {
-        throw new Error("Clipboard API unavailable");
+      if (typeof document.execCommand === "function") {
+        if (typeof promptBox.focus === "function") promptBox.focus();
+        if (typeof promptBox.select === "function") promptBox.select();
+        copied = document.execCommand("copy") === true;
       }
-      await window.navigator.clipboard.writeText(text);
+    } catch (_) { /* fall through to the modern API when available */ }
+    if (!copied) {
+      try {
+        if (typeof window.navigator?.clipboard?.writeText === "function") {
+          await window.navigator.clipboard.writeText(text);
+          copied=true;
+        }
+      } catch (_) { /* explicit manual selection remains available */ }
+    }
+    if (copied) {
       aiStatus.textContent="Demande copiée. Coller dans le panneau latéral Firefox ; rien n'a été envoyé automatiquement.";
-    } catch (_) {
-      // Firefox may block clipboard writes in an extension content script.
-      // Never claim success; keep the complete preview for manual Ctrl+C.
+    } else {
+      // Never claim success: keep the entire visible text selected for Ctrl+C.
       if (typeof promptBox.focus === "function") promptBox.focus();
       if (typeof promptBox.select === "function") promptBox.select();
       aiStatus.textContent="Copie automatique indisponible : texte sélectionné. Utiliser Ctrl+C, puis coller dans le chatbot latéral.";
