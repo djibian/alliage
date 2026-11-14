@@ -1009,3 +1009,68 @@ La PR #26 **reste non fusionnée** jusqu'à un avis
 favorable et une autorisation de fusion distincte
 du propriétaire. Ne jamais fusionner la branche
 `experiment/pareto-quarto-demo` dans `main`.
+
+
+## Livraison #26 et expérimentation #27 — copie explicite vers le chatbot (14 novembre 2026)
+
+**Réconciliation GitHub au 14 novembre 2026 :**
+- `main@bcf02026048a36a8b12038cdcaf76721c5b6461c`.
+- PR #26 intégrée sur autorisation expresse du propriétaire,
+  à partir du HEAD audité
+  `6557ca34d3964510e9e9713478d3656ae988a0db`.
+  Revue indépendante `APPROUVABLE` après correction des
+  deux défauts bloquants de la première revue.
+- Trois workflows post-fusion du nouveau `main`
+  (`unittest`, `navigateur`, `quarto-real`) ont
+  réussi. L'issue #25 est clôturée.
+- Aucune nouvelle PR produit ouverte au moment de
+  la reprise ; les PR #13–#21 du confinement P3.6
+  restent Draft/suspendues, **non homologuées**.
+- Branche fictive séparée :
+  `experiment/pareto-quarto-demo@5a236ebfa5b78c648a0ab3c76cda88ec53b8d656`.
+  Ne jamais la fusionner dans `main`.
+
+**Nouveau chantier UX borné [#27](https://github.com/djibian/alliage/issues/27),
+[PR #28 Draft](https://github.com/djibian/alliage/pull/28) :**
+l'enseignant doit encore sélectionner/copier manuellement
+le texte après « Préparer demande IA » dans l'aperçu
+Quarto. Ajouter un contrôle distinct « Copier la demande »,
+sans changer le chatbot natif Firefox ni le protocole
+Git/Quarto.
+
+Contrat de confidentialité et d'intention :
+- aucun accès au clipboard au chargement, à la sélection
+  d'une ressource ou au seul clic de préparation ;
+- consentement « public/fictif » **requis et recontrôlé
+  au clic de copie**, demande visible et non vide,
+  aucun ancien texte copiable si la nouvelle préparation
+  échoue ou si la case de consentement a été retirée ;
+- refus des clics DOM synthétiques simples ; copie
+  exactement du prompt affiché, jamais de l'URL/port
+  de session ni des tokens locaux ;
+- `document.execCommand("copy")` durant le clic
+  explicite pour compatibilité Firefox WebExtension
+  sur page locale `http:`, avec repli
+  `navigator.clipboard.writeText` si présent.
+  Sinon sélectionner le champ et indiquer
+  **Ctrl+C manuel**, sans faux message de succès.
+  Aucune permission supplémentaire n'est demandée.
+- aucun envoi automatique au chatbot, aucune lecture
+  du presse-papiers, aucun nouvel accès à Git, pas
+  de publication élèves ni de contenu professeur privé.
+
+**Qualification attendue :** CI Node DOM (copie absente,
+consentement retiré, clic synthétique, copie réelle
+simulée, clipboard refusé, pas de secrets), Python
+et Quarto existants ; puis **vrai Firefox** sur la
+fixture publique avec vérification du presse-papiers
+et du collage dans ChatGPT, sans envoi.
+La CI ne certifie pas le comportement Firefox ;
+une contre-expertise sur HEAD exact et une
+autorisation explicite de fusion seront requises
+pour passer la PR #28 en Ready et livrer.
+
+**Hors périmètre :** données privées, isolement du
+HTML professeur, publication, agent IA autonome,
+interception du panneau latéral, mécanisme universel
+d'adaptateurs. Ce test n'altère pas ces décisions.

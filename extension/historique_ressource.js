@@ -121,7 +121,15 @@
     " Je confirme que ce contexte est public ou fictif et peut être partagé avec l’IA."));
   const promptBox = document.createElement("textarea");
   promptBox.readOnly=true;promptBox.hidden=true;
-  promptBox.setAttribute("aria-label","Demande à copier manuellement dans le panneau latéral Firefox");
+  promptBox.setAttribute("aria-label","Demande à vérifier puis copier dans le panneau latéral Firefox");
+  // Explicit clipboard handoff: preparing the request never touches clipboard,
+  // and copying never sends text to a chatbot or triggers Git actions.
+  const copyAi = document.createElement("button");
+  copyAi.type="button";
+  copyAi.textContent="Copier la demande";
+  copyAi.hidden=true;
+  copyAi.disabled=true;
+  copyAi.setAttribute("aria-label","Copier la demande préparée dans le presse-papiers");
   const aiStatus = document.createElement("div");aiStatus.className="note";
   aiStatus.textContent="Aucun contenu envoyé. Après préparation, copier le texte dans le chatbot latéral.";
   const note = document.createElement("div");note.className="note";
@@ -145,6 +153,8 @@
   ai.addEventListener("click", () => {
     promptBox.hidden=true;
     promptBox.value="";
+    copyAi.hidden=true;
+    copyAi.disabled=true;
     if (!consent.checked) {
       aiStatus.textContent="Confirmer d'abord que la ressource est publique ou fictive.";
       return;
@@ -185,9 +195,49 @@
       "L'enseignant doit ensuite faire vérifier le rendu Quarto et choisir."
     ].join("\n");
     promptBox.hidden=false;
-    aiStatus.textContent="Demande préparée localement. Sélectionner/copier le texte puis le coller dans le chatbot latéral. Aucun envoi automatique.";
+    copyAi.hidden=false;
+    copyAi.disabled=false;
+    aiStatus.textContent="Demande préparée localement. Vérifier puis cliquer « Copier la demande » ; coller dans ChatGPT. Aucun envoi automatique.";
     if (typeof promptBox.focus === "function") promptBox.focus();
     if (typeof promptBox.select === "function") promptBox.select();
+  });
+  copyAi.addEventListener("click", async (event) => {
+    // Keep copied data bound to the currently visible, consented preview.
+    // A previous request may no longer be copied if consent was withdrawn.
+    if (!event || event.isTrusted !== true || !consent.checked ||
+        copyAi.disabled || copyAi.hidden || promptBox.hidden ||
+        !promptBox.value) {
+      aiStatus.textContent="Préparer et confirmer une demande publique/fictive avant toute copie.";
+      return;
+    }
+    const text = promptBox.value;
+    let copied=false;
+    // Firefox content scripts on the local HTTP page may lack the async
+    // Clipboard API. execCommand("copy") works on a selection when invoked
+    // synchronously from a trusted click, without clipboardWrite permission.
+    try {
+      if (typeof document.execCommand === "function") {
+        if (typeof promptBox.focus === "function") promptBox.focus();
+        if (typeof promptBox.select === "function") promptBox.select();
+        copied = document.execCommand("copy") === true;
+      }
+    } catch (_) { /* fall through to the modern API when available */ }
+    if (!copied) {
+      try {
+        if (typeof window.navigator?.clipboard?.writeText === "function") {
+          await window.navigator.clipboard.writeText(text);
+          copied=true;
+        }
+      } catch (_) { /* explicit manual selection remains available */ }
+    }
+    if (copied) {
+      aiStatus.textContent="Demande copiée. Coller dans le panneau latéral Firefox ; rien n'a été envoyé automatiquement.";
+    } else {
+      // Never claim success: keep the entire visible text selected for Ctrl+C.
+      if (typeof promptBox.focus === "function") promptBox.focus();
+      if (typeof promptBox.select === "function") promptBox.select();
+      aiStatus.textContent="Copie automatique indisponible : texte sélectionné. Utiliser Ctrl+C, puis coller dans le chatbot latéral.";
+    }
   });
   // This is a reversible, browser-local preference only, NOT the Git
   // approval, edit, or publication of an educational resource.
@@ -266,7 +316,7 @@
       }
     });
   }
-  box.append(row,decision,consentLabel,promptBox,aiStatus);
+  box.append(row,decision,consentLabel,promptBox,copyAi,aiStatus);
   if (demoRefresh) box.append(refreshConsentLabel,refreshStatus);
   box.append(note);
   shadow.append(style,box);

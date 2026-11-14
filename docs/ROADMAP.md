@@ -43,23 +43,28 @@ récurrentes sans inventer d'infrastructure IA.
    dialogue simple. La sélection et le titre ne prouvent
    ni SHA Git ni branche autorisée : le bouton Alliage
    demeure utile pour une demande de modification de source.
-3. [Issue #25](https://github.com/djibian/alliage/issues/25) :
-   **actualisation Quarto volontaire depuis Firefox**,
-   après un commit autorisé. Candidat
-   [PR #26](https://github.com/djibian/alliage/pull/26) Ready,
-   **NON FUSIONNÉE** : réemploi du serveur loopback existant,
-   ouverture explicite `--browser-refresh` sur la seule fixture
-   publique, confirmation distincte et token HTTP à usage unique.
-   Les deux scénarios ont réussi en **Firefox réel** (aucune
-   nouvelle révision / nouveau commit Git et retour V1).
-   **Revue indépendante du 8 novembre : `CORRECTIONS_REQUIRED`** :
-   contrôler l'origine Git du clone **avant le premier rendu**
-   et garantir que les anciennes URL V1/V2 restent accessibles
-   après une réponse d'actualisation perdue.
-   Correctifs ciblés et tests sur la même PR ; **nouvelle
-   contre-expertise obligatoire** sur le HEAD final, puis
-   autorisation explicite de fusion. Aucune publication, aucun
-   checkout ni accès aux ressources privées.
+3. **[Issue #25](https://github.com/djibian/alliage/issues/25)
+   TERMINÉE** : [PR #26](https://github.com/djibian/alliage/pull/26)
+   fusionnée dans `main` au SHA
+   `bcf02026048a36a8b12038cdcaf76721c5b6461c`,
+   contre-expertise indépendante `APPROUVABLE` et
+   trois CI post-fusion vertes. L'enseignant a testé dans
+   Firefox le bouton d'actualisation sans nouveau commit,
+   puis avec une nouvelle V2 et un retour vers V1.
+   Les deux anciens inventaires HTTP sont conservés en
+   lecture seule et les contrôles Git précèdent le rendu
+   initial. **Ne pas confondre ces preuves avec une
+   garantie de confidentialité pour ressources privées.**
+4. **[Issue #27](https://github.com/djibian/alliage/issues/27)
+   — Pareto UX : copie explicite du contexte vers ChatGPT**
+   : supprimer la sélection manuelle du prompt préparé.
+   [PR #28](https://github.com/djibian/alliage/pull/28)
+   Draft : un bouton de copie consentie, sans permission
+   supplémentaire ni envoi automatique ; repli Ctrl+C
+   si Firefox refuse l'accès. **Valider d'abord le vrai
+   Firefox**, puis examen indépendant, sans fusion
+   sans autorisation. Pas de nouveau chatbot, de
+   publication ni de documents privés.
 
 Les étapes ci-dessous constituent le **contrat historique
 qui a été validé**, et non des travaux à relancer :
